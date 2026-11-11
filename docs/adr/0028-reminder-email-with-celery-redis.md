@@ -17,7 +17,7 @@ status: accepted
   - 不做寄送紀錄表：它擋不住「寄出後、寫入前當機」的重複，只能讓那一封停在「寄送中」，重寄或放棄仍要二選一。
   - 「這張保單該不該寄、下一封何時寄」寫成不碰資料庫的純函式，規則測試都測它。
 - **還缺文件的判斷**：只看 `requires_upload` 而且 `applicable` 的待辦；`status` 不是 `done` 的就算還缺。使用者自行勾選的未附文件待辦（`without_document`）也算完成。標為不適用的待辦不算還缺，也不列進信裡，和送件前的檢查一致。
-- **計時**：平台產生待辦、或新狀況新增需上傳的待辦時，設定 `reminder_started_at` 並把 `reminder_count` 歸零；備齊或結案時清空。24 小時、3 天與掃描間隔都是設定值，開發時可以改成幾分鐘。
+- **計時**：平台產生待辦、或新狀況新增需上傳的待辦時，設定 `reminder_started_at` 並把 `reminder_count` 歸零；備齊或結案時清空。第一封在計時起點後 24 小時；之後每一封都從**上一封寄出的時間**（`last_reminded_at`）起算 3 天，不從計時起點推算，停擺很久後恢復也只補寄一封。24 小時、3 天與掃描間隔都是以秒為單位的設定值，開發與 demo 時可以設成幾十秒。
 - **信件**：
   - 主旨與內文用固定範本，由程式帶入，不經 AI；依事故分組列出缺的文件。
   - 公司名從保單的方案（`plans.json` 的 `company`）取得，空的就寫「保險公司」。資料庫仍不存保險公司（[ADR-0019](0019-no-insurance-company.md)）。
@@ -26,13 +26,17 @@ status: accepted
   - 寄件者是系統通知信箱，顯示名稱「好險有你」，不用使用者的 Gmail；7 號用使用者的 Gmail 送件是另一條路，和 `AGENT_7_IMPL` 無關。
   - 收件者是使用者登入的 Google 帳號信箱，只寄已驗證的 email。
   - 程式只依 SMTP 設定寄信。正式環境用 Azure Communication Services Email：先用 Azure 提供的寄件網域，產品網域驗證好 SPF、DKIM 後再換成 no-reply@產品網域。開發環境用 Mailpit 收信，不會真的寄出。
-- **手動觸發**：提供指令立即掃描一次，開發測試時用；worker 停擺時也可以靠它補寄。
+- **停擺後自動恢復，不提供手動補掃**：該寄哪些信每次都由 Postgres 的現況算出，worker、beat 或 Redis 停擺後重新啟動，下一次掃描就會補寄到期的信。
+  - worker、beat、Redis 都設 `restart: unless-stopped`，worker 加 healthcheck（`celery inspect ping`）。
+  - 掃描工作設 `expires`，停擺期間堆積的掃描過期就丟掉，恢復後不會連續跑上百次。
+  - SMTP 連線逾時、工作時間上限（`time_limit`）、`worker_max_tasks_per_child`，讓卡住的情況變成工作失敗並自動重試，不需要人去重啟。
+  - 容器還在但不做事（`unhealthy`、工作堆積）或改了 `.env` 時，才由人 SSH 進 VM 處理；排查步驟寫在 `docs/deploy.md`。
 - **既有的背景工作不搬**：條款入庫等工作仍用 `BackgroundTasks`（[ADR-0007](0007-ingest-agent-sse-progress.md)）。要不要搬到 Celery，沿用 ADR-0003 的條件重新評估：單一工作會跑到數分鐘、需要自動重試或進度歷史，或重啟造成工作遺失已經無法接受。
 
 ## Considered Options
 
 - **backend 內的定時迴圈（lifespan 背景迴圈或 APScheduler）**：不用加服務。但 backend 開多個 process 時會重複寄信，重啟時工作會遺失，也沒有重試與監控。不採用。
-- **`make remind` 加主機的 cron**：最簡單，也是原本的備案。但 cron 設在 compose 之外，部署與交接都要多記一件事，也沒有重試與監控。不採用，只保留「手動觸發」這個指令。
+- **`make remind` 加主機的 cron**：最簡單，也是原本的備案。但 cron 設在 compose 之外，部署與交接都要多記一件事，也沒有重試與監控。不採用。
 - **用使用者的 Gmail 寄**：規格明定不用；而且使用者不一定授權了 Gmail，等於寄信給自己。不採用。
 - **Google Workspace 的 no-reply 帳號**：每月要付一個帳號的費用，寄件信箱也綁在管理員的帳號上，人員離開後不好交接。不採用。
 - **Flower 放在 Caddy 子路徑加 basic auth**：最方便，但會多一個公開入口；Flower 能取消與終止工作，密碼外洩就能操作排程。不採用。

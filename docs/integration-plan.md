@@ -281,7 +281,7 @@ D11（存摺封面與護照影本）是所有類型共用，條款庫查不到�
 | --- | --- | --- |
 | 正式環境怎麼登入 | **已完成（PR #86 已合併）**（ADR-0020：只用 Google 登入，授權分段）；部署前要補上正式環境的 Google 設定，缺任何一項後端就啟動失敗 | 不決定就無法部署 |
 | 理賠文件存放 | **已決議（11/4 會議）**：原檔存使用者自己的 Google Drive，系統不保存；需補 ADR（修正 ADR-0009／初始 schema 的 `storage_path` 說法） | 影響 6、7 的實作與 `google_grant.drive_folder_id` |
-| 提醒信執行方式 | **已決議（[ADR-0028](adr/0028-reminder-email-with-celery-redis.md)，取代 ADR-0003）**：Celery worker＋beat＋Redis，Flower 監控（正式環境用 SSH tunnel）；依規格書 v3.7 的 4.9，24 小時寄第一封、之後每 3 天、最多 3 封；系統通知信箱經 Azure Communication Services 寄出，開發環境用 Mailpit | 開發環境多五個服務、正式環境多三個；`make remind` 加 cron 不採用，只保留手動觸發掃描 |
+| 提醒信執行方式 | **已決議（[ADR-0028](adr/0028-reminder-email-with-celery-redis.md)，取代 ADR-0003）**：Celery worker＋beat＋Redis，Flower 監控（正式環境用 SSH tunnel）；依規格書 v3.7 的 4.9，24 小時寄第一封、之後每 3 天、最多 3 封；系統通知信箱經 Azure Communication Services 寄出，開發環境用 Mailpit | 開發環境多五個服務、正式環境多三個；`make remind` 加 cron 不採用；停擺後由排程自動補寄 |
 | 功能一比較紀錄 | 由功能一的人設計，先對齊 schema 命名 | 規格 3.4 要存 |
 | 險種「每個方案各一份」（ADR-0016） | 暫不做，先確認是否真的需要 | 會動 `insurance.code` 全域唯一的假設與給 5、6、7 的契約 |
 | `policy_submission.policy_id` 是否唯一 | 建議唯一 | 結案不可恢復 |
