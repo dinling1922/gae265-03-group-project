@@ -86,6 +86,11 @@ db-reset: ## 重建開發資料庫並套用 migration
 test: ## 執行後端測試（只連 gae265_03_group_project_test 資料庫）
 	uv run pytest -vs $(args)
 
+.PHONY: test-mail
+test-mail: ## 用 .env 的 SMTP 設定真的寄一封提醒信測試信（make test-mail to=<信箱>；換成 Azure 設定就是測 Azure）
+	@test -n "$(to)" || (echo '用法：make test-mail to=<你的信箱>' && exit 1)
+	REMINDER_LIVE_TO=$(to) uv run pytest -v backend/tests/test_reminder_smtp.py -k 正式
+
 .PHONY: e2e
 e2e: ## 執行 e2e 冒煙測試（先 make up；前端不在 localhost:5173 時設 E2E_BASE_URL）
 	$(FRONTEND) pnpm exec playwright install chromium

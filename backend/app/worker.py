@@ -12,7 +12,9 @@ from celery import Celery
 
 from app.core.config import settings
 
-celery_app = Celery("app", broker=settings.REDIS_URL)
+celery_app = Celery(
+    "app", broker=settings.REDIS_URL, include=["app.domain.reminder.tasks"]
+)
 
 celery_app.conf.update(
     # 不保存工作結果，所以不需要 result backend
@@ -33,8 +35,14 @@ celery_app.conf.update(
     # 測試不連 Redis：送出的工作直接在同一個 process 執行
     task_always_eager=settings.ENVIRONMENT == "test",
     task_eager_propagates=True,
-    # 提醒信的掃描工作在後續的 PR 加進來
-    beat_schedule={},
+    beat_schedule={
+        "scan-due-reminders": {
+            "task": "app.reminder.scan",
+            "schedule": settings.REMINDER_SCAN_SECONDS,
+            # 停擺期間堆積的掃描過期就丟掉，恢復後不會連續跑好幾次
+            "options": {"expires": settings.REMINDER_SCAN_SECONDS},
+        }
+    },
 )
 
 
