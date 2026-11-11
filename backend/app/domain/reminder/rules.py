@@ -39,6 +39,8 @@ class TodoLike(Protocol):
     def applicable(self) -> bool: ...
     @property
     def status(self) -> str: ...
+    @property
+    def created_at(self) -> datetime: ...
 
 
 def missing_uploads[T: TodoLike](todos: Iterable[T]) -> list[T]:
@@ -49,3 +51,17 @@ def missing_uploads[T: TodoLike](todos: Iterable[T]) -> list[T]:
     return [
         t for t in todos if t.requires_upload and t.applicable and t.status != "done"
     ]
+
+
+def sync_round(state: ReminderState, todos: Iterable[TodoLike]) -> ReminderState:
+    """依目前的待辦更新這一輪的起點：最新一筆需上傳而且適用的待辦比起點晚，就開新的一輪。"""
+    starts = [t.created_at for t in todos if t.requires_upload and t.applicable]
+    latest = max(starts, default=None)
+    if latest is None or (state.started_at is not None and latest <= state.started_at):
+        return state
+    return ReminderState(
+        started_at=latest,
+        sent_count=0,
+        last_sent_at=state.last_sent_at,
+        closed=state.closed,
+    )

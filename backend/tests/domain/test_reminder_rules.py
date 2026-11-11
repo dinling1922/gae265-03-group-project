@@ -3,7 +3,12 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from app.domain.reminder.rules import ReminderState, missing_uploads, next_reminder_at
+from app.domain.reminder.rules import (
+    ReminderState,
+    missing_uploads,
+    next_reminder_at,
+    sync_round,
+)
 from app.models import IncidentTodo
 
 DAY = timedelta(days=1)
@@ -15,6 +20,7 @@ class Todo:
     requires_upload: bool = True
     applicable: bool = True
     status: str = "pending"
+    created_at: datetime = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)
 
 
 START = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)
@@ -112,3 +118,47 @@ def test_資料庫的事件待辦可以直接傳進來() -> None:
         ),
     ]
     assert [t.title for t in missing_uploads(todos)] == ["班機取消證明"]
+
+
+def test_第一次出現需上傳的待辦_以它的建立時間開始這一輪() -> None:
+    fresh = ReminderState(started_at=None, sent_count=0, last_sent_at=None)
+    todos = [Todo("班機取消證明", created_at=START)]
+    assert sync_round(fresh, todos) == ReminderState(
+        started_at=START, sent_count=0, last_sent_at=None
+    )
+
+
+def test_沒有新的待辦_這一輪照舊_已寄的封數不變() -> None:
+    state = ReminderState(started_at=START, sent_count=2, last_sent_at=START + 4 * DAY)
+    todos = [Todo("班機取消證明", created_at=START), Todo("住宿收據", created_at=START)]
+    assert sync_round(state, todos) == state
+
+
+def test_新狀況新增需上傳的待辦_開新的一輪並歸零() -> None:
+    sent = datetime(2026, 7, 15, 9, 10, tzinfo=UTC)
+    state = ReminderState(started_at=START, sent_count=2, last_sent_at=sent)
+    added = datetime(2026, 7, 20, 15, 0, tzinfo=UTC)
+    todos = [
+        Todo("班機取消證明", created_at=START),
+        Todo("行李延誤證明", created_at=added),
+    ]
+    assert sync_round(state, todos) == ReminderState(
+        started_at=added, sent_count=0, last_sent_at=sent
+    )
+
+
+def test_沒有需上傳的待辦就不開始計時() -> None:
+    fresh = ReminderState(started_at=None, sent_count=0, last_sent_at=None)
+    todos = [Todo("通知保險公司", requires_upload=False, created_at=START)]
+    assert sync_round(fresh, todos) == fresh
+
+
+def test_新增的待辦不需上傳或不適用_不算新的一輪() -> None:
+    state = ReminderState(started_at=START, sent_count=1, last_sent_at=START + DAY)
+    later = START + 5 * DAY
+    todos = [
+        Todo("班機取消證明", created_at=START),
+        Todo("通知保險公司", requires_upload=False, created_at=later),
+        Todo("行李延誤證明", applicable=False, created_at=later),
+    ]
+    assert sync_round(state, todos) == state

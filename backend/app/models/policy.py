@@ -70,7 +70,7 @@ class Policy(BaseTable, table=True):
     reminder_started_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
-        description="提醒信計時起點：產生待辦時，新增需上傳的待辦時重新計時；備齊或結案後清空",
+        description="提醒信這一輪的起點：由掃描推算，等於最新一筆需上傳而且適用的待辦的建立時間（ADR-0028）",
     )
     reminder_count: int = Field(
         default=0, description="這一輪已寄的提醒信（最多 3 封）；重新計時時歸零"
