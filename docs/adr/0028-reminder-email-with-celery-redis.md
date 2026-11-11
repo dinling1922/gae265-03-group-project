@@ -25,7 +25,7 @@ status: accepted
 - **寄件**：
   - 寄件者是系統通知信箱，顯示名稱「好險有你」，不用使用者的 Gmail；7 號用使用者的 Gmail 送件是另一條路，和 `AGENT_7_IMPL` 無關。
   - 收件者是使用者登入的 Google 帳號信箱，只寄已驗證的 email。
-  - 程式只依 SMTP 設定寄信。正式環境用 Azure Communication Services Email：先用 Azure 提供的寄件網域，產品網域驗證好 SPF、DKIM 後再換成 no-reply@產品網域。開發環境用 Mailpit 收信，不會真的寄出。
+  - 程式只依 SMTP 設定寄信。正式環境用 Azure Communication Services Email：先用 Azure 提供的寄件網域（`DoNotReply@xxxx.azurecomm.net`，顯示名稱仍是「好險有你」）。正式環境的網域是免費的 `cloudapp.azure.com`，不能設定 SPF、DKIM（[ADR-0001](0001-single-vm-docker-compose-deploy.md)），所以要另外買網域並驗證後，才能換成 no-reply@產品網域。開發環境用 Mailpit 收信，不會真的寄出。
 - **停擺後自動恢復，不提供手動補掃**：該寄哪些信每次都由 Postgres 的現況算出，worker、beat 或 Redis 停擺後重新啟動，下一次掃描就會補寄到期的信。
   - worker、beat、Redis 都設 `restart: unless-stopped`，worker 加 healthcheck（`celery inspect ping`）。
   - 掃描工作設 `expires`，停擺期間堆積的掃描過期就丟掉，恢復後不會連續跑上百次。
@@ -43,6 +43,7 @@ status: accepted
 
 ## Consequences
 
+- 補充 [ADR-0001](0001-single-vm-docker-compose-deploy.md)：正式環境除了 backend、Postgres 與 Caddy，同一台 VM 另跑 Redis、worker 與 beat。它們都不對外開 port，Caddy 仍是唯一的對外入口，設定不用改。
 - 開發環境多 Redis、worker、beat、Flower、Mailpit 五個服務；正式環境多 Redis、worker、beat，Flower 只在需要時開。B2s 只有 4 GB 記憶體，Redis 要設 `maxmemory`，worker 的 concurrency 要設小。
 - `config.py`、`.env.example`、`.env.prod.example` 要加 Redis、SMTP 與提醒間隔的設定；`scripts/doctor.sh`、`docs/deploy.md` 與 CD 都要跟著改。正式環境要先申請 Azure Communication Services 並設定寄件網域。
 - 交接文件 `function2-ui-realign.md` 原本建議「提醒信範本不做」，現在不適用；2-3 的「看提醒信範本」與「稍後再傳」的提示可以照設計稿做。

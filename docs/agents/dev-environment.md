@@ -15,6 +15,7 @@
 | 改了什麼 | 怎麼生效 | 要做的事 |
 | --- | --- | --- |
 | `backend/app/**` | compose watch 同步進容器，`fastapi dev` 自動重新載入 | 不用重啟；用 `docker compose logs --tail=50 backend` 確認有重新載入、沒有錯誤 |
+| `backend/app/**`（worker、beat、Flower） | compose watch 同步進容器後自動重啟這三個服務 | 不用手動重啟；`docker compose logs --tail=50 worker` 確認啟動沒有錯誤 |
 | `backend/tests/**` | 不同步進容器，測試在本機跑 | `make test` |
 | `backend/pyproject.toml`、`uv.lock` | watch 自動重建 backend image（`make up` 要開著） | 等重建完成再測 |
 | `frontend/src/**` | 本機目錄直接掛進容器，Vite HMR | 不用重啟 |

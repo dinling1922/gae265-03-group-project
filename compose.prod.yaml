@@ -2,6 +2,25 @@
 # 設定讀根目錄 .env（範例見 .env.prod.example）；沒有 pgAdmin，資料庫不對外開 port
 name: gae265_03_group_project_prod
 
+# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0028）；不套用 migration，由 backend 負責
+x-celery-common: &celery-common
+  image: ghcr.io/kurotyan514/gae265-03-group-project-backend:${IMAGE_TAG:-local}
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    ENVIRONMENT: production
+    POSTGRES_SERVER: db
+    POSTGRES_PORT: 5432
+    POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請在 .env 設定 POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB:-gae265_03_group_project}
+    REDIS_URL: redis://redis:6379/0
+  depends_on:
+    redis:
+      condition: service_healthy
+    backend:
+      condition: service_healthy
+
 services:
   db:
     image: pgvector/pgvector:pg18
@@ -35,6 +54,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請在 .env 設定 POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-gae265_03_group_project}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
@@ -44,6 +64,40 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  # 背景工作（ADR-0028）：Redis 只當佇列，不保存資料、不對外開 port
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *celery-common
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker:celery_app inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 20s
+
+  beat:
+    <<: *celery-common
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+
+  # 平常不啟動；要看時 docker compose -f compose.prod.yaml --profile ops up -d flower，
+  # 再從自己的電腦 ssh -L 5555:localhost:5555 <VM> 後開 http://localhost:5555（只綁 VM 本機，不對外）
+  flower:
+    <<: *celery-common
+    profiles: [ops]
+    command: ["celery", "-A", "app.worker:celery_app", "flower", "--port=5555"]
+    ports:
+      - "127.0.0.1:5555:5555"
 
   caddy:
     image: ghcr.io/kurotyan514/gae265-03-group-project-caddy:${IMAGE_TAG:-local}
