@@ -1,7 +1,7 @@
 """提醒信的 Celery 工作（ADR-0028）：只做轉接，規則與寄信都在 `service.py`。
 
 - 掃描：beat 每 `REMINDER_SCAN_SECONDS` 秒排一次，找出到期的保單，每張各排一個寄信工作。
-- 寄信：SMTP 失敗時自動重試，間隔逐次拉長；寄出成功才把計數加 1。
+- 寄信：SMTP 失敗時自動重試（10、20、40、80、160 秒）；寄出成功才把計數加 1。
 """
 
 import asyncio
@@ -51,7 +51,10 @@ def scan_due_reminders() -> int:
     name="app.reminder.send",
     # smtplib 的錯誤都是 OSError 的子類別；連線逾時、對方拒絕都會重試
     autoretry_for=(OSError,),
-    retry_backoff=True,
+    # 10、20、40、80、160 秒，約 5 分鐘內重試完；不加隨機延遲，等多久可以預測。
+    # 5 次都失敗也不會漏寄：計數沒加，下一次掃描會再派發
+    retry_backoff=10,
+    retry_jitter=False,
     retry_backoff_max=600,
     max_retries=5,
 )
