@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0028
 ---
 
 # 第一版不放背景工作佇列（Celery／Redis）

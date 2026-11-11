@@ -197,7 +197,7 @@
 | Google | `get_google_access()` 固定回 `UnavailableGoogleAccess`；`TOKEN_ENCRYPTION_KEY` 在 config 與 `.env*.example` 都沒有，但 `google_grant` 表已建。**PR #86（Carol）已實作並合併**：`GrantGoogleAccess`、授權與撤銷路由、加密保管、第一次授權 Drive 時建資料夾，設定與範本一併補上 |
 | 登入 | 只有測試登入；正式環境受保護路由會 401（ADR-0008 部分取代，沒有新 ADR）。**PR #86 已合併**：Google 登入，ADR-0020 取代 ADR-0008 |
 | 前端 | 只有首頁、登入、帳號、`/plans` 與 `/dev/*`；規格 1-1~1-5、2-1~2-5、0-6 沒有正式頁；MSW mock 不含 policies、incidents |
-| 排程 | 沒有（ADR-0003 決定第一版不放 worker）；提醒信（R9）沒有執行機制 |
+| 排程 | 沒有；提醒信（R9）改用 Celery＋Redis（ADR-0028 取代 ADR-0003），尚未實作 |
 | CI | 只跑 lint、test、build；**不跑** migration、seed、e2e；測試用 `create_all` 建表，**完全沒驗 alembic** |
 | 缺的檢查 | migration 單一 head、model 與 migration 漂移、OpenAPI client 是否最新、seed 能否載入 |
 | 文件 | 有 handoff、changelog、同步手冊；**沒有**端到端整合順序、ADR 編號重複（兩份 0016）、沒有 CODEOWNERS 與 PR 範本 |
@@ -265,7 +265,7 @@
 | 手寫文件回「不確定」，使用者自行勾選，寄出後由保險公司判斷 | 與 B5 相同 | B5 的 API 要涵蓋這個語意 |
 | 理賠文件規則 | **Boris 讀條文列各情境文件，6 號確認，兩人共用同一份 Excel**；Boris 的欄位與規範自己定 | 文件規則維護者是 Boris 與 6 號（先前寫成只有 6 號，已更正）；D11 也由兩人決定 |
 | 5 號 MVP：「Agent → tool → function → SQL 建 DB 資料」 | Jerry 要先驗證，細節與後端組員（Boris）私下對 | **與 ADR-0015 衝突**：5 號只回傳結果，由平台驗證後寫入。建議工具函式只產生 `IncidentReply` 的內容，寫入仍由平台做（待與 Jerry 對齊） |
-| 提醒信 | 傾向 Celery＋Redis，Carol 有餘力才做 | 見上方 P2 表 |
+| 提醒信 | 傾向 Celery＋Redis，Carol 有餘力才做 | 已定案，見 ADR-0028 |
 | 個資處理（Azure PII 移除、Demo 是否告知） | 組長評估後與 6 號討論，未決 | 6 號文件的去識別化規則先維持現狀，決議後更新 |
 | 本週五（11/6）下課前各自交出可動的 prototype | — | PR #81 越早合併越好，開發者才能同步；6 號 prototype 先用假存檔 |
 | 「7 個方案只傳一份」 | 會中沒人聽懂，待問提出者 | 先不處理 |
@@ -281,7 +281,7 @@ D11（存摺封面與護照影本）是所有類型共用，條款庫查不到�
 | --- | --- | --- |
 | 正式環境怎麼登入 | **已完成（PR #86 已合併）**（ADR-0020：只用 Google 登入，授權分段）；部署前要補上正式環境的 Google 設定，缺任何一項後端就啟動失敗 | 不決定就無法部署 |
 | 理賠文件存放 | **已決議（11/4 會議）**：原檔存使用者自己的 Google Drive，系統不保存；需補 ADR（修正 ADR-0009／初始 schema 的 `storage_path` 說法） | 影響 6、7 的實作與 `google_grant.drive_folder_id` |
-| 提醒信執行方式 | 11/4 會議傾向 Celery＋Redis（Carol 有餘力才做；期限 24 小時或 3 天未定）。依團隊意見採用，但低優先，開工前先寫新 ADR 取代 ADR-0003，並在 compose 加回 Redis 與 worker（含 `compose.prod.yaml`） | 多兩個服務；原先建議的 `make remind` 加 cron 作為備案 |
+| 提醒信執行方式 | **已決議（[ADR-0028](adr/0028-reminder-email-with-celery-redis.md)，取代 ADR-0003）**：Celery worker＋beat＋Redis，Flower 監控（正式環境用 SSH tunnel）；依規格書 v3.7 的 4.9，24 小時寄第一封、之後每 3 天、最多 3 封；系統通知信箱經 Azure Communication Services 寄出，開發環境用 Mailpit | 開發環境多五個服務、正式環境多三個；`make remind` 加 cron 不採用，只保留手動觸發掃描 |
 | 功能一比較紀錄 | 由功能一的人設計，先對齊 schema 命名 | 規格 3.4 要存 |
 | 險種「每個方案各一份」（ADR-0016） | 暫不做，先確認是否真的需要 | 會動 `insurance.code` 全域唯一的假設與給 5、6、7 的契約 |
 | `policy_submission.policy_id` 是否唯一 | 建議唯一 | 結案不可恢復 |
