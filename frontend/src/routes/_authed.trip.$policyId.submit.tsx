@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { getTripPackage, submitTrip } from "../client";
+import { getTripPackage, prepareTripPackage, submitTrip } from "../client";
 import { SubmitFlow, type SubmitSource } from "../features/incident/SubmitPage";
 import { policyMeta, tripTitle } from "../features/incident/shared";
 import { tripPending } from "../features/trip/TripTodoCards";
@@ -32,6 +32,7 @@ function TripSubmit() {
     ),
     canSend: trip.can_send,
     loadPackage: () => getTripPackage({ path: { policy_id: policyId } }),
+    loadReminders: () => prepareTripPackage({ path: { policy_id: policyId } }),
     submit: (body) => submitTrip({ path: { policy_id: policyId }, body }),
     refresh: async () => {
       await refresh();

@@ -108,3 +108,41 @@ test("自己處理就好：不建草稿，直接結案", async ({ page }) => {
   await expect(page.getByTestId("closed")).toContainText("沒有建立草稿", { timeout: SLOW });
   await expect(page.getByTestId("closed-banner")).toBeVisible();
 });
+
+test("小助理提醒：勾了卻沒附文件的待辦會提醒，補上文件後重新檢查就少一條；待辦沒完成時不顯示", async ({
+  page,
+}) => {
+  const notReady = await setup(page, "reminder-notready", false);
+  await page.goto(`/trip/${notReady}/submit`);
+  await expect(page.getByTestId("ready")).toContainText("還有");
+  await expect(page.getByTestId("reminders")).toHaveCount(0);
+
+  const policyId = await setup(page, "reminder", true);
+  await page.goto(`/trip/${policyId}/submit`);
+  const reminders = page.getByTestId("reminder");
+  await expect(reminders.first()).toContainText("另行提供", { timeout: SLOW });
+  const before = await reminders.count();
+
+  // 重新檢查：再讀一次，內容沒變
+  await page.getByTestId("reminders-recheck").click();
+  await expect(reminders).toHaveCount(before);
+
+  // 替其中一項待辦補上文件（假 6 號依檔名辨識、指定待辦）後重新檢查，少一條
+  const trip = await (await page.request.get(`/api/v1/policies/${policyId}/trip`)).json();
+  const todo = trip.incidents[0].todos.find((t: { requires_upload: boolean }) => t.requires_upload);
+  const uploaded = await page.request.post(`/api/v1/policies/${policyId}/documents`, {
+    multipart: {
+      file: { name: "延誤證明.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") },
+      todo_id: todo.id,
+    },
+  });
+  expect(uploaded.status()).toBe(201);
+  await page.getByTestId("reminders-recheck").click();
+  await expect(reminders).toHaveCount(before - 1);
+
+  // 提醒不擋送件：照樣能選送件方式
+  await expect(page.getByTestId("choose-send")).toBeEnabled();
+  // 「回去處理」回行程頁
+  await page.getByTestId("reminders-back").click();
+  await expect(page).toHaveURL(new RegExp(`/trip/${policyId}$`));
+});
