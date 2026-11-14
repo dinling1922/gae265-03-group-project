@@ -45,7 +45,7 @@ def test_契約版本至少是_2_3_0() -> None:
     assert tuple(int(n) for n in CONTRACT_VERSION.split(".")) >= (2, 3, 0)
 
 
-@pytest.mark.usefixtures("catalog_loaded")
+@pytest.mark.usefixtures("catalog_loaded", "full_catalog")
 async def test_每則_5_號訊息帶出自己的快速選項與出處(
     client: AsyncClient, policy: Policy
 ) -> None:
@@ -66,7 +66,7 @@ async def test_每則_5_號訊息帶出自己的快速選項與出處(
     assert assistant[-1]["citations"]
 
 
-@pytest.mark.usefixtures("catalog_loaded")
+@pytest.mark.usefixtures("catalog_loaded", "full_catalog")
 async def test_使用者的訊息沒有選項也沒有出處(
     client: AsyncClient, policy: Policy
 ) -> None:
