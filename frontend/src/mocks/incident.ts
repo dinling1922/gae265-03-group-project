@@ -152,6 +152,7 @@ const incidents = new Map<string, MockIncident>();
 
 const summary = (id: string, m: MockIncident): IncidentSummaryOut => ({
   id,
+  policy_id: m.ctx.policy.policy_id ?? "",
   title: m.ctx.title,
   status: m.ctx.status,
   incident_type_name: m.ctx.incident_type_name ?? null,
@@ -401,6 +402,26 @@ export const incidentHandlers = [
   }),
   // 假資料模式沒有 Google Drive：行程的「下載全部文件」維持反灰
   http.get("*/api/v1/policies/:policyId/drive-folder", () => HttpResponse.json({ url: null })),
+  // 小助理提醒：和假 7 號一樣，勾了需要文件、卻沒附文件的待辦就提醒「另行提供」
+  http.post("*/api/v1/policies/:policyId/package/prepare", ({ params }) => {
+    const trip = tripOf(String(params.policyId));
+    if (!trip) return notFound();
+    const attached = new Set(
+      [...trip.shared_documents, ...trip.incidents.flatMap((i) => i.documents)].map(
+        (d) => d.todo_id,
+      ),
+    );
+    const todos = [...trip.shared_todos, ...trip.incidents.flatMap((i) => i.todos)];
+    return HttpResponse.json({
+      reminders: todos
+        .filter((t) => t.is_done && t.requires_upload && !attached.has(t.id))
+        .map((t) => ({
+          text: `「${t.title}」沒有附文件，信裡會寫「另行提供」。`,
+          incident_id: t.incident_id ?? null,
+          todo_id: t.id,
+        })),
+    });
+  }),
   http.patch("*/api/v1/policies/:policyId/todos/:todoId", async ({ params, request }) => {
     const policyId = String(params.policyId);
     if (!tripOf(policyId)) return notFound();

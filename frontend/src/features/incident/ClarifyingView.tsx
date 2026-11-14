@@ -81,6 +81,7 @@ export function ClarifyingView({ id, ctx }: { id: string; ctx: IncidentContext }
         value={text}
         onChange={setText}
         busy={busy}
+        typingLabel="正在整理您的回答"
         onSend={(content, mode) => void send(content, mode)}
       />
 

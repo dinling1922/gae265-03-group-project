@@ -9,7 +9,11 @@
 - `PackagePreparation.reminders: list[PackageReminder]`；`PackageReminder`：`text`（給使用者的一句話，提到事故時用事故名稱）、`incident_id`（整個行程或共同文件的事是 `None`）、`todo_id`（可空，畫面帶使用者過去）。依重要程度排序，沒有就是空的。
 - 規則：**唯讀**（不寫資料、不改待辦、不寄信，使用者按「重新檢查」可重複呼叫）；收到的是平台濾過的行程（同 `build_trip`，不符保障的事件與不適用的待辦已拿掉）；不重複 `missing_todo_ids` 與 `unavailable_attachments` 畫面已經提示的事；數字與金額只能來自 facts 與保單（ADR-0004）。
 - 假實作 `FakeClaimPackager.prepare_trip`：已勾選、需要文件、卻沒附任何文件的待辦，提醒「信裡會寫另行提供」。
-- 平台（下一個 PR）：`POST /policies/{id}/package/prepare` 呼叫 `prepare_trip` 回 `PackagePreparation`；7 號沒有實作回空提醒；行程鎖住後回 409。前端送件頁（F4）顯示提醒與「重新檢查」。
+- 平台：`POST /policies/{id}/package/prepare` 用平台濾過的行程（`agent_view`，不符保障的事件與不適用的待辦已拿掉）呼叫 `prepare_trip`，回 `PackagePreparation`。
+  - 7 號沒有實作、沒有符合保障的事件、或 7 號丟例外時回空提醒（提醒是加分功能，不擋送件；例外會記 log）。
+  - 提醒指到不存在的事件或待辦（`incident_id`、`todo_id` 不在行程裡）平台會丟掉並記 log。
+  - 行程鎖住（已送件結案）後回 409；別人的保單回 404。
+  - 前端送件頁（F4）顯示提醒與「重新檢查」按鈕（重新檢查就是再呼叫一次）。
 
 ## 2026-11-14　契約不變（仍是 2.13.0）：6 號認得醫療文件、檢查保險期間（#233）
 

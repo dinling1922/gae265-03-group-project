@@ -73,15 +73,16 @@ test("出事了：手選保單後走完 說明、待辦、上傳、送件", asyn
   await expect(page.getByTestId("upload-progress")).toContainText("符合規則，已自動打勾");
 
   // 4. 送件：待辦沒完成前不能送
-  // 送件頁直接前往（網址是 /incident/<id>）
-  const incidentId = page.url().split("/")[4];
-  await page.goto(`/incident/${incidentId}/submit`);
+  // 問完事故會導到行程頁（網址是 /trip/<保單 id>?incident=<事件 id>），送件頁直接前往
+  await expect(page).toHaveURL(/\/trip\/[0-9a-f-]{36}\?incident=[0-9a-f-]{36}$/);
+  const policyId = new URL(page.url()).pathname.split("/")[2];
+  await page.goto(`/trip/${policyId}/submit`);
   await expect(page.getByTestId("ready")).toContainText("還有");
   await expect(page.getByTestId("choose-send")).toBeDisabled();
   await expect(page.getByTestId("choose-self")).toBeDisabled();
 
   // 回到待辦把剩下的自己勾完，就能送件
-  await page.goto(`/incident/${incidentId}`);
+  await page.goto(`/trip/${policyId}`);
   const boxes = page.getByTestId("todos").getByRole("checkbox");
   await expect(boxes.first()).toBeVisible();
   for (const box of await boxes.all()) {
@@ -117,10 +118,9 @@ test("出事了：手選保單後走完 說明、待辦、上傳、送件", asyn
 
   // 結案後鎖住：不能再傳訊息或改待辦
   await expect(page.getByTestId("closed-banner")).toBeVisible();
-  await page.getByRole("link", { name: "回理賠頁" }).click();
-  // 理賠頁：Pill 顯示已結案，問答卡換成結案說明（沒有提問列），待辦與送件區只能看
+  await page.getByRole("link", { name: "回行程頁" }).click();
+  // 行程頁：標籤顯示已結案，沒有問答（沒有提問列），待辦與送件區只能看
   await expect(page.getByText("已結案", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("closed-banner")).toContainText("只能查看");
   await expect(page.getByTestId("message")).toHaveCount(0);
   await expect(page.getByTestId("send-closed")).toHaveText(
     "已替你送件並於你的 Gmail 寄件備份留存紀錄，文件也已存在你的 Google Drive。",
@@ -193,7 +193,7 @@ test("出事了：自己處理、不建草稿，直接結案", async ({ page, re
   await expect(page.getByTestId("ready")).toContainText("可以送件", { timeout: SLOW });
   await page.getByTestId("choose-self").click();
   // 先問要不要建草稿，並說明不論選什麼都會結案；選取消就不建立
-  await expect(page.getByTestId("draft-question")).toContainText("都會結案");
+  await expect(page.getByTestId("draft-question")).toContainText("就會結案");
   await page.getByRole("button", { name: "取消" }).click();
   await expect(page.getByTestId("closed")).toContainText("沒有建立草稿", { timeout: SLOW });
   await expect(page.getByTestId("closed-banner")).toBeVisible();

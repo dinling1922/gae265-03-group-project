@@ -1496,6 +1496,12 @@ export type IncidentSummaryOut = {
      */
     id: string;
     /**
+     * Policy Id
+     *
+     * 所屬保單；行程 ＝ 保單，畫面連到 /trip/{policy_id}
+     */
+    policy_id: string;
+    /**
      * Title
      */
     title: string;
@@ -1791,6 +1797,46 @@ export type MessageView = {
      * 5 號這則回覆引用的條文出處，由程式從檢索結果寫入；使用者的訊息是空的（2.3.0）
      */
     citations?: Array<Citation>;
+};
+
+/**
+ * PackagePreparation
+ *
+ * `prepare_trip` 的結果（v2.14）。
+ */
+export type PackagePreparation = {
+    /**
+     * Reminders
+     *
+     * 依重要程度排序；沒有要提醒的就是空的
+     */
+    reminders?: Array<PackageReminder>;
+};
+
+/**
+ * PackageReminder
+ *
+ * 小助理的一條提醒（v2.14）：說一件事，使用者看了知道要不要回去補。
+ */
+export type PackageReminder = {
+    /**
+     * Text
+     *
+     * 給使用者看的一句話，繁體中文；提到事故時用事故名稱
+     */
+    text: string;
+    /**
+     * Incident Id
+     *
+     * 提醒的是哪個事件；整個行程或共同文件的事是 None
+     */
+    incident_id?: string | null;
+    /**
+     * Todo Id
+     *
+     * 相關的待辦（畫面可以帶使用者過去）；沒有就是 None
+     */
+    todo_id?: string | null;
 };
 
 /**
@@ -5646,6 +5692,36 @@ export type GetTripPackageResponses = {
 };
 
 export type GetTripPackageResponse = GetTripPackageResponses[keyof GetTripPackageResponses];
+
+export type PrepareTripPackageData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/package/prepare';
+};
+
+export type PrepareTripPackageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrepareTripPackageError = PrepareTripPackageErrors[keyof PrepareTripPackageErrors];
+
+export type PrepareTripPackageResponses = {
+    /**
+     * Successful Response
+     */
+    200: PackagePreparation;
+};
+
+export type PrepareTripPackageResponse = PrepareTripPackageResponses[keyof PrepareTripPackageResponses];
 
 export type CloseTripData = {
     body?: never;

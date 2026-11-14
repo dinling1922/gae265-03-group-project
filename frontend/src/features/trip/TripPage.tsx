@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { patchTripTodo, sendIncidentMessage } from "../../client";
 import type { TodoView, TripOut } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
@@ -26,19 +26,28 @@ export function TripPage({
   policyId,
   trip,
   googleUser,
+  initialIncidentId,
 }: {
   policyId: string;
   trip: TripOut;
   googleUser: boolean;
+  /** 從某個事故導過來（`?incident=`）：預設選中並展開它；不在這個行程裡就忽略 */
+  initialIncidentId?: string;
 }) {
   const { setTrip, refresh } = useTrip(policyId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // 選中的事故一定展開；其他的按「▸」展開，展開過的維持展開（規格 7.3.1）
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [asking, setAsking] = useState<string | null>(null);
+  // 正在等回覆的問題屬於哪個事故：切到別的事故時，不在別人的對話裡顯示
+  const [asking, setAsking] = useState<{ id: string; content: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [question, setQuestion] = useState("");
+  // 每個事故的問答分開：輸入框裡打到一半的字也各存各的（規格 7.3.5）
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // 按「問答」後左欄要捲到哪個事故（規格 7.3：該事故總結頂端對齊問答框頂端）
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
+  // 剛問完的事故：快取裡可能還是舊的行程（還沒有這個事故），資料更新後才找得到，所以用 effect 套用一次
+  const appliedInitial = useRef<string | null>(null);
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答面板是否拉開
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
@@ -47,7 +56,28 @@ export function TripPage({
   // 預設選中發生日期最早的事故（事故已依發生時間排序）
   const selected = trip.incidents.find((i) => i.id === selectedId) ?? trip.incidents[0];
   const { data: ctx, refresh: refreshIncident } = useIncident(selected?.id ?? "");
+  const question = drafts[selected?.id ?? ""] ?? "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 同一個 initialIncidentId 只套用一次
+  useEffect(() => {
+    if (!initialIncidentId || appliedInitial.current === initialIncidentId) return;
+    if (!trip.incidents.some((i) => i.id === initialIncidentId)) return;
+    appliedInitial.current = initialIncidentId;
+    setSelectedId(initialIncidentId);
+    setExpanded((prev) => new Set(prev).add(initialIncidentId));
+    // 導過來的事故不是第一個時，捲到它
+    if (initialIncidentId !== trip.incidents[0]?.id) setScrollTo(initialIncidentId);
+  }, [initialIncidentId, trip.incidents]);
   const { done, total } = tripProgress(trip);
+
+  // 事故卡展開、面板拉開後再捲：先等這一輪畫面更新完。問答框固定在上方（top-6），事故卡留同樣的上緣
+  useEffect(() => {
+    if (!scrollTo) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    document
+      .querySelector(`[data-incident-id="${scrollTo}"]`)
+      ?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    setScrollTo(null);
+  }, [scrollTo]);
   const hasUpload = [...trip.shared_todos, ...trip.incidents.flatMap((i) => i.todos)].some(
     (t) => t.requires_upload,
   );
@@ -78,7 +108,7 @@ export function TripPage({
   async function ask(content: string) {
     if (!selected || !content.trim() || busy) return;
     setBusy(true);
-    setAsking(content);
+    setAsking({ id: selected.id, content });
     setError(null);
     const res = await sendIncidentMessage({
       path: { incident_id: selected.id },
@@ -91,7 +121,7 @@ export function TripPage({
     }
     // 回應是送出當下的快照（5 號回覆可能很慢），改成重新讀取；問答可能改了待辦，行程也一起讀
     await Promise.all([refresh(), refreshIncident()]);
-    setQuestion("");
+    setDrafts((prev) => ({ ...prev, [selected.id]: "" }));
     setAsking(null);
     setBusy(false);
   }
@@ -102,18 +132,30 @@ export function TripPage({
     citations: m.citations,
   }));
   const lastMessage = ctx?.messages?.at(-1);
-  if (asking && !(lastMessage?.role === "user" && lastMessage.content === asking)) {
-    lines.push({ from: "me", text: asking });
+  if (
+    asking &&
+    asking.id === selected?.id &&
+    !(lastMessage?.role === "user" && lastMessage.content === asking.content)
+  ) {
+    lines.push({ from: "me", text: asking.content });
   }
 
   function select(id: string, openPanel: boolean) {
     setSelectedId(id);
     setExpanded((prev) => new Set(prev).add(id));
-    if (openPanel) setQaOpen(true);
+    if (openPanel) {
+      setQaOpen(true);
+      setScrollTo(id);
+    }
   }
 
   return (
-    <main data-page-paper className={`mx-auto flex flex-col gap-6 font-ui md:px-6 ${wideMain}`}>
+    <main
+      data-page-paper
+      className={`mx-auto flex flex-col gap-6 font-ui md:px-6 ${wideMain} ${
+        qaOpen && !locked ? "max-lg:pb-[52dvh]" : ""
+      }`}
+    >
       <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
 
       <section
@@ -226,20 +268,12 @@ export function TripPage({
           <TripSendBox policyId={policyId} trip={trip} />
         </div>
 
-        {/* 手機：按事故卡的「問答」，該事故的問答面板從下方滑出；桌機是固定的右欄 */}
-        {qaOpen && (
-          <button
-            type="button"
-            aria-label="收起問答"
-            tabIndex={-1}
-            onClick={() => setQaOpen(false)}
-            className="fixed inset-0 z-30 border-0 bg-scrim p-0 lg:hidden"
-          />
-        )}
+        {/* 手機：按事故卡的「問答」，該事故的問答面板從下方滑出（約占下半）；上方待辦仍可捲動，所以沒有遮罩。
+            桌機是固定的右欄 */}
         {!locked && selected && (
           <section
             id="trip-qa"
-            className={`flex flex-col gap-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:h-[75dvh] max-lg:overflow-y-auto max-lg:rounded-t-[20px] max-lg:bg-paper max-lg:px-4 max-lg:pt-2 max-lg:pb-5 max-lg:shadow-dialog ${
+            className={`flex flex-col gap-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:h-[50dvh] max-lg:overflow-y-auto max-lg:rounded-t-[20px] max-lg:bg-paper max-lg:px-4 max-lg:pt-2 max-lg:pb-5 max-lg:shadow-dialog ${
               qaOpen ? "" : "max-lg:hidden"
             }`}
             aria-label="問答"
@@ -266,9 +300,12 @@ export function TripPage({
               quickReplies={[]}
               placeholder="關於這個事故的任何問題"
               value={question}
-              onChange={setQuestion}
+              onChange={(text) =>
+                selected && setDrafts((prev) => ({ ...prev, [selected.id]: text }))
+              }
               busy={busy}
-              typing={asking !== null}
+              typing={asking?.id === selected.id}
+              typingLabel="正在查閱條款"
               onSend={(content) => void ask(content)}
               maxLength={300}
               minHeight={180}
