@@ -2,13 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import {
-  listIncidentsOptions,
   listRecentComparisonsOptions,
+  listTripsOptions,
 } from "../client/@tanstack/react-query.gen";
 import { ArrowIcon, ChevronIcon, DocIcon, PlaneIcon, ShieldIcon } from "../components/icons";
 import { ComparisonRow } from "../features/compare/ComparisonRow";
 import { ListState } from "../features/compare/ListState";
-import { IncidentRow } from "../features/incident/IncidentRow";
+import { TripRow } from "../features/trip/TripRow";
 
 export const Route = createFileRoute("/_authed/")({
   component: HomePage,
@@ -68,7 +68,7 @@ function HomePage() {
           待辦與文件，並協助送件。
         </EntryCard>
         <RecentComparisons />
-        <MyIncidents />
+        <MyTrips />
       </div>
       {import.meta.env.DEV && (
         <p>
@@ -126,27 +126,42 @@ function RecentComparisons() {
   );
 }
 
-/** 「我的理賠」卡片（最近 3 筆事件）；載入中與錯誤只在卡片內顯示，不擋入口卡。超過 3 筆出現「看全部」。 */
-function MyIncidents() {
-  const incidents = useQuery(listIncidentsOptions({ query: { limit: SHOWN + 1 } }));
-  const list = incidents.data ?? [];
+/**
+ * 「我的行程」卡片（規格 0-4）：一張保單一列，最近 3 筆；超過 3 筆出現「看全部」。
+ * 標題旁的徽章（0-5b）數「有未完成待辦且未結案」的行程，所以要取全部再自己切前 3 筆。
+ * 載入中與錯誤只在卡片內顯示，不擋入口卡。
+ */
+function MyTrips() {
+  const trips = useQuery(listTripsOptions());
+  const list = trips.data ?? [];
+  const unfinished = list.filter((t) => t.has_unfinished).length;
 
   return (
     <section
-      aria-labelledby="my-incidents"
-      className="rounded-2xl border border-line/60 bg-white px-3 pt-4 pb-2 shadow-card md:mt-0 md:rounded-3xl md:px-4 md:pt-5 md:pb-3"
+      aria-labelledby="my-trips"
+      className="min-w-0 rounded-2xl border border-line/60 bg-white px-3 pt-4 pb-2 shadow-card md:mt-0 md:rounded-3xl md:px-4 md:pt-5 md:pb-3"
     >
       <div className="flex items-center gap-2.5 border-b border-line pt-1 pb-3.5 pl-1 md:gap-3.5 md:pt-0 md:pb-[18px] md:pl-2">
         <ShieldIcon className="size-7 flex-none text-leaf md:size-9" />
         <h2
-          id="my-incidents"
+          id="my-trips"
           className="text-xl font-bold leading-[30px] text-heading md:text-2xl md:leading-9"
         >
-          我的理賠
+          我的行程
         </h2>
+        {unfinished > 0 && (
+          <span
+            data-testid="unfinished-badge"
+            role="img"
+            aria-label={`${unfinished} 個行程還有未完成的待辦`}
+            className="grid min-w-6 place-items-center rounded-full bg-danger px-1.5 text-xs font-bold leading-6 text-white"
+          >
+            {unfinished}
+          </span>
+        )}
         {list.length > SHOWN && (
           <Link
-            to="/incident"
+            to="/trip"
             className="ml-auto flex items-center gap-1.5 text-xs font-bold leading-[18px] text-leaf md:gap-3.5 md:text-base md:leading-6"
           >
             看全部
@@ -155,15 +170,15 @@ function MyIncidents() {
         )}
       </div>
       <ListState
-        isPending={incidents.isPending}
-        error={incidents.error}
+        isPending={trips.isPending}
+        error={trips.error}
         isEmpty={list.length === 0}
-        errorText="讀取不到我的理賠，請稍後再試。"
-        emptyText="處理過的理賠會自動存在這裡"
+        errorText="讀取不到我的行程，請稍後再試。"
+        emptyText="出事時點上方按鈕，處理過的行程會存在這裡"
       >
         <div>
-          {list.slice(0, SHOWN).map((i) => (
-            <IncidentRow key={i.id} incident={i} />
+          {list.slice(0, SHOWN).map((t) => (
+            <TripRow key={t.policy_id} trip={t} />
           ))}
         </div>
       </ListState>
