@@ -176,6 +176,17 @@ export function TripPage({
         {locked && <Pill tone="closed">已結案</Pill>}
       </section>
 
+      {locked && (
+        <p
+          className="m-0 rounded-btn bg-paper px-4 py-2 t-caption text-muted"
+          data-testid="locked-note"
+        >
+          這個行程已送件結案，不能再新增狀況。如果還要補送，請重新建立行程。
+          <Link to="/incident/new" className="ml-1 underline" data-testid="new-trip">
+            建立新行程
+          </Link>
+        </p>
+      )}
       <GoogleAuthResult />
       {error && (
         <p

@@ -28,6 +28,10 @@ export function TripSendBox({ policyId, trip }: { policyId: string; trip: TripOu
     (d) => d.storage_path,
   );
   const { gmailUrl, driveUrl } = useTripLinks(policyId, trip);
+  // 結案前沒有任何可送件的內容：全部不賠是「不在保障範圍」，有待確認的是「資訊不足」（補充說明還有機會改變結果）
+  const insufficient = trip.incidents.some((i) =>
+    i.clauses.some((c) => c.conclusion === "insufficient"),
+  );
 
   async function close() {
     setBusy(true);
@@ -49,11 +53,15 @@ export function TripSendBox({ policyId, trip }: { policyId: string; trip: TripOu
       {trip.locked ? (
         <>
           <p className="m-0 t-body text-muted" data-testid="send-closed">
-            {trip.submission.status
-              ? closedText(trip.submission.status, hasFiles)
-              : "這個行程的事故都不在保障範圍，已結案，沒有寄出信件。"}
+            {trip.submission.status ? closedText(trip.submission.status, hasFiles) : "此行程已結案"}
           </p>
-          <div className="ml-auto flex flex-wrap gap-3">
+          {trip.submission.status === "drafted" && (
+            <p className="m-0 t-caption text-muted" data-testid="send-draft-note">
+              草稿還沒寄出的話，請到 Gmail 寄出。
+            </p>
+          )}
+          {/* 直接結案（沒有送件）沒有信也沒有要下載的行程資料夾，不放 Gmail 與下載按鈕 */}
+          <div className="ml-auto flex flex-wrap gap-3" hidden={!trip.submission.status}>
             {gmailUrl ? (
               <a
                 href={gmailUrl}
@@ -84,8 +92,12 @@ export function TripSendBox({ policyId, trip }: { policyId: string; trip: TripOu
         </>
       ) : trip.can_close ? (
         <>
-          <Pill tone="need">事故都不在保障範圍</Pill>
-          <p className="m-0 t-caption text-muted">不需要寄信，可以直接結案。</p>
+          <Pill tone="need">{insufficient ? "資訊不足，還不能送件" : "事故都不在保障範圍"}</Pill>
+          <p className="m-0 t-caption text-muted" data-testid="close-note">
+            {insufficient
+              ? "可以先在問答補充說明；確定不需要送件的話也可以結案。"
+              : "這個行程的事故都不在保障範圍，沒有可以送件的內容"}
+          </p>
           <div className="ml-auto">
             <button
               type="button"
@@ -140,9 +152,7 @@ export function TripSendBox({ policyId, trip }: { policyId: string; trip: TripOu
         open={confirming}
         onOpenChange={(open) => !open && setConfirming(false)}
         title="結案這個行程？"
-        description={
-          <p>所有事故都不在保障範圍，結案後不會寄出任何信件，之後也不能再新增事故或修改。</p>
-        }
+        description={<p>結案後無法再新增狀況或修改。</p>}
         testId="close-dialog"
         actions={
           <>
