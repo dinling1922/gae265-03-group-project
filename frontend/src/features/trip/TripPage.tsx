@@ -305,6 +305,7 @@ export function TripPage({
               }
               busy={busy}
               typing={asking?.id === selected.id}
+              typingLabel="正在查閱條款"
               onSend={(content) => void ask(content)}
               maxLength={300}
               minHeight={180}
