@@ -119,4 +119,4 @@ class ClaimPackager(Protocol):
 
 ## 契約 v2.14：送件前小助理提醒（選配）
 
-`prepare_trip(trip, google=None, user=None) -> PackagePreparation`（`TripClaimPreparer`，獨立協定）。依整個行程的待辦、文件、事故資料，列出寄出前值得再看一眼的事（`PackageReminder`：`text`、`incident_id`、`todo_id`）。**唯讀**，可重複呼叫（畫面的「重新檢查」）；不重複 `missing_todo_ids`、`unavailable_attachments` 已提示的事；數字只能來自 facts 與保單。平台提供 `POST /policies/{id}/package/prepare`，送件頁顯示由前端做；沒實作時平台回空提醒。假實作可當範例，完整說明見 contract-changelog 的 2.14.0。
+`prepare_trip(trip, google=None, user=None) -> PackagePreparation`（`TripClaimPreparer`，獨立協定）。依整個行程的待辦、文件、事故資料，列出寄出前值得再看一眼的事（`PackageReminder`：`text`、`incident_id`、`todo_id`）。**唯讀**，可重複呼叫（畫面的「重新檢查」）；不重複 `missing_todo_ids`、`unavailable_attachments` 已提示的事；數字只能來自 facts 與保單。平台提供 `POST /policies/{id}/package/prepare`（已完成），送件頁顯示由前端做；沒實作、出錯時平台回空提醒（不擋送件），提醒指到不存在的事件或待辦會被平台丟掉。假實作可當範例，完整說明見 contract-changelog 的 2.14.0。

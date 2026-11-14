@@ -37,7 +37,7 @@ from app.contracts import (
     TripClaimPackager,
     TripContext,
 )
-from app.contracts.package_agent import SendMode
+from app.contracts.package_agent import PackagePreparation, SendMode, TripClaimPreparer
 from app.domain.incident import trip as trip_domain
 from app.domain.incident.drive_folder import trip_folder_url
 from app.domain.incident.gmail_link import is_gmail_url
@@ -365,6 +365,47 @@ async def get_trip_package(
     package, _ = await _build_trip_package(trip, user)
     await _check_attachment_size(session, package)
     return package
+
+
+@router.post("/policies/{policy_id}/package/prepare")
+async def prepare_trip_package(
+    session: SessionDep, user: CurrentUser, policy_id: uuid.UUID
+) -> PackagePreparation:
+    """送件前的小助理提醒（契約 v2.14）：請 7 號看整個行程，列出寄出前值得再看一眼的地方。
+
+    唯讀，可重複呼叫（畫面的「重新檢查」）。7 號沒有實作 `prepare_trip`、沒有符合保障的事件，或 7 號
+    出錯時回空的提醒（提醒是加分功能，不擋送件）；提醒指到不存在的事件或待辦就丟掉。行程鎖住後回 409。
+    """
+    policy = await _own_policy(session, user, policy_id)
+    if await trip_domain.trip_locked(session, policy_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "這個行程已送件結案")
+    trip = await trip_domain.build_trip_context(session, policy)
+    view = trip_domain.agent_view(trip)
+    preparer = get_claim_packager()
+    if not view.incidents or not isinstance(preparer, TripClaimPreparer):
+        return PackagePreparation()
+    try:
+        result = await preparer.prepare_trip(
+            view, google=get_google_access(), user=_user(user)
+        )
+    except Exception:
+        logger.exception("7 號的 prepare_trip 失敗，提醒留空（policy %s）", policy_id)
+        return PackagePreparation()
+    incident_ids = {i.incident_id for i in view.incidents}
+    todo_ids = {t.id for t in view.todos}
+    kept = [
+        r
+        for r in result.reminders
+        if (r.incident_id is None or r.incident_id in incident_ids)
+        and (r.todo_id is None or r.todo_id in todo_ids)
+    ]
+    if len(kept) != len(result.reminders):
+        logger.warning(
+            "7 號的提醒指到不存在的事件或待辦，已丟掉 %d 條（policy %s）",
+            len(result.reminders) - len(kept),
+            policy_id,
+        )
+    return PackagePreparation(reminders=kept)
 
 
 async def _complete_all(session: SessionDep, policy_id: uuid.UUID) -> None:
