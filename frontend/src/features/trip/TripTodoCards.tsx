@@ -33,7 +33,7 @@ export function tripPending(trip: TripOut) {
 
 /**
  * 待辦清單（規格 7.3.3）：「事故當下」與「回國後整理」兩張卡，卡內依事故分組（小標題＝事故類型＋日期），
- * 最後一組「整個行程」放共同文件（機票、理賠申請書、存摺與護照影本、受益人身分證明，ADR-0029）。
+ * 最後一組「共同文件」放共同文件（機票、理賠申請書、存摺與護照影本、受益人身分證明，ADR-0029）。
  */
 export function TripTodoCards({
   trip,
@@ -60,7 +60,7 @@ export function TripTodoCards({
           })),
           {
             key: "trip",
-            title: "整個行程",
+            title: "共同文件",
             covered: true,
             items: sorted(trip.shared_todos.filter((t) => t.phase === phase)),
           },
@@ -82,6 +82,11 @@ export function TripTodoCards({
                 <h4 className="m-0 mt-4.5 flex items-center gap-2 border-b border-line pt-1.5 pb-2.5 t-label text-heading before:h-4 before:w-1 before:rounded-sm before:bg-leaf">
                   {g.title}
                 </h4>
+                {g.items.some((t) => greyed(t, g.covered)) && (
+                  <p className="m-0 pt-2 t-caption text-muted" data-testid="group-not-covered">
+                    這個事故依條款不在保障範圍，這些文件不需要準備
+                  </p>
+                )}
                 <ul className="m-0 list-none p-0">
                   {g.items.map((t) => (
                     <TodoRow
