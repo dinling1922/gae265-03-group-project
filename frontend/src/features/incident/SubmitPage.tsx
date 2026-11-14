@@ -4,6 +4,8 @@ import { getIncidentPackage, submitIncident } from "../../client";
 import type {
   ClaimPackage,
   IncidentContext,
+  PackagePreparation,
+  PackageReminder,
   SubmissionOut,
   UnavailableAttachment,
 } from "../../client/types.gen";
@@ -101,6 +103,8 @@ export type SubmitSource = {
   /** 7 號能不能寄出與建草稿；不能時只能預覽與「自己處理」 */
   canSend: boolean;
   loadPackage: () => Call<ClaimPackage>;
+  /** 7 號的小助理提醒（行程版才有，契約 v2.14）；沒給就不顯示提醒 */
+  loadReminders?: () => Call<PackagePreparation>;
   submit: (body: {
     mode: "send" | "draft" | "self";
     fills: Record<string, string>;
@@ -187,6 +191,8 @@ export function SubmitFlow({
   // 7 號沒有整個行程的版本時沒有草稿的問題：自己處理直接確認後結案
   const [confirmingSelf, setConfirmingSelf] = useState(false);
   const [pkg, setPkg] = useState<ClaimPackage | null>(null);
+  const [reminders, setReminders] = useState<PackageReminder[]>([]);
+  const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<SubmissionOut | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +215,20 @@ export function SubmitFlow({
     if (closed || step !== "preview") return;
     writeSaved(id, { step, values, recipient });
   }, [id, closed, step, values, recipient]);
+
+  /** 讀 7 號的小助理提醒；讀不到就當沒有（提醒不擋送件）。「重新檢查」就是再讀一次。 */
+  async function checkReminders() {
+    if (!source.loadReminders) return;
+    setChecking(true);
+    const res = await source.loadReminders();
+    setChecking(false);
+    setReminders(res.data?.reminders ?? []);
+  }
+  // 備齊、還沒結案時打開頁面就讀一次
+  // biome-ignore lint/correctness/useExhaustiveDependencies: source 每次 render 都是新物件，只在打開頁面與備齊時讀
+  useEffect(() => {
+    if (source.ready && !source.closed) void checkReminders();
+  }, [source.ready, source.closed]);
 
   // 進到預覽才讀信；收件者沒填時帶入 7 號的建議
   // biome-ignore lint/correctness/useExhaustiveDependencies: source 每次 render 都是新物件，讀信只看步驟與有沒有信
@@ -514,6 +534,14 @@ export function SubmitFlow({
             )}
           </p>
 
+          {reminders.length > 0 && (
+            <ReminderNotice
+              items={reminders}
+              back={source.back}
+              checking={checking}
+              onRecheck={() => void checkReminders()}
+            />
+          )}
           {step === "ask" &&
             draftBlocked &&
             pkg?.unavailable_attachments &&
@@ -663,6 +691,53 @@ export function SubmitFlow({
         </>
       )}
     </main>
+  );
+}
+
+/**
+ * 小助理的提醒（契約 v2.14）：寄出前值得再看一眼的地方，不擋送件。處理完（例如補上文件）按「重新檢查」
+ * 再讀一次；全部處理好這個提示框就消失。
+ */
+function ReminderNotice({
+  items,
+  back,
+  checking,
+  onRecheck,
+}: {
+  items: PackageReminder[];
+  back: BackLink;
+  checking: boolean;
+  onRecheck: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      className={`${notice} flex flex-col gap-1.5 bg-warn-soft text-warn-ink`}
+      data-testid="reminders"
+    >
+      <p className="m-0 t-caption-bold">小助理提醒：寄出前請再看一下</p>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+        {items.map((r) => (
+          <li key={`${r.incident_id ?? ""}-${r.todo_id ?? ""}-${r.text}`} data-testid="reminder">
+            ・{r.text}
+          </li>
+        ))}
+      </ul>
+      <p className="m-0">
+        {back({ className: "underline", testId: "reminders-back", children: "回去處理" })}
+        ，處理完按
+        <button
+          type="button"
+          onClick={onRecheck}
+          disabled={checking}
+          className="mx-1 underline"
+          data-testid="reminders-recheck"
+        >
+          {checking ? "檢查中…" : "重新檢查"}
+        </button>
+        。不處理也能送件。
+      </p>
+    </div>
   );
 }
 
