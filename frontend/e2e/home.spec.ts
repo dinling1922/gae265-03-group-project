@@ -188,7 +188,10 @@ async function createIncident(page: Page, description: string, policyId?: string
     id = policy.id as string;
   }
   const created = await api.post(`/api/v1/policies/${id}/incidents`, { data: { description } });
-  expect(created.ok()).toBeTruthy();
+  expect(
+    created.ok(),
+    `POST incidents 回 ${created.status()}：${await created.text()}`,
+  ).toBeTruthy();
   const body = await created.json();
   return { policyId: id, incidentId: body.incident.incident_id as string };
 }
@@ -226,7 +229,10 @@ async function closeIncident(page: Page, incidentId: string) {
   const submitted = await api.post(`/api/v1/incidents/${incidentId}/submission`, {
     data: { mode: "self" },
   });
-  expect(submitted.ok()).toBeTruthy();
+  expect(
+    submitted.ok(),
+    `POST submission 回 ${submitted.status()}：${await submitted.text()}`,
+  ).toBeTruthy();
 }
 
 // 首頁右下格「我的理賠」（#207）：沒有事件的空狀態。
@@ -372,7 +378,8 @@ test("已完成的事件也列在我的理賠，標示已完成", async ({ page,
 
   const done = await createIncident(page, "已結案的班機延誤");
   await closeIncident(page, done.incidentId);
-  await createIncident(page, "還在處理的班機延誤", done.policyId);
+  // 結案的行程鎖住、不能再新增事件（ADR-0029），所以另一筆用另一張保單
+  await createIncident(page, "還在處理的班機延誤");
 
   await page.goto("/");
   const rows = page.getByRole("region", { name: "我的理賠" }).getByRole("link");

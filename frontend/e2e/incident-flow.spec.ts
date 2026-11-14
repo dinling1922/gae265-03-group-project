@@ -193,7 +193,7 @@ test("出事了：自己處理、不建草稿，直接結案", async ({ page, re
   await expect(page.getByTestId("ready")).toContainText("可以送件", { timeout: SLOW });
   await page.getByTestId("choose-self").click();
   // 先問要不要建草稿，並說明不論選什麼都會結案；選取消就不建立
-  await expect(page.getByTestId("draft-question")).toContainText("都會結案");
+  await expect(page.getByTestId("draft-question")).toContainText("就會結案");
   await page.getByRole("button", { name: "取消" }).click();
   await expect(page.getByTestId("closed")).toContainText("沒有建立草稿", { timeout: SLOW });
   await expect(page.getByTestId("closed-banner")).toBeVisible();
