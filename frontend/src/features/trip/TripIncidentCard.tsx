@@ -32,7 +32,7 @@ export function TripIncidentCard({
   const bodyId = `incident-${incident.id}`;
   return (
     <article
-      className={`${card} flex flex-col gap-3.5`}
+      className={`${card} flex scroll-mt-6 flex-col gap-3.5`}
       aria-label={`事故 ${name}`}
       data-testid="trip-incident"
       data-incident-id={incident.id}
