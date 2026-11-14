@@ -1,17 +1,11 @@
 import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
+import { login } from "./helpers";
 
 /** 今天往後 offset 天的 YYYY-MM-DD（瀏覽器的本地日期）。 */
 function day(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function login(page: Page, email: string) {
-  await page.goto("/login?next=%2F");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "測試登入" }).click();
-  await expect(page).toHaveURL(/\/$/);
 }
 
 /** 每次用新的帳號，才不會被開發資料庫裡先前留下的比較紀錄影響。 */
