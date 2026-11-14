@@ -57,6 +57,7 @@ def test_契約版本是_2_13_0() -> None:
 # ---- context 帶出的新資料 ----
 
 
+@pytest.mark.usefixtures("full_catalog")
 async def test_context_有事故類型清單_必問欄位與這張保單對應的保障(
     client: AsyncClient, policy: Policy
 ) -> None:

@@ -45,6 +45,7 @@ def huanan_refs(ctx: dict, type_code: str) -> list[tuple[str | None, str | None]
     ]
 
 
+@pytest.mark.usefixtures("full_catalog")
 async def test_事故類型只對到相關的節(client: AsyncClient, huanan: Policy) -> None:
     incident_id = await start(client, huanan)
     ctx = (await client.get(f"/incidents/{incident_id}")).json()
@@ -69,6 +70,7 @@ async def test_沒有節的章維持章的層級(client: AsyncClient, huanan: Po
     assert all(sub is None for _, sub in medical)  # 第四章家屬看護等沒有節
 
 
+@pytest.mark.usefixtures("full_catalog")
 async def test_5_號的結論帶節_結論卡只列相關的那一節(
     client: AsyncClient, huanan: Policy
 ) -> None:
@@ -143,6 +145,7 @@ async def test_節要搭配章(
     assert (await say(client, incident_id)).status_code == 502
 
 
+@pytest.mark.usefixtures("full_catalog")
 async def test_同一章可以同時有多個節的結論(
     client: AsyncClient, huanan: Policy, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -10,8 +10,6 @@ from zoneinfo import ZoneInfo
 import pytest
 from app.api.deps import current_user
 from app.core.config import settings
-from app.core.llm import embedding_model_name, get_embeddings
-from app.ingest.catalog import import_catalog
 from app.main import app
 from app.models import (
     Conversation,
@@ -22,7 +20,6 @@ from app.models import (
     User,
 )
 from app.policy.table import load_code_map
-from app.seed import load_policy_codes
 from httpx import AsyncClient
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -55,12 +52,8 @@ async def user(session: AsyncSession) -> AsyncGenerator[User]:
 
 
 @pytest.fixture
-async def catalog_loaded(session: AsyncSession, catalog) -> None:
-    specs, rules = catalog
-    await import_catalog(
-        session, specs, rules, embeddings=get_embeddings(), model=embedding_model_name()
-    )
-    await load_policy_codes(session)  # 比對讀資料庫的保單代碼（make seed 會做這一步）
+async def catalog_loaded(policy_codes_loaded: None) -> None:
+    """真實的條文與保單代碼對照；整個測試階段只匯入一次（見 conftest.py）。"""
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
