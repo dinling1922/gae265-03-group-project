@@ -7,7 +7,7 @@
 
 | `qa_questions.json` | a01–a04、b01–b04、c01–c04、n01–n02 | 方案問答驗收 14 題（範圍／除外責任／理賠文件各 4、條款沒寫 2）。由 `python -m insurance_agent.agent.qa_eval` 跑，結果見 `design/plans/2026-10-29-qa-eval-results.md`。期望字串沿用下面已核對的 `text_has`。 |
 
-| `incident_scenarios.json` | 6 個劇本 | 5 號穩定度量測（`make eval-incident`，程式在 `app/eval/incident_stability.py`）。每個劇本是一句事故描述加上「題目含這個關鍵字就這樣回答」的清單（自然語句，依序比對），用真模型走完整對話，預期的文件代碼（`expect_documents`）都出現在適用的待辦裡才算成功。預期要對照條款與 `incident_catalog.json` 寫。動到 5 號的提示詞、`adapters.py` 或答案後處理的 PR，描述裡要附這次的結果。 |
+| `incident_scenarios.json` | 8 個劇本 | 5 號穩定度量測（`make eval-incident`，程式在 `app/eval/incident_stability.py`）。每個劇本是一句事故描述加上「題目含這個關鍵字就這樣回答」的清單（自然語句，依序比對），用真模型走完整對話，預期的文件代碼（`expect_documents`）都出現在適用的待辦裡才算成功。預期要對照條款與 `incident_catalog.json` 寫。動到 5 號的提示詞、`adapters.py` 或答案後處理的 PR，描述裡要附這次的結果。 |
 
 ## 判定方式
 
