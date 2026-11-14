@@ -200,6 +200,19 @@ async def test_without_a_known_code_table_it_falls_back_to_product_names(
     assert response.status_code == 422
 
 
+@pytest.mark.usefixtures("user", "catalog_loaded")
+async def test_chubb_e_policy_is_matched_to_the_chubb_basic_plan(
+    client: AsyncClient,
+) -> None:
+    """安達網路投保的電子保單（6 號泰國醫療 demo 的範例，個資已換成虛構資料）。"""
+    from pathlib import Path
+
+    sample = Path(__file__).parent.parent / "app/agents/document/samples/med_policy.pdf"
+    response = await client.post("/policies", **upload(sample.read_bytes()))
+    assert response.status_code == 201, response.text
+    assert response.json()["plan_id"] == "chubb_basic"
+
+
 @pytest.mark.usefixtures("user")
 async def test_empty_catalog_rejects_the_upload(
     client: AsyncClient, session: AsyncSession
