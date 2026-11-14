@@ -120,3 +120,13 @@ class ClaimPackager(Protocol):
 ## 契約 v2.14：送件前小助理提醒（選配）
 
 `prepare_trip(trip, google=None, user=None) -> PackagePreparation`（`TripClaimPreparer`，獨立協定）。依整個行程的待辦、文件、事故資料，列出寄出前值得再看一眼的事（`PackageReminder`：`text`、`incident_id`、`todo_id`）。**唯讀**，可重複呼叫（畫面的「重新檢查」）；不重複 `missing_todo_ids`、`unavailable_attachments` 已提示的事；數字只能來自 facts 與保單。平台提供 `POST /policies/{id}/package/prepare`（已完成），送件頁顯示由前端做；沒實作、出錯時平台回空提醒（不擋送件），提醒指到不存在的事件或待辦會被平台丟掉。假實作可當範例，完整說明見 contract-changelog 的 2.14.0。
+
+
+## 契約 v2.15：小助理的總結與一鍵修正（選配，ADR-0030）
+
+- `prepare_trip` 多選填參數 `mode`（`None`／`"self"`／`"send"`，對應 ADR-0025 的 ①②③）；`PackagePreparation` 多 `summary` 與 `actions`（`PackageAction`）；新選配協定 `TripPackageFixer.apply_action`。完整說明見 contract-changelog 的 2.15.0。
+- `summary` 是唯一可以由 LLM 寫的欄位：字句可以不同、可以提到畫面已提示的事；數字要通過白名單，不通過或失敗就是 `None`。`reminders`、`actions` 由程式產生，穩定且不重複畫面。
+- LLM 只看事故名稱、待辦名稱、附件檔名、空格的項目名稱、授權狀態；不看事故經過、facts、空格填的值。檔名先確認不含使用者原檔名（6 號存檔後是「事故類型_待辦名稱_序號」）。
+- `apply_action` 只做 `restore_file`；執行前再確認（還在垃圾桶、屬於這個行程、還原後 `file_status` 是 `ok`；整個資料夾在垃圾桶時檔案可能還是取不到，要回 `ok=False` 並說明）。
+- 序號寫半形「(2)」，與信裡空格的比對一致。
+- 交付時在這一節補上你實作的提醒種類與修正清單、每輪大約耗時與失敗行為（失敗回空的 `summary` 與 `actions`，`reminders` 照常）。

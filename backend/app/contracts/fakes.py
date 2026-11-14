@@ -29,8 +29,11 @@ from app.contracts.incident_agent import (
 from app.contracts.package_agent import (
     AttachmentRef,
     ClaimPackage,
+    PackageAction,
+    PackageActionResult,
     PackagePreparation,
     PackageReminder,
+    PrepareMode,
     SendMode,
     SendResult,
 )
@@ -407,6 +410,7 @@ class FakeClaimPackager:
         trip: TripContext,
         google: GoogleAccess | None = None,
         user: UserContext | None = None,
+        mode: PrepareMode | None = None,
     ) -> PackagePreparation:
         # 唯讀：已勾選、需要文件、卻沒有附任何文件的待辦，信裡會寫「另行提供」，提醒使用者（ADR-0029）
         trip = trip.for_agents_6_7()
@@ -420,7 +424,39 @@ class FakeClaimPackager:
             for t in trip.todos
             if t.is_done and t.requires_upload and t.id not in attached
         ]
-        return PackagePreparation(reminders=reminders)
+        # v2.15：檔名含「垃圾桶」的附件當作在 Drive 垃圾桶裡，建議還原（給前端與平台測試用）
+        actions = [
+            PackageAction(
+                action_id=f"restore:{d.id}",
+                kind="restore_file",
+                label=f"還原「{d.file_name}」",
+                document_id=d.id,
+                todo_id=d.todo_id,
+                incident_id=d.incident_id,
+            )
+            for d in trip.documents
+            if "垃圾桶" in d.file_name
+        ]
+        summary = (
+            f"小助理看過了：有 {len(reminders)} 條提醒、{len(actions)} 個可以一鍵修正的地方。"
+            if reminders or actions
+            else None
+        )
+        return PackagePreparation(reminders=reminders, summary=summary, actions=actions)
+
+    async def apply_action(
+        self,
+        trip: TripContext,
+        action_id: str,
+        google: GoogleAccess,
+        user: UserContext,
+    ) -> PackageActionResult:
+        trip = trip.for_agents_6_7()
+        prefix = action_id.partition(":")[0]
+        known = {f"restore:{d.id}" for d in trip.documents if "垃圾桶" in d.file_name}
+        if prefix != "restore" or action_id not in known:
+            return PackageActionResult(ok=False, message="找不到這個修正，請重新檢查。")
+        return PackageActionResult(ok=True, message="已把檔案從垃圾桶還原。")
 
     async def send_trip(
         self,
