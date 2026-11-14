@@ -138,11 +138,6 @@ export function TodoRow({
             依最新狀況已不需要
           </p>
         )}
-        {muted && (
-          <p className="m-0" data-testid="todo-not-covered">
-            這個事故依條款不在保障範圍，這項文件不需要準備
-          </p>
-        )}
         {documents.length > 0 && (
           <ul className="m-0 flex list-none flex-col gap-1 p-0" data-testid="todo-files">
             {documents.map((d) => {
@@ -191,7 +186,7 @@ export const PHASES = [
 
 /**
  * 待辦清單：分成「事故當下」與「回國後整理」兩張卡，每張卡裡先列這個事故的待辦，
- * 再列「整個行程」共用的待辦（理賠申請書）。不適用的排在同組最後。
+ * 再列「共同文件」共用的待辦（理賠申請書）。不適用的排在同組最後。
  */
 export function TodoCards({
   ctx,
@@ -218,7 +213,7 @@ export function TodoCards({
         if (inPhase.length === 0) return null;
         const groups = [
           { title: incidentTitle, items: sorted(inPhase.filter((t) => t.scope !== "policy")) },
-          { title: "整個行程", items: sorted(inPhase.filter((t) => t.scope === "policy")) },
+          { title: "共同文件", items: sorted(inPhase.filter((t) => t.scope === "policy")) },
         ].filter((g) => g.items.length > 0);
         const { done, total } = progressOf(inPhase);
         return (

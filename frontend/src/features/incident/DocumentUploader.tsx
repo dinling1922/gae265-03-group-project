@@ -62,7 +62,7 @@ export function DocumentUploader({
       const c = json as IncidentContext;
       return { todos: c.todos ?? [], documents: c.documents ?? [] };
     },
-    groupOf: (t) => (t.scope === "policy" ? "整個行程" : incidentLabel),
+    groupOf: (t) => (t.scope === "policy" ? "共同文件" : incidentLabel),
     optionLabel: (t) => t.title,
     recheck: (documentId, todoId) =>
       recheckIncidentDocument({
