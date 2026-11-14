@@ -4,6 +4,7 @@
 6、7 號有實作行程版介面（TripClaimPackager）才能寄出與建草稿；沒有時只允許預覽與自己處理。
 """
 
+import inspect
 import logging
 import uuid
 from datetime import date, datetime
@@ -38,7 +39,14 @@ from app.contracts import (
     TripClaimPackager,
     TripContext,
 )
-from app.contracts.package_agent import PackagePreparation, SendMode, TripClaimPreparer
+from app.contracts.package_agent import (
+    PackageActionResult,
+    PackagePreparation,
+    PrepareMode,
+    SendMode,
+    TripClaimPreparer,
+    TripPackageFixer,
+)
 from app.domain.incident import trip as trip_domain
 from app.domain.incident.drive_folder import trip_folder_url
 from app.domain.incident.gmail_link import is_gmail_url
@@ -372,12 +380,21 @@ async def get_trip_package(
 
 @router.post("/policies/{policy_id}/package/prepare")
 async def prepare_trip_package(
-    session: SessionDep, user: CurrentUser, policy_id: uuid.UUID
+    session: SessionDep,
+    user: CurrentUser,
+    policy_id: uuid.UUID,
+    mode: Annotated[
+        PrepareMode | None,
+        Query(
+            description="畫面在哪一步：不傳是選寄送方式（①），self 是問要不要建草稿（②），send 是信件預覽頁（③）"
+        ),
+    ] = None,
 ) -> PackagePreparation:
-    """送件前的小助理提醒（契約 v2.14）：請 7 號看整個行程，列出寄出前值得再看一眼的地方。
+    """送件前的小助理提醒、總結與建議的修正（契約 v2.14、v2.15）：請 7 號看整個行程。
 
     唯讀，可重複呼叫（畫面的「重新檢查」）。7 號沒有實作 `prepare_trip`、沒有符合保障的事件，或 7 號
-    出錯時回空的提醒（提醒是加分功能，不擋送件）；提醒指到不存在的事件或待辦就丟掉。行程鎖住後回 409。
+    出錯時回空的結果（這是加分功能，不擋送件）；提醒與修正指到不存在的事件、待辦或文件就丟掉。
+    行程鎖住後回 409。
     """
     policy = await _own_policy(session, user, policy_id)
     if await trip_domain.trip_locked(session, policy_id):
@@ -387,28 +404,76 @@ async def prepare_trip_package(
     preparer = get_claim_packager()
     if not view.incidents or not isinstance(preparer, TripClaimPreparer):
         return PackagePreparation()
+    kwargs: dict[str, Any] = {}
+    # 只對簽名有 mode 的實作帶上（v2.14 的實作照樣能用）
+    if "mode" in inspect.signature(preparer.prepare_trip).parameters:
+        kwargs["mode"] = mode
     try:
         result = await preparer.prepare_trip(
-            view, google=get_google_access(), user=_user(user)
+            view, google=get_google_access(), user=_user(user), **kwargs
         )
     except Exception:
-        logger.exception("7 號的 prepare_trip 失敗，提醒留空（policy %s）", policy_id)
+        logger.exception("7 號的 prepare_trip 失敗，結果留空（policy %s）", policy_id)
         return PackagePreparation()
     incident_ids = {i.incident_id for i in view.incidents}
     todo_ids = {t.id for t in view.todos}
-    kept = [
-        r
-        for r in result.reminders
-        if (r.incident_id is None or r.incident_id in incident_ids)
-        and (r.todo_id is None or r.todo_id in todo_ids)
+    document_ids = {d.id for d in view.documents}
+
+    def known(
+        incident_id: uuid.UUID | None,
+        todo_id: uuid.UUID | None,
+        document_id: uuid.UUID | None = None,
+    ) -> bool:
+        return (
+            (incident_id is None or incident_id in incident_ids)
+            and (todo_id is None or todo_id in todo_ids)
+            and (document_id is None or document_id in document_ids)
+        )
+
+    reminders = [r for r in result.reminders if known(r.incident_id, r.todo_id)]
+    actions = [
+        a for a in result.actions if known(a.incident_id, a.todo_id, a.document_id)
     ]
-    if len(kept) != len(result.reminders):
+    dropped = (len(result.reminders) - len(reminders)) + (
+        len(result.actions) - len(actions)
+    )
+    if dropped:
         logger.warning(
-            "7 號的提醒指到不存在的事件或待辦，已丟掉 %d 條（policy %s）",
-            len(result.reminders) - len(kept),
+            "7 號的提醒或修正指到不存在的事件、待辦或文件，已丟掉 %d 條（policy %s）",
+            dropped,
             policy_id,
         )
-    return PackagePreparation(reminders=kept)
+    return PackagePreparation(
+        reminders=reminders, summary=result.summary, actions=actions
+    )
+
+
+@router.post("/policies/{policy_id}/package/actions/{action_id}")
+async def apply_package_action(
+    session: SessionDep, user: CurrentUser, policy_id: uuid.UUID, action_id: str
+) -> PackageActionResult:
+    """執行小助理建議的修正（契約 v2.15）：使用者按下按鈕才呼叫，平台不會自己執行。
+
+    7 號沒有實作 `apply_action` 回 409；失敗（含 7 號丟例外）回 200 與 `ok=false`，不擋畫面。
+    行程鎖住後回 409；別人的保單回 404。執行完畫面要重新呼叫 prepare。
+    """
+    policy = await _own_policy(session, user, policy_id)
+    if await trip_domain.trip_locked(session, policy_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "這個行程已送件結案")
+    fixer = get_claim_packager()
+    if not isinstance(fixer, TripPackageFixer):
+        raise HTTPException(status.HTTP_409_CONFLICT, "7 號還沒有支援一鍵修正")
+    if len(action_id) > 200:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到這個修正")
+    trip = await trip_domain.build_trip_context(session, policy)
+    view = trip_domain.agent_view(trip)
+    try:
+        return await fixer.apply_action(
+            view, action_id, google=get_google_access(), user=_user(user)
+        )
+    except Exception:
+        logger.exception("7 號的 apply_action 失敗（policy %s）", policy_id)
+        return PackageActionResult(ok=False, message="沒有完成，請稍後再試。")
 
 
 async def _complete_all(session: SessionDep, policy_id: uuid.UUID) -> None:

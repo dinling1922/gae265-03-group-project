@@ -16,6 +16,7 @@ from app.contracts import (
     TripDocumentRechecker,
     TripDocumentRecognizer,
     TripDocumentRenamer,
+    TripPackageFixer,
     UploadedFile,
     UserContext,
 )
@@ -131,6 +132,33 @@ def test_行程的待辦與文件含共同文件() -> None:
     assert len(trip.documents) == 1 and trip.documents[0].incident_id is None
 
 
+async def test_假_7_號建議還原垃圾桶的附件_apply_action_只認自己建議的() -> None:
+    trip, a, b, gone, shared = make_trip()
+    doc = DocumentView(
+        id=uuid.uuid4(),
+        todo_id=shared.id,
+        file_name="垃圾桶_登機證.pdf",
+        content_type="application/pdf",
+        storage_path="p",
+        recognition_status="recognized",
+    )
+    trip.shared_documents.append(doc)
+    packager = FakeClaimPackager()
+
+    result = await packager.prepare_trip(trip, mode="send")
+
+    assert [x.action_id for x in result.actions] == [f"restore:{doc.id}"]
+    assert result.actions[0].document_id == doc.id
+    assert await packager.prepare_trip(trip, mode="send") == result  # 重複呼叫相同
+    ok = await packager.apply_action(
+        trip, result.actions[0].action_id, _NoGoogle(), USER
+    )  # type: ignore[arg-type]
+    bad = await packager.apply_action(
+        trip, f"restore:{uuid.uuid4()}", _NoGoogle(), USER
+    )  # type: ignore[arg-type]
+    assert ok.ok and not bad.ok
+
+
 def test_假實作都符合行程版的選配協定() -> None:
     recognizer, packager = FakeDocumentRecognizer(), FakeClaimPackager()
     assert isinstance(recognizer, TripDocumentRecognizer)
@@ -139,6 +167,7 @@ def test_假實作都符合行程版的選配協定() -> None:
     assert isinstance(recognizer, TripDocumentRenamer)
     assert isinstance(packager, TripClaimPackager)
     assert isinstance(packager, TripClaimPreparer)
+    assert isinstance(packager, TripPackageFixer)
 
 
 async def recognize(trip: TripContext, name: str, target: uuid.UUID | None = None):
