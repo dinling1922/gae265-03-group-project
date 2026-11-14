@@ -93,7 +93,21 @@ export function TripPage({
 
   return (
     <main data-page-paper className={`mx-auto flex flex-col gap-6 font-ui md:px-6 ${wideMain}`}>
-      <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
+        {/* 過渡用：整個入口切換前，舊的理賠頁也連得到行程頁（#360） */}
+        {ctx.policy.policy_id && (
+          <Link
+            to="/trip/$policyId"
+            params={{ policyId: ctx.policy.policy_id }}
+            search={{ incident: id }}
+            className="t-caption underline"
+            data-testid="view-trip"
+          >
+            看整個行程
+          </Link>
+        )}
+      </div>
 
       <section
         className={`${card} flex flex-wrap items-center gap-x-6 gap-y-2`}
