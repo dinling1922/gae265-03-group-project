@@ -137,6 +137,8 @@ test("系統確認的待辦取消勾選前會先問", async ({ page }) => {
   await expect(agentDone).toBeVisible({ timeout: SLOW });
   // 系統會依「事故類型_待辦名稱_序號」把檔案改名，所以看不到原檔名
   await expect(agentDone.getByTestId("todo-files")).toContainText("班機延誤_");
+  // 假的 6 號存的不是真的 Drive 檔案：檔名不變成打不開的連結（真的 Drive 檔案才會連到 Drive）
+  await expect(agentDone.getByTestId("todo-file-link")).toHaveCount(0);
   const box = agentDone.getByRole("checkbox");
   await expect(box).toBeChecked();
   await box.click();
