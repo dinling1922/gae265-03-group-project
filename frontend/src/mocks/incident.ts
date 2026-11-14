@@ -152,6 +152,7 @@ const incidents = new Map<string, MockIncident>();
 
 const summary = (id: string, m: MockIncident): IncidentSummaryOut => ({
   id,
+  policy_id: m.ctx.policy.policy_id ?? "",
   title: m.ctx.title,
   status: m.ctx.status,
   incident_type_name: m.ctx.incident_type_name ?? null,

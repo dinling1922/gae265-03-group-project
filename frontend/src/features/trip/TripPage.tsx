@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { patchTripTodo, sendIncidentMessage } from "../../client";
 import type { TodoView, TripOut } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
@@ -26,10 +26,13 @@ export function TripPage({
   policyId,
   trip,
   googleUser,
+  initialIncidentId,
 }: {
   policyId: string;
   trip: TripOut;
   googleUser: boolean;
+  /** 從某個事故導過來（`?incident=`）：預設選中並展開它；不在這個行程裡就忽略 */
+  initialIncidentId?: string;
 }) {
   const { setTrip, refresh } = useTrip(policyId);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -43,6 +46,8 @@ export function TripPage({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // 按「問答」後左欄要捲到哪個事故（規格 7.3：該事故總結頂端對齊問答框頂端）
   const [scrollTo, setScrollTo] = useState<string | null>(null);
+  // 剛問完的事故：快取裡可能還是舊的行程（還沒有這個事故），資料更新後才找得到，所以用 effect 套用一次
+  const appliedInitial = useRef<string | null>(null);
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答面板是否拉開
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
@@ -52,6 +57,16 @@ export function TripPage({
   const selected = trip.incidents.find((i) => i.id === selectedId) ?? trip.incidents[0];
   const { data: ctx, refresh: refreshIncident } = useIncident(selected?.id ?? "");
   const question = drafts[selected?.id ?? ""] ?? "";
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 同一個 initialIncidentId 只套用一次
+  useEffect(() => {
+    if (!initialIncidentId || appliedInitial.current === initialIncidentId) return;
+    if (!trip.incidents.some((i) => i.id === initialIncidentId)) return;
+    appliedInitial.current = initialIncidentId;
+    setSelectedId(initialIncidentId);
+    setExpanded((prev) => new Set(prev).add(initialIncidentId));
+    // 導過來的事故不是第一個時，捲到它
+    if (initialIncidentId !== trip.incidents[0]?.id) setScrollTo(initialIncidentId);
+  }, [initialIncidentId, trip.incidents]);
   const { done, total } = tripProgress(trip);
 
   // 事故卡展開、面板拉開後再捲：先等這一輪畫面更新完。問答框固定在上方（top-6），事故卡留同樣的上緣
@@ -290,6 +305,7 @@ export function TripPage({
               }
               busy={busy}
               typing={asking?.id === selected.id}
+              typingLabel="正在查閱條款"
               onSend={(content) => void ask(content)}
               maxLength={300}
               minHeight={180}
