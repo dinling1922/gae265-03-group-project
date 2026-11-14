@@ -1794,9 +1794,65 @@ export type MessageView = {
 };
 
 /**
+ * PackageAction
+ *
+ * 小助理建議的一個修正（v2.15）：使用者按下才由 `apply_action` 執行，agent 自己不會執行。
+ */
+export type PackageAction = {
+    /**
+     * Action Id
+     *
+     * 程式產生，同樣狀況同樣的值，例如「restore:<document_id>」；apply_action 用它找回要做的事
+     */
+    action_id: string;
+    /**
+     * Kind
+     *
+     * restore_file：把 Drive 垃圾桶裡的附件移出來（不上傳、不改名、不刪除、不寫資料庫）
+     */
+    kind: 'restore_file';
+    /**
+     * Label
+     *
+     * 按鈕文字，程式產生，繁體中文
+     */
+    label: string;
+    /**
+     * Document Id
+     */
+    document_id?: string | null;
+    /**
+     * Todo Id
+     */
+    todo_id?: string | null;
+    /**
+     * Incident Id
+     */
+    incident_id?: string | null;
+};
+
+/**
+ * PackageActionResult
+ *
+ * `apply_action` 的結果（v2.15）：失敗回 ok=False 與說明，不丟例外。
+ */
+export type PackageActionResult = {
+    /**
+     * Ok
+     */
+    ok: boolean;
+    /**
+     * Message
+     *
+     * 給使用者看的一句話，繁體中文
+     */
+    message: string;
+};
+
+/**
  * PackagePreparation
  *
- * `prepare_trip` 的結果（v2.14）。
+ * `prepare_trip` 的結果（v2.14；v2.15 多 summary、actions）。
  */
 export type PackagePreparation = {
     /**
@@ -1805,6 +1861,18 @@ export type PackagePreparation = {
      * 依重要程度排序；沒有要提醒的就是空的
      */
     reminders?: Array<PackageReminder>;
+    /**
+     * Summary
+     *
+     * （v2.15）給使用者看的一段話，整合目前所有狀況與先做哪件事；沒有（或失敗）是 None。只有這個欄位可以由 LLM 寫，且裡面的數字要在程式給的資料裡找得到（ADR-0004）
+     */
+    summary?: string | null;
+    /**
+     * Actions
+     *
+     * （v2.15）建議的修正，由程式確認成立後才放進來；穩定、不重複畫面已提示的事
+     */
+    actions?: Array<PackageAction>;
 };
 
 /**
@@ -5695,7 +5763,14 @@ export type PrepareTripPackageData = {
          */
         policy_id: string;
     };
-    query?: never;
+    query?: {
+        /**
+         * Mode
+         *
+         * 畫面在哪一步：不傳是選寄送方式（①），self 是問要不要建草稿（②），send 是信件預覽頁（③）
+         */
+        mode?: 'self' | 'send' | null;
+    };
     url: '/api/v1/policies/{policy_id}/package/prepare';
 };
 
@@ -5716,6 +5791,40 @@ export type PrepareTripPackageResponses = {
 };
 
 export type PrepareTripPackageResponse = PrepareTripPackageResponses[keyof PrepareTripPackageResponses];
+
+export type ApplyPackageActionData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+        /**
+         * Action Id
+         */
+        action_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/package/actions/{action_id}';
+};
+
+export type ApplyPackageActionErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ApplyPackageActionError = ApplyPackageActionErrors[keyof ApplyPackageActionErrors];
+
+export type ApplyPackageActionResponses = {
+    /**
+     * Successful Response
+     */
+    200: PackageActionResult;
+};
+
+export type ApplyPackageActionResponse = ApplyPackageActionResponses[keyof ApplyPackageActionResponses];
 
 export type CloseTripData = {
     body?: never;
