@@ -48,8 +48,8 @@ async def upload(client: AsyncClient, incident_id: str, name: str):
     )
 
 
-def test_契約版本是_2_13_0() -> None:
-    assert CONTRACT_VERSION == "2.13.0"
+def test_契約版本是_2_14_0() -> None:
+    assert CONTRACT_VERSION == "2.14.0"
     changelog = Path("docs/agents/handoff/contract-changelog.md").read_text()
     assert CONTRACT_VERSION in changelog.split("\n## ", 2)[1]  # 最新一筆寫著版本
 
@@ -57,6 +57,7 @@ def test_契約版本是_2_13_0() -> None:
 # ---- context 帶出的新資料 ----
 
 
+@pytest.mark.usefixtures("full_catalog")
 async def test_context_有事故類型清單_必問欄位與這張保單對應的保障(
     client: AsyncClient, policy: Policy
 ) -> None:
