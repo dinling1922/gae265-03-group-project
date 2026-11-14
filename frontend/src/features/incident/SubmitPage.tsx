@@ -191,6 +191,8 @@ export function SubmitFlow({
   // 7 號沒有整個行程的版本時沒有草稿的問題：自己處理直接確認後結案
   const [confirmingSelf, setConfirmingSelf] = useState(false);
   const [pkg, setPkg] = useState<ClaimPackage | null>(null);
+  // 附件合計超過約 18 MB：一封信寄不出去，後端在預覽與送件時回 409（設計者 11/14：提示檔案大小超過）
+  const [tooLarge, setTooLarge] = useState(false);
   const [reminders, setReminders] = useState<PackageReminder[]>([]);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<SubmissionOut | null>(null);
@@ -235,7 +237,11 @@ export function SubmitFlow({
   useEffect(() => {
     if (step !== "preview" || pkg || closed) return;
     source.loadPackage().then((res) => {
-      if (!res.data) return setError(errorText(res.error, res.response?.status));
+      if (!res.data) {
+        if (isTooLarge(res)) return setTooLarge(true);
+        return setError(errorText(res.error, res.response?.status));
+      }
+      setTooLarge(false);
       setPkg(res.data);
       setRecipient((current) => current || res.data?.recipient_hint || "");
     });
@@ -269,6 +275,7 @@ export function SubmitFlow({
     });
     setBusy(false);
     if (!res.data) {
+      if (isTooLarge(res)) return setTooLarge(true);
       // 送件包還缺待辦（409）時，重新讀一次送件包：如果是一定要附上的文件在 Drive 上找不到，
       // 顯示和預覽頁一樣的提示框，不顯示平台籠統的訊息（例如從「我自己處理就好」建立草稿時）
       if (res.response?.status === 409 && mode !== "self") {
@@ -291,7 +298,11 @@ export function SubmitFlow({
   async function recheckPackage() {
     setError(null);
     const res = await source.loadPackage();
-    if (!res.data) return setError(errorText(res.error, res.response?.status));
+    if (!res.data) {
+      if (isTooLarge(res)) return setTooLarge(true);
+      return setError(errorText(res.error, res.response?.status));
+    }
+    setTooLarge(false);
     setPkg(res.data);
   }
 
@@ -534,6 +545,13 @@ export function SubmitFlow({
             )}
           </p>
 
+          {tooLarge && (
+            <SizeNotice
+              back={source.back}
+              onRecheck={() => void recheckPackage()}
+              action={step === "preview" ? "寄出" : "送件"}
+            />
+          )}
           {reminders.length > 0 && (
             <ReminderNotice
               items={reminders}
@@ -620,7 +638,7 @@ export function SubmitFlow({
                   onRecipient={setRecipient}
                 />
               ) : (
-                <p className="m-0 t-body text-muted">讀取送件信中…</p>
+                !tooLarge && <p className="m-0 t-body text-muted">讀取送件信中…</p>
               )}
               {pkg && recipientProblem && (
                 <p data-testid="recipient-problem" className="m-0 t-caption-bold text-danger">
@@ -691,6 +709,49 @@ export function SubmitFlow({
         </>
       )}
     </main>
+  );
+}
+
+/** 後端說附件合計超過上限（409）：和其他錯誤分開顯示。 */
+function isTooLarge(res: { error?: unknown; response?: Response }): boolean {
+  return res.response?.status === 409 && errorText(res.error, 409).includes("18 MB");
+}
+
+/**
+ * 附件合計超過約 18 MB（設計者 11/14）：一封信寄不出去，請使用者檢查檔案大小；
+ * 處理好之前不能寄出或建立草稿。「重新檢查」再讀一次送件信。
+ */
+function SizeNotice({
+  back,
+  onRecheck,
+  action,
+}: {
+  back: BackLink;
+  onRecheck: () => void;
+  action: string;
+}) {
+  return (
+    <div
+      role="alert"
+      className={`${notice} flex flex-col gap-1 bg-danger-soft text-danger-ink`}
+      data-testid="attachments-too-large"
+    >
+      <p className="m-0 t-caption-bold">附件合計超過 18 MB，一封信寄不出去。</p>
+      <p className="m-0">
+        請檢查檔案大小，壓縮或移除部分文件後再試。
+        {back({ className: "ml-1 underline", testId: "too-large-back", children: "回去處理" })}
+        ，處理完按
+        <button
+          type="button"
+          onClick={onRecheck}
+          className="mx-1 underline"
+          data-testid="too-large-recheck"
+        >
+          重新檢查
+        </button>
+        。處理好之前不能{action}。
+      </p>
+    </div>
   );
 }
 

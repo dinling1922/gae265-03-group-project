@@ -62,7 +62,7 @@ export function TripUploader({
   }
   const todos = [...trip.shared_todos, ...trip.incidents.flatMap((i) => i.todos)];
   const label = (t: TodoView) =>
-    t.scope === "policy" ? `整個行程｜${t.title}` : `${owners.get(t.id) ?? "事故"}｜${t.title}`;
+    t.scope === "policy" ? `共同文件　${t.title}` : `${owners.get(t.id) ?? "事故"}　${t.title}`;
   const source: UploadSource = {
     uploadUrl: `/api/v1/policies/${policyId}/documents`,
     readUrl: `/api/v1/policies/${policyId}/trip`,
@@ -75,7 +75,7 @@ export function TripUploader({
         documents: [...t.shared_documents, ...t.incidents.flatMap((i) => i.documents)],
       };
     },
-    groupOf: (t) => (t.scope === "policy" ? "整個行程" : (owners.get(t.id) ?? "事故")),
+    groupOf: (t) => (t.scope === "policy" ? "共同文件" : (owners.get(t.id) ?? "事故")),
     optionLabel: label,
     recheck: (documentId, todoId) =>
       recheckTripDocument({
@@ -133,7 +133,7 @@ export function TripUploader({
       />
       {hasUncovered && (
         <p className="m-0 t-caption text-muted" data-testid="upload-uncovered-note">
-          有事故依條款不在保障範圍，它的文件不需要上傳，上傳的檔案也不會對應到那些事故。
+          不符保障的事故不用上傳文件。
         </p>
       )}
     </div>
