@@ -210,7 +210,11 @@ async def test_chubb_e_policy_is_matched_to_the_chubb_basic_plan(
     sample = Path(__file__).parent.parent / "app/agents/document/samples/med_policy.pdf"
     response = await client.post("/policies", **upload(sample.read_bytes()))
     assert response.status_code == 201, response.text
-    assert response.json()["plan_id"] == "chubb_basic"
+    body = response.json()
+    assert body["plan_id"] == "chubb_basic"
+    assert (body["start_date"], body["end_date"]) == ("2026-07-05", "2026-07-12")
+    assert body["destination"] == "泰國"
+    assert body["sum_insured"] == 2_000_000
 
 
 @pytest.mark.usefixtures("user")
