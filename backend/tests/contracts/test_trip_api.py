@@ -345,6 +345,31 @@ async def test_我的行程可以限制筆數(
     assert len((await client.get("/trips?limit=2")).json()) == 2
 
 
+async def test_我的行程依最後操作時間排序_傳訊息也算(
+    client: AsyncClient, session: AsyncSession, policy: Policy
+) -> None:
+    older = await new_incident(client, policy)
+    other = Policy(
+        user_id=policy.user_id,
+        display_name="較晚",
+        plan_id="fubon_advanced",
+        sum_insured=1,
+    )
+    session.add(other)
+    await session.commit()
+    await new_incident(client, other)
+    assert [t["policy_id"] for t in (await client.get("/trips")).json()][0] == str(
+        other.id
+    )
+
+    # 對較早那張保單的事件說一句話：它變成最後操作的
+    sent = await client.post(f"/incidents/{older}/messages", json={"content": "不知道"})
+    assert sent.status_code == 200
+    assert [t["policy_id"] for t in (await client.get("/trips")).json()][0] == str(
+        policy.id
+    )
+
+
 async def test_行程頁帶出事故卡要的資料(client: AsyncClient, policy: Policy) -> None:
     await new_incident(client, policy)
 

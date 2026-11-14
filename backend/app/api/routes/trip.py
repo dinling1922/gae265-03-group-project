@@ -23,6 +23,7 @@ from app.api.routes.incidents import (
     SubmitIn,
     _build_package,
     _gmail_refs,
+    _last_activity_at,
     _user,
     submission_status,
 )
@@ -170,17 +171,19 @@ async def list_trips(
     ] = None,
 ) -> list[TripSummaryOut]:
     """我的行程：至少有一個事件的保單，依最後操作時間由新到舊。"""
+    # 最後操作時間同 GET /incidents（#208）：事件、待辦、文件、對話裡最新的，不是只看 incident.updated_at
+    last_activity = func.max(_last_activity_at())
     stmt = (
         select(
             Policy,
             func.count(col(Incident.id)),
             func.count(col(Incident.id)).filter(col(Incident.status) != "completed"),
-            func.max(col(Incident.updated_at)),
+            last_activity,
         )
         .join(Incident, col(Incident.policy_id) == col(Policy.id))
         .where(Policy.user_id == user.id)
         .group_by(col(Policy.id))
-        .order_by(func.max(col(Incident.updated_at)).desc())
+        .order_by(last_activity.desc())
     )
     if limit is not None:
         stmt = stmt.limit(limit)
