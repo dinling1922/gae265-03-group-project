@@ -102,7 +102,9 @@ test("頁底的「我的理賠」列出事件，點一列進入該事件", async
   const list = page.getByTestId("incidents");
   await expect(list.getByTestId("incident-row-title")).toHaveCount(1);
   await list.getByTestId("incident-row-title").click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${created.incident.incident_id}$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/trip/${policy.id}\\?incident=${created.incident.incident_id}$`),
+  );
 });
 
 test("已有保單時，一進 2-1 仍是上傳保單／手動選擇兩個分頁；只有帶 ?policy= 回來才出現「我的保單」", async ({
