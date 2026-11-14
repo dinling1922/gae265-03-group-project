@@ -52,7 +52,7 @@ test.beforeEach(async ({ request }) => {
   test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
 });
 
-test("行程頁：行程資訊列、事故卡、待辦依事故分組並有「整個行程」的共同文件", async ({ page }) => {
+test("行程頁：行程資訊列、事故卡、待辦依事故分組並有「共同文件」組", async ({ page }) => {
   const { policyId } = await setup(page, "overview", ["班機延誤了六小時"]);
   await page.goto(`/trip/${policyId}`);
   await expectPaper(page);
@@ -64,10 +64,10 @@ test("行程頁：行程資訊列、事故卡、待辦依事故分組並有「�
   await expect(card).toHaveCount(1);
   await expect(card.getByTestId("incident-type")).toContainText("班機延誤");
   await expect(card.getByTestId("incident-ask")).toHaveCount(0);
-  // 待辦：事故自己的一組，加上「整個行程」一組（共同文件：理賠申請書）
+  // 待辦：事故自己的一組，加上「共同文件」一組（理賠申請書）
   await expect(page.getByTestId("todo-group").first()).toContainText("班機延誤");
   const shared = page.getByTestId("todo-group-trip").first();
-  await expect(shared).toContainText("整個行程");
+  await expect(shared).toContainText("共同文件");
   await expect(page.getByTestId("todos")).toContainText("填寫理賠申請書");
   // 右欄問答：選中事故的名稱
   await expect(page.getByTestId("qa-title")).toContainText("班機延誤");
@@ -81,7 +81,7 @@ test("勾選待辦後完成度更新；行程頁與事件資料一致", async ({
   const before = (await pill.textContent()) ?? "";
   const done0 = Number(before.match(/待辦 (\d+)／/)?.[1]);
 
-  // 勾「整個行程」組的第一項（不需要上傳的優先；需上傳的會先跳確認）
+  // 勾「共同文件」組的第一項（不需要上傳的優先；需上傳的會先跳確認）
   const checkbox = page.getByTestId("todo-group-trip").first().getByRole("checkbox").first();
   await checkbox.click(); // 需上傳的待辦會先跳確認，狀態要等確認後才變，不能用 check()
   const dialog = page.getByTestId("tick-dialog");
@@ -191,7 +191,7 @@ test("多個事故：文件對得到多個事故時要選，選單帶事故名�
   await expect(chooser).toBeVisible({ timeout: SLOW });
   // 選單的每個選項都帶事故名稱，兩個事故的候選分得出來
   const options = await chooser.getByRole("option").allTextContents();
-  expect(options.some((o) => o.startsWith("班機延誤｜"))).toBe(true);
+  expect(options.some((o) => o.startsWith("班機延誤") && o.includes("　"))).toBe(true);
   expect(options.some((o) => o.startsWith("班機延誤（2）"))).toBe(true);
 
   await chooser.getByRole("combobox").selectOption({ index: 1 });
@@ -241,7 +241,9 @@ test("所有事故都不符保障：可以結案，結案後鎖住並說明沒�
   await page.getByTestId("close-trip").click();
   await page.getByTestId("close-confirm").click();
 
-  await expect(page.getByTestId("send-closed")).toContainText("沒有寄出信件");
+  await expect(page.getByTestId("send-closed")).toHaveText("此行程已結案");
+  await expect(page.getByTestId("send-box-gmail")).toBeHidden();
+  await expect(page.getByTestId("locked-note")).toContainText("重新建立行程");
   await expect(page.getByText("已結案", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("close-trip")).toHaveCount(0);
 });
@@ -329,4 +331,87 @@ test("手機：問答面板占下半、沒有遮罩，上方待辦仍可捲動�
 
   await page.getByTestId("qa-close").click();
   await expect(panel).toBeHidden();
+});
+
+// 設計者 11/14 的調整：不符保障與資訊不足分開標示、結案後說明。5 號的假實作產不出「資訊不足」，
+// 所以改行程 API 的回應來看畫面（只改回應，不動資料）。
+async function stubTrip(page: Page, policyId: string, change: (trip: any) => void) {
+  await page.route(`**/api/v1/policies/${policyId}/trip`, async (route) => {
+    try {
+      const response = await route.fetch();
+      const body = await response.json();
+      change(body);
+      await route.fulfill({ response, json: body });
+    } catch {
+      // 測試結束時還在進行的重新讀取：不算錯
+    }
+  });
+}
+
+test("資訊不足：事故卡標「資訊不足，尚無法判斷」，送件區說明可補充說明或結案", async ({ page }) => {
+  const { policyId } = await setup(page, "insufficient", ["班機延誤了六小時"]);
+  await stubTrip(page, policyId, (trip) => {
+    const incident = trip.incidents[0];
+    incident.covered = false;
+    incident.clauses = incident.clauses.map((c: object) => ({ ...c, conclusion: "insufficient" }));
+    incident.todos = [];
+    trip.shared_todos = [];
+    trip.can_close = true;
+    trip.can_submit = false;
+  });
+  await page.goto(`/trip/${policyId}`);
+
+  const card = page.getByTestId("trip-incident");
+  await expect(card.getByTestId("insufficient")).toHaveText("資訊不足，尚無法判斷");
+  await expect(card.getByTestId("not-covered")).toHaveCount(0);
+  await expect(card.getByTestId("insufficient-note")).toContainText("可以在問答補充說明");
+  await expect(page.getByTestId("send-box")).toContainText("資訊不足，還不能送件");
+  await expect(page.getByTestId("close-note")).toContainText("也可以結案");
+});
+
+test("不符保障的事故裡有範本待辦：反灰，組小標題下說明；上傳框旁提示", async ({ page }) => {
+  const { policyId } = await setup(page, "greyed", ["班機延誤了六小時"]);
+  await stubTrip(page, policyId, (trip) => {
+    trip.incidents[0].covered = false;
+    trip.incidents[0].clauses = trip.incidents[0].clauses.map((c: object) => ({
+      ...c,
+      conclusion: "excluded",
+    }));
+  });
+  await page.goto(`/trip/${policyId}`);
+
+  await expect(page.getByTestId("not-covered")).toHaveText("不符保障");
+  await expect(page.getByTestId("group-not-covered").first()).toHaveText(
+    "這個事故依條款不在保障範圍，這些文件不需要準備",
+  );
+  await expect(page.getByTestId("upload-uncovered-note")).toHaveText(
+    "不符保障的事故不用上傳文件。",
+  );
+});
+
+test("建立草稿結案：送件區提醒草稿還沒寄出要到 Gmail 寄出", async ({ page }) => {
+  const { policyId } = await setup(page, "drafted", ["班機延誤了六小時"]);
+  const api = page.request;
+  const trip = await (await api.get(`/api/v1/policies/${policyId}/trip`)).json();
+  const todos = [
+    ...trip.shared_todos,
+    ...trip.incidents.flatMap((i: { todos: unknown[] }) => i.todos),
+  ];
+  for (const t of todos as { id: string; applicable: boolean }[]) {
+    if (t.applicable)
+      await api.patch(`/api/v1/policies/${policyId}/todos/${t.id}`, { data: { is_done: true } });
+  }
+  const drafted = await api.post(`/api/v1/policies/${policyId}/submission`, {
+    data: { mode: "draft", recipient: "claims@example.com" },
+  });
+  expect(drafted.status(), await drafted.text()).toBe(201);
+
+  await page.goto(`/trip/${policyId}`);
+  await expect(page.getByTestId("send-draft-note")).toHaveText(
+    "草稿還沒寄出的話，請到 Gmail 寄出。",
+  );
+  await expect(page.getByTestId("locked-note").getByTestId("new-trip")).toHaveAttribute(
+    "href",
+    "/incident/new",
+  );
 });

@@ -146,3 +146,40 @@ test("小助理提醒：勾了卻沒附文件的待辦會提醒，補上文件�
   await page.getByTestId("reminders-back").click();
   await expect(page).toHaveURL(new RegExp(`/trip/${policyId}$`));
 });
+
+test("附件合計超過 18 MB：預覽顯示紅字提示、不能寄出，請使用者檢查檔案大小", async ({ page }) => {
+  const policyId = await setup(page, "toolarge", true);
+  const trip = await (await page.request.get(`/api/v1/policies/${policyId}/trip`)).json();
+  // 事故自己的與共同文件裡需要文件的待辦
+  const needUpload = [...trip.shared_todos, ...trip.incidents[0].todos].filter(
+    (t: { requires_upload: boolean }) => t.requires_upload,
+  );
+  expect(needUpload.length).toBeGreaterThanOrEqual(2);
+  // 每份 9.9 MB（單檔上限 10 MB 以內），兩份合計超過 18 MB
+  const big = (name: string) => ({
+    name,
+    mimeType: "application/pdf",
+    buffer: Buffer.concat([Buffer.from("%PDF-1.4"), Buffer.alloc(9_900_000)]),
+  });
+  const names = ["延誤證明.pdf", "費用收據.pdf"]; // 假 6 號依檔名辨識：含「證明」「收據」才通過、才會附在信裡
+  for (const [i, name] of names.entries()) {
+    const res = await page.request.post(`/api/v1/policies/${policyId}/documents`, {
+      multipart: { file: big(name), todo_id: needUpload[i].id },
+    });
+    expect(res.status(), await res.text()).toBe(201);
+  }
+
+  await page.goto(`/trip/${policyId}/submit`);
+  await page.getByTestId("choose-send").click();
+
+  const notice = page.getByTestId("attachments-too-large");
+  await expect(notice).toContainText("附件合計超過 18 MB", { timeout: SLOW });
+  await expect(notice).toContainText("請檢查檔案大小");
+  await expect(page.getByTestId("submit")).toBeDisabled();
+  await expect(page.getByText("讀取送件信中…")).toHaveCount(0);
+  // 回去處理 → 行程頁；重新檢查仍是超過（檔案還在）
+  await page.getByTestId("too-large-recheck").click();
+  await expect(notice).toBeVisible();
+  await page.getByTestId("too-large-back").click();
+  await expect(page).toHaveURL(new RegExp(`/trip/${policyId}$`));
+});

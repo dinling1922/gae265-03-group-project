@@ -107,7 +107,7 @@ type TodoGroup = { label: string; todos: { title: string; note?: string }[] };
 type Phase = { label: string; groups: TodoGroup[] };
 type Scenario = "flight_delay" | "medical";
 const CLAIM_FORM: TodoGroup = {
-  label: "整個行程",
+  label: "共同文件",
   todos: [{ title: "填寫理賠申請書", note: "紙本填寫後，和所有文件一起寄出" }],
 };
 // 照原型 2-3：待辦分「事故當下」「回國後整理」，裡面再依事故分組（待辦的 phase：on_site／after_return）
