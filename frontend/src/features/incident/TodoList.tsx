@@ -13,6 +13,18 @@ export function progressOf(todos: TodoView[]) {
   return { done: active.filter((t) => t.is_done).length, total: active.length };
 }
 
+/**
+ * 已存到使用者 Google Drive 的檔案，在 Drive 打開的網址（Drive 自己能放大、翻頁）。
+ * 6 號的 storage_path 就是 Drive 檔案編號；假資料（mock/…）與開發用假雲端（dev-fake-…）
+ * 不是真的檔案，回 null，檔名照舊只顯示文字。
+ */
+export function driveFileUrl(storagePath: string): string | null {
+  if (storagePath.startsWith("dev-fake") || !/^[A-Za-z0-9_-]{20,}$/.test(storagePath)) {
+    return null;
+  }
+  return `https://drive.google.com/file/d/${encodeURIComponent(storagePath)}/view`;
+}
+
 /** 狀態晶片（設計稿 v3.7）：已附檔案數、等待說明、待上傳；其餘不顯示。 */
 function statusOf(t: TodoView, fileCount: number): { text: string; className: string } | null {
   if (isNa(t)) return null;
@@ -133,12 +145,28 @@ export function TodoRow({
         )}
         {documents.length > 0 && (
           <ul className="m-0 flex list-none flex-col gap-1 p-0" data-testid="todo-files">
-            {documents.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-2.5 t-caption text-brand">
-                <span className="[overflow-wrap:anywhere] font-bold">📎 {d.file_name}</span>
-                <PlaceholderButton kind="danger-link">刪除</PlaceholderButton>
-              </li>
-            ))}
+            {documents.map((d) => {
+              const url = driveFileUrl(d.storage_path);
+              return (
+                <li key={d.id} className="flex flex-wrap items-center gap-2.5 t-caption text-brand">
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="[overflow-wrap:anywhere] font-bold text-brand underline underline-offset-2"
+                      title="在 Google Drive 打開"
+                      data-testid="todo-file-link"
+                    >
+                      📎 {d.file_name}
+                    </a>
+                  ) : (
+                    <span className="[overflow-wrap:anywhere] font-bold">📎 {d.file_name}</span>
+                  )}
+                  <PlaceholderButton kind="danger-link">刪除</PlaceholderButton>
+                </li>
+              );
+            })}
           </ul>
         )}
         {t.wait_note && <p className="m-0">⏱ {t.wait_note}</p>}

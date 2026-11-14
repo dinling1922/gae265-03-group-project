@@ -74,6 +74,9 @@ class MessageIn(BaseModel):
 
 class IncidentSummaryOut(BaseModel):
     id: uuid.UUID
+    policy_id: uuid.UUID = Field(
+        description="所屬保單；行程 ＝ 保單，畫面連到 /trip/{policy_id}"
+    )
     title: str
     status: str
     incident_type_name: str | None
@@ -323,6 +326,7 @@ async def list_incidents(
     return [
         IncidentSummaryOut(
             id=i.id,
+            policy_id=i.policy_id,
             title=i.title,
             status=i.status,
             incident_type_name=name,
