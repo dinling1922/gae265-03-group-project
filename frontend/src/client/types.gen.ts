@@ -203,6 +203,12 @@ export type BodyWalkDocumentRecognition = {
      */
     apply_draft_rules?: boolean;
     /**
+     * Scenario
+     *
+     * 展示用的事件：flight_delay 日本班機延誤／medical 泰國生病就醫
+     */
+    scenario?: 'flight_delay' | 'medical';
+    /**
      * Use Real Drive
      *
      * 存到登入者自己的 Google Drive；沒登入或沒授權時退回假雲端
@@ -1490,6 +1496,12 @@ export type IncidentSummaryOut = {
      */
     id: string;
     /**
+     * Policy Id
+     *
+     * 所屬保單；行程 ＝ 保單，畫面連到 /trip/{policy_id}
+     */
+    policy_id: string;
+    /**
      * Title
      */
     title: string;
@@ -1785,6 +1797,46 @@ export type MessageView = {
      * 5 號這則回覆引用的條文出處，由程式從檢索結果寫入；使用者的訊息是空的（2.3.0）
      */
     citations?: Array<Citation>;
+};
+
+/**
+ * PackagePreparation
+ *
+ * `prepare_trip` 的結果（v2.14）。
+ */
+export type PackagePreparation = {
+    /**
+     * Reminders
+     *
+     * 依重要程度排序；沒有要提醒的就是空的
+     */
+    reminders?: Array<PackageReminder>;
+};
+
+/**
+ * PackageReminder
+ *
+ * 小助理的一條提醒（v2.14）：說一件事，使用者看了知道要不要回去補。
+ */
+export type PackageReminder = {
+    /**
+     * Text
+     *
+     * 給使用者看的一句話，繁體中文；提到事故時用事故名稱
+     */
+    text: string;
+    /**
+     * Incident Id
+     *
+     * 提醒的是哪個事件；整個行程或共同文件的事是 None
+     */
+    incident_id?: string | null;
+    /**
+     * Todo Id
+     *
+     * 相關的待辦（畫面可以帶使用者過去）；沒有就是 None
+     */
+    todo_id?: string | null;
 };
 
 /**
@@ -3680,9 +3732,19 @@ export type TripIncidentOut = {
      */
     title: string;
     /**
+     * Description
+     *
+     * 使用者的第一句描述（可能含個資），事故卡「旅客說的話」用
+     */
+    description: string;
+    /**
      * Status
      */
     status: string;
+    /**
+     * Incident Type Code
+     */
+    incident_type_code: string | null;
     /**
      * Incident Type Name
      */
@@ -3695,6 +3757,18 @@ export type TripIncidentOut = {
      * Occurred At
      */
     occurred_at: string | null;
+    /**
+     * Clauses
+     *
+     * 事故卡三組：可能適用、依條款不在保障範圍、待確認事項
+     */
+    clauses: Array<ClauseView>;
+    /**
+     * Facts
+     *
+     * 你提供的前提
+     */
+    facts: Array<FactView>;
     /**
      * Covered
      *
@@ -3747,6 +3821,18 @@ export type TripOut = {
      */
     major_notices: Array<string>;
     /**
+     * Destination
+     *
+     * 行程的目的地（事件裡第一個有填的）
+     */
+    destination: string | null;
+    /**
+     * Can Send
+     *
+     * 7 號有行程版：可以寄出與建立草稿；False 時只能自己處理（畫面把寄出與草稿反灰）
+     */
+    can_send: boolean;
+    /**
      * Can Submit
      *
      * 所有涵蓋中事件的待辦與共同文件都完成，可以送件
@@ -3774,6 +3860,12 @@ export type TripSummaryOut = {
      */
     display_name: string;
     /**
+     * Destination
+     *
+     * 行程名稱＝目的地＋保險期間（規格 0-4）
+     */
+    destination: string | null;
+    /**
      * Start Date
      */
     start_date: string | null;
@@ -3797,6 +3889,38 @@ export type TripSummaryOut = {
      * Last Activity At
      */
     last_activity_at: string;
+    /**
+     * Incident Type Names
+     *
+     * 事故類型（依發生時間、去重），第二行以頓號串接
+     */
+    incident_type_names: Array<string>;
+    /**
+     * Todo Done
+     */
+    todo_done: number;
+    /**
+     * Todo Total
+     */
+    todo_total: number;
+    /**
+     * State
+     *
+     * describing 描述中／no_todos 無待辦／in_progress 待辦 done／total／done 待辦已完成
+     */
+    state: 'describing' | 'no_todos' | 'in_progress' | 'done';
+    /**
+     * Closed As
+     *
+     * 結案方式：已寄出、已建草稿、自行送件、直接結案（全部不符保障）；沒結案是 None
+     */
+    closed_as: 'sent' | 'drafted' | 'self_submitted' | 'closed' | null;
+    /**
+     * Has Unfinished
+     *
+     * 紅點（0-5a）：行程至少有一個未完成待辦，已結案不顯示；「我的行程」徽章（0-5b）數這個為 True 的行程
+     */
+    has_unfinished: boolean;
 };
 
 /**
@@ -5418,9 +5542,25 @@ export type SubmitIncidentResponse = SubmitIncidentResponses[keyof SubmitInciden
 export type ListTripsData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Limit
+         *
+         * 只取最近 N 筆；首頁用 3 加 1
+         */
+        limit?: number | null;
+    };
     url: '/api/v1/trips';
 };
+
+export type ListTripsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListTripsError = ListTripsErrors[keyof ListTripsErrors];
 
 export type ListTripsResponses = {
     /**
@@ -5553,6 +5693,36 @@ export type GetTripPackageResponses = {
 
 export type GetTripPackageResponse = GetTripPackageResponses[keyof GetTripPackageResponses];
 
+export type PrepareTripPackageData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/package/prepare';
+};
+
+export type PrepareTripPackageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrepareTripPackageError = PrepareTripPackageErrors[keyof PrepareTripPackageErrors];
+
+export type PrepareTripPackageResponses = {
+    /**
+     * Successful Response
+     */
+    200: PackagePreparation;
+};
+
+export type PrepareTripPackageResponse = PrepareTripPackageResponses[keyof PrepareTripPackageResponses];
+
 export type CloseTripData = {
     body?: never;
     path: {
@@ -5582,6 +5752,36 @@ export type CloseTripResponses = {
 };
 
 export type CloseTripResponse = CloseTripResponses[keyof CloseTripResponses];
+
+export type GetTripDriveFolderData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/drive-folder';
+};
+
+export type GetTripDriveFolderErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTripDriveFolderError = GetTripDriveFolderErrors[keyof GetTripDriveFolderErrors];
+
+export type GetTripDriveFolderResponses = {
+    /**
+     * Successful Response
+     */
+    200: DriveFolderOut;
+};
+
+export type GetTripDriveFolderResponse = GetTripDriveFolderResponses[keyof GetTripDriveFolderResponses];
 
 export type UploadTripDocumentData = {
     body: BodyUploadTripDocument;

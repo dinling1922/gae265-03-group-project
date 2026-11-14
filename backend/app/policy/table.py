@@ -1,5 +1,6 @@
 """保單「承保內容」表（ADR-0013）：用表上印的險種代碼對照條款庫，並讀出保額與保險期間。
 
+安達網路投保的電子保單沒有代碼表，另外讀它的保險期間、旅遊地區與身故保額寫法。
 全部由程式規則處理，LLM 不參與（數字見 ADR-0004）。只看表本身，不看後面附的條款原文：
 附的條款裡也會出現別的險種代碼與商品全名，整份文字比對會多抓。
 """
@@ -26,6 +27,35 @@ _PERIOD_RE = re.compile(
     rf"自\s*{_DATE}\s*{_TIME}[^至]{{0,20}}?起\s*至\s*{_DATE}\s*{_TIME}", re.S
 )
 _COUNTRY_RE = re.compile(r"^旅遊國家[一二三四五六七八九十]*\s*[:：]\s*(.+)$")
+# 安達網路投保的電子保單（沒有險種代碼表）：
+# 「保險期間：自05-Jul-2026 00時00分至12-Jul-2026 24時00分止」「旅遊地區：泰國」，
+# 保額印在「身故保險金…」那一列的下一行（「2,000,000元」）
+_EN_DATE = r"(\d{1,2})\s*-\s*([A-Za-z]{3})\s*-\s*(\d{4})"
+_CHUBB_PERIOD_RE = re.compile(
+    rf"保險期間\s*[:：]\s*自\s*{_EN_DATE}\s*{_TIME}\s*至\s*{_EN_DATE}\s*{_TIME}"
+)
+_MONTHS = {
+    m: i
+    for i, m in enumerate(
+        (
+            "jan",
+            "feb",
+            "mar",
+            "apr",
+            "may",
+            "jun",
+            "jul",
+            "aug",
+            "sep",
+            "oct",
+            "nov",
+            "dec",
+        ),
+        1,
+    )
+}
+_AREA_RE = re.compile(r"^旅遊地區\s*[:：]\s*(\S+)")
+_DEATH_COVER = "身故保險金"
 _PAREN_RE = re.compile(r"[(（][^)）]*[)）]")
 _PRODUCT_RE = re.compile(r"^\d{4}[\s\u3000]+(\S.*)$")
 _RIDERS_HEADER = "適用附加條款"
@@ -109,6 +139,8 @@ def parse_policy_facts(text: str) -> PolicyFacts:
                     break
             break
 
+    if start is None and sum_insured is None:
+        sum_insured = _parse_chubb_sum_insured(lines)
     start_date, end_date, start_at, end_at = _parse_period(text)
     return PolicyFacts(
         tuple(codes),
@@ -133,7 +165,7 @@ def _parse_period(
     """日期與時間分開處理：時間讀不到或不合理只丟掉時間，日期仍保留。"""
     m = _PERIOD_RE.search(text)
     if m is None:
-        return None, None, None, None
+        return _parse_chubb_period(text)
     g = m.groups()
     try:
         start_date = _roc(*(str(_digits(x)) for x in g[0:3]))
@@ -147,6 +179,43 @@ def _parse_period(
     if start_at is None or end_at is None or end_at < start_at:
         start_at = end_at = None
     return start_date, end_date, start_at, end_at
+
+
+def _parse_chubb_period(
+    text: str,
+) -> tuple[date | None, date | None, datetime | None, datetime | None]:
+    """安達電子保單的保險期間；結束的「24時00分」是當天結束，記成當天 23:59。"""
+    m = _CHUBB_PERIOD_RE.search(text)
+    if m is None:
+        return None, None, None, None
+    d1, mon1, y1, h1, mi1, d2, mon2, y2, h2, mi2 = m.groups()
+    try:
+        start_date = date(int(y1), _MONTHS[mon1.lower()], int(d1))
+        end_date = date(int(y2), _MONTHS[mon2.lower()], int(d2))
+    except KeyError, ValueError:
+        return None, None, None, None
+    if end_date < start_date:
+        return None, None, None, None
+    start_at = _at(start_date, h1, mi1)
+    if h2 is not None and _digits(h2) == 24 and mi2 is not None and _digits(mi2) == 0:
+        # 畫面把結束日與時間分開顯示，記成隔天 0 點會變成「7/12 00:00」，看起來少一天
+        end_at = _at(end_date, "23", "59")
+    else:
+        end_at = _at(end_date, h2, mi2)
+    if start_at is None or end_at is None or end_at < start_at:
+        start_at = end_at = None
+    return start_date, end_date, start_at, end_at
+
+
+def _parse_chubb_sum_insured(lines: list[str]) -> int | None:
+    """安達電子保單：身故（及失能）保險金那一列的保險金額，就是保單的保額。"""
+    for i, ln in enumerate(lines):
+        if ln.startswith(_DEATH_COVER):
+            for nxt in lines[i + 1 : i + 3]:
+                if m := _AMOUNT_RE.match(nxt):
+                    return int(m.group(1).replace(",", ""))
+            return None
+    return None
 
 
 def _at(day: date, hour: str | None, minute: str | None) -> datetime | None:
@@ -169,7 +238,12 @@ def _parse_destination(lines: list[str]) -> str | None:
             name = _PAREN_RE.sub("", m.group(1)).strip()
             if name:
                 countries.append(name)
-    return "、".join(dict.fromkeys(countries)) or None
+    if not countries:
+        for ln in lines:
+            if m := _AREA_RE.match(ln):
+                countries.append(_PAREN_RE.sub("", m.group(1)).strip())
+                break
+    return "、".join(dict.fromkeys(c for c in countries if c)) or None
 
 
 def _parse_product_name(lines: list[str]) -> str | None:

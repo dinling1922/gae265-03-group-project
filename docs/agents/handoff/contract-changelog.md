@@ -2,6 +2,27 @@
 
 5、6、7 號 agent 的契約（`backend/app/contracts/`）、`IncidentContext` 與相關資料表的變更。**新的寫在最上面**。變更契約的人要在這裡加一筆，並更新對應的交接說明（`agent-5/6/7-*.md`）、契約測試與 `make client`。
 
+## 2026-11-14　契約 v2.14.0：7 號的送件前小助理提醒 `prepare_trip`
+
+**版本號**：`CONTRACT_VERSION = "2.14.0"`。**只新增、選配**：沒實作 `prepare_trip` 的 7 號照常能用，平台回空的提醒。
+- 7 號（選配協定）：`TripClaimPreparer.prepare_trip(trip, google=None, user=None) -> PackagePreparation`（`app/contracts/package_agent.py`）。獨立於 `TripClaimPackager`（它是 `runtime_checkable`，加方法會讓只實作 build／send 的版本判斷失敗）。
+- `PackagePreparation.reminders: list[PackageReminder]`；`PackageReminder`：`text`（給使用者的一句話，提到事故時用事故名稱）、`incident_id`（整個行程或共同文件的事是 `None`）、`todo_id`（可空，畫面帶使用者過去）。依重要程度排序，沒有就是空的。
+- 規則：**唯讀**（不寫資料、不改待辦、不寄信，使用者按「重新檢查」可重複呼叫）；收到的是平台濾過的行程（同 `build_trip`，不符保障的事件與不適用的待辦已拿掉）；不重複 `missing_todo_ids` 與 `unavailable_attachments` 畫面已經提示的事；數字與金額只能來自 facts 與保單（ADR-0004）。
+- 假實作 `FakeClaimPackager.prepare_trip`：已勾選、需要文件、卻沒附任何文件的待辦，提醒「信裡會寫另行提供」。
+- 平台：`POST /policies/{id}/package/prepare` 用平台濾過的行程（`agent_view`，不符保障的事件與不適用的待辦已拿掉）呼叫 `prepare_trip`，回 `PackagePreparation`。
+  - 7 號沒有實作、沒有符合保障的事件、或 7 號丟例外時回空提醒（提醒是加分功能，不擋送件；例外會記 log）。
+  - 提醒指到不存在的事件或待辦（`incident_id`、`todo_id` 不在行程裡）平台會丟掉並記 log。
+  - 行程鎖住（已送件結案）後回 409；別人的保單回 404。
+  - 前端送件頁（F4）顯示提醒與「重新檢查」按鈕（重新檢查就是再呼叫一次）。
+
+## 2026-11-14　契約不變（仍是 2.13.0）：6 號認得醫療文件、檢查保險期間（#233）
+
+**契約檔案沒有改**，6 號用的仍是逐事件的舊方法（行程版 `TripDocument*` 還沒實作）。
+- 6 號多認四種醫療文件：D13 診斷書、D14 醫療費用收據、D24 受益人身分證明（身分證、護照機讀碼）、D25 保險單或其謄本（「保險單」「電子保單」「投保證明」等；申請書上的「保單號碼」不算）。
+- 合格規範：診斷書要病名、就診日期，收據要金額、日期；就診日期與收據日期讀得出來時要落在保單的保險期間內，不然回 `needs_review`（依據見 `agent-6-document.md`「海外就醫文件」）。
+- 去識別化另外遮英文單據的病患姓名、護照號碼、病歷號（HN）、護照機讀碼，以及身分證上沒冒號的姓名。
+- 其他 agent 不用改。
+
 ## 2026-11-14　契約 v2.13.0：行程為單位、共同文件、行程版 6／7 號介面（ADR-0029）
 
 **版本號**：`CONTRACT_VERSION = "2.13.0"`。**只新增、選配**：5 號不用改；6、7 號沒實作行程版方法時，平台退回逐事件呼叫（6 號照舊可用；7 號只能預覽，寄出時回 409）。完整決定見 [ADR-0029](../../adr/0029-trip-level-claim-submission-and-shared-documents.md)。
@@ -21,6 +42,10 @@
   - 文件的擁有者跟著待辦：事件的待辦 → `incident_id`；共同文件 → `policy_id`；還沒對到待辦（需要你確認）先掛保單，使用者選了待辦才換擁有者。檔案存在 Drive 行程資料夾，確認事件後**不搬**。
   - 6 號有 `TripDocument*` 就用；沒有時逐事件退回舊介面（挑待辦所屬的事件，共同文件挑第一個涵蓋中的事件；沒指定待辦而且有多個事件時 409，請使用者先選待辦）。
   - 不符保障的事件、不適用的待辦、5 號自己加的待辦（沒有範本）不能上傳；不符保障事件的文件類待辦也不能勾，5 號自己加的待辦照樣可以勾。行程鎖住後全部回 409。
+- 給前端行程頁的欄位（第四個 PR，只新增）：
+  - `GET /trips` 多 `destination`、`incident_type_names`、`todo_done`／`todo_total`、`state`（`describing` 描述中／`no_todos` 無待辦／`in_progress`／`done`）、`closed_as`（`sent`／`drafted`／`self_submitted`／`closed`）、`has_unfinished`（紅點；「我的行程」徽章數它為 `true` 的行程），並可用 `limit` 取最近 N 筆（首頁 3 加 1）。完成度不含不適用的待辦與不符保障事件的文件類待辦。
+  - `GET /policies/{id}/trip` 的事件多 `description`、`incident_type_code`、`clauses`、`facts`（事故卡用）；行程多 `destination` 與 `can_send`（7 號有行程版才是 `true`；`false` 時畫面把寄出與草稿反灰，只能自己處理）。
+  - 新 `GET /policies/{id}/drive-folder`：行程資料夾網址，沒有 Drive 授權是 `null`。
 - 還沒做（後續 PR）：前端行程頁。
 - 拉到要 `make migrate`；`make seed` 會把 `todo_template.shared` 標上去。
 

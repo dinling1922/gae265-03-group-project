@@ -3,6 +3,8 @@
 無狀態：已回答的欄位存成事件狀況（fact_key＝欄位代號），每輪從 IncidentContext 重建進度。
 """
 
+from datetime import date, timedelta
+
 from app.agents.incident.judge import (
     ACTUAL_DATE_KEY,
     CAUSE_KEY,
@@ -10,11 +12,17 @@ from app.agents.incident.judge import (
     CHECKED_LOST,
     COMPENSATED_KEY,
     COMPENSATED_YES,
+    DELAY_BAND_KEY,
+    DELAY_BAND_OVER,
+    DELAY_BAND_UNDER,
     DELAY_HOURS_KEY,
+    PLANNED_DATE_KEY,
     POLICE_KEY,
     REPORTED_KEY,
     SELF_LOST,
     THEFT,
+    THRESHOLD_HOURS,
+    parse_date,
 )
 from app.contracts import IncidentContext
 from app.contracts.common import FieldView, RuleRef
@@ -22,7 +30,8 @@ from app.contracts.common import FieldView, RuleRef
 EVENT_TYPE_KEY = "event_type"
 FLIGHT_DELAY = "flight_delay"
 BAGGAGE_LOSS = "baggage_loss"
-SUPPORTED_TYPES = frozenset({FLIGHT_DELAY, BAGGAGE_LOSS})
+MEDICAL = "medical"
+SUPPORTED_TYPES = frozenset({FLIGHT_DELAY, BAGGAGE_LOSS, MEDICAL})
 
 # 行李損失保險只保兩種事故：竊盜、強盜、搶奪，以及託運行李被業者弄丟；
 # 不明原因遺失不賠（特別不保事項第八款）。條文各家相同（#231）。
@@ -102,6 +111,16 @@ def _baggage_fields(type_fields: list[FieldView]) -> list[FieldView]:
     return [BAGGAGE_CAUSE, POLICE_REPORT, reported, COMPENSATED, *rest]
 
 
+def _with_yes_no(type_fields: list[FieldView]) -> list[FieldView]:
+    """就醫的「有住院嗎」「醫療費先付了嗎」在目錄裡沒有選項；補上才能點選（比照行李的 reported）。"""
+    return [
+        f.model_copy(update={"options": ["是", "否"]})
+        if f.type == "bool" and not f.options
+        else f
+        for f in type_fields
+    ]
+
+
 def _applies(field: FieldView, known: dict[str, str]) -> bool:
     """報案只問被偷被搶的，向航空公司登記只問託運弄丟的；其他欄位都要問。"""
     if field.key == POLICE_KEY:
@@ -115,6 +134,8 @@ def required_fields(ctx: IncidentContext, type_code: str) -> list[FieldView]:
     type_fields = next((t.fields for t in ctx.event_types if t.code == type_code), [])
     if type_code == BAGGAGE_LOSS:
         return [*ctx.common_fields, *_baggage_fields(type_fields)]
+    if type_code == MEDICAL:
+        return [*ctx.common_fields, *_with_yes_no(type_fields)]
     if type_code != FLIGHT_DELAY:
         return [*ctx.common_fields, *type_fields]
     fields: list[FieldView] = []
@@ -130,14 +151,29 @@ def required_fields(ctx: IncidentContext, type_code: str) -> list[FieldView]:
 TIME_FIELDS = ("dep_plan", "dep_act", ACTUAL_DATE_KEY)
 _FLIGHT_WORDS = ("班機", "航班", "飛機")
 _BAGGAGE_LOSS_WORDS = ("遺失", "不見", "被偷", "被搶", "被扒", "弄丟", "損壞", "弄壞")
+_MEDICAL_WORDS = (
+    "看醫生",
+    "就醫",
+    "診所",
+    "醫院",
+    "急診",
+    "生病",
+    "受傷",
+    "腸胃炎",
+    "發燒",
+    "掛號",
+)
 
 
 def guess_type(text: str) -> str | None:
-    """LLM 判斷不出類型時的退路：班機加延誤當班機延誤；行李加遺失、被偷等字眼當行李遺失。"""
+    """LLM 判斷不出類型時的退路：班機加延誤當班機延誤；行李加遺失、被偷等字眼當行李遺失；
+    看醫生、生病、受傷等字眼當就醫。"""
     if "延誤" in text and any(w in text for w in _FLIGHT_WORDS):
         return FLIGHT_DELAY
     if "行李" in text and any(w in text for w in _BAGGAGE_LOSS_WORDS):
         return BAGGAGE_LOSS
+    if any(w in text for w in _MEDICAL_WORDS):
+        return MEDICAL
     return None
 
 
@@ -152,11 +188,82 @@ def guess_cause(text: str) -> str | None:
     return THEFT if any(w in text for w in _THEFT_WORDS) else None
 
 
+# 問「原本預定幾點起飛？」時多給兩個選項：條款只在意延誤有沒有滿門檻，旅客不記得幾點時
+# 可以直接回答這件事。選項文字對到記下的值（delay_band）。
+DELAY_OVER_OPTION = f"不記得幾點，但延誤 {THRESHOLD_HOURS} 小時以上"
+DELAY_UNDER_OPTION = f"延誤不到 {THRESHOLD_HOURS} 小時"
+DELAY_BAND_CHOICES = {
+    DELAY_OVER_OPTION: DELAY_BAND_OVER,
+    DELAY_UNDER_OPTION: DELAY_BAND_UNDER,
+}
+YES_NO = ["是", "否"]
+_EACH_DAY_MAX = 5  # 保單期間在這麼多天以內，每天一個選項；超過只給出發日與回程日
+
+
+def _day(value: date) -> str:
+    return f"{value:%Y/%m/%d}"
+
+
+def options_for(
+    field: FieldView, ctx: IncidentContext, known: dict[str, str]
+) -> list[str]:
+    """這題可以點的選項（不含「不知道」，由呼叫端放最後）；全由程式依保單與已知的狀況決定。
+
+    題目本來有選項照原樣；沒有選項的是非題補「是」「否」；發生日期給保單期間的日期，
+    實際起飛日期給發生日期當天與隔天，發生地點給保單的目的地；時間與描述題不加。
+    """
+    if field.options:
+        return list(field.options)
+    if field.type == "bool":
+        return list(YES_NO)
+    if field.key == PLANNED_DATE_KEY:
+        start, end = ctx.policy.start_date, ctx.policy.end_date
+        if start is None or end is None or end < start:
+            return []
+        if (end - start).days + 1 <= _EACH_DAY_MAX:
+            return [
+                _day(start + timedelta(days=i)) for i in range((end - start).days + 1)
+            ]
+        return [_day(start), _day(end)]
+    if field.key == ACTUAL_DATE_KEY:
+        happened = parse_date(known.get(PLANNED_DATE_KEY))
+        if happened is None:
+            return []
+        return [_day(happened), _day(happened + timedelta(days=1))]
+    if field.key == "place" and ctx.destination:
+        return [ctx.destination]
+    if field.key == "dep_plan":
+        return list(DELAY_BAND_CHOICES)
+    return []
+
+
+REASON_KEY = "reason"  # 班機延誤的「延誤原因」
+_WEATHER = "天候"
+_WEATHER_WORDS = ("颱風", "暴風雪", "大雪", "暴雨", "大霧", "天氣", "天候")
+_NOT_WEATHER_WORDS = ("不是因為天", "不是天", "沒有因為天", "不是颱風", "沒有颱風")
+_OTHER_REASON_WORDS = ("機械", "故障", "罷工")
+
+
+def guess_reason(text: str, field: FieldView) -> str | None:
+    """LLM 常沒把颱風、大雪對到延誤原因的選項；旅客提到天氣字眼時由程式對到「天候」（F4）。
+
+    選項文字用這題選項裡的字，這題沒有「天候」這個選項就不猜；有否定、或同時提到別的原因也不猜。
+    """
+    option = next((o for o in field.options if o == _WEATHER), None)
+    if option is None:
+        return None
+    if any(w in text for w in (*_NOT_WEATHER_WORDS, *_OTHER_REASON_WORDS)):
+        return None
+    return option if any(w in text for w in _WEATHER_WORDS) else None
+
+
 def pending_fields(
     ctx: IncidentContext, type_code: str, known: dict[str, str]
 ) -> list[FieldView]:
-    # 旅客已說出延誤幾小時：起飛時間只是用來算時數，不再問（規格 8.5：已得知的不再問）
-    skip = set(TIME_FIELDS) if known.get(DELAY_HOURS_KEY) else set()
+    # 旅客已說出延誤幾小時、或已回答延誤有沒有滿門檻：起飛時間只是用來算這件事，不再問
+    # （規格 8.5：已得知的不再問）
+    known_delay = known.get(DELAY_HOURS_KEY) or known.get(DELAY_BAND_KEY)
+    skip = set(TIME_FIELDS) if known_delay else set()
     return [
         f
         for f in required_fields(ctx, type_code)
