@@ -1496,6 +1496,12 @@ export type IncidentSummaryOut = {
      */
     id: string;
     /**
+     * Policy Id
+     *
+     * 所屬保單；行程 ＝ 保單，畫面連到 /trip/{policy_id}
+     */
+    policy_id: string;
+    /**
      * Title
      */
     title: string;

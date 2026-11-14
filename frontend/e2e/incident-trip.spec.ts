@@ -61,12 +61,12 @@ test("問完後顯示理賠頁：狀態列、狀況總結、待辦兩張卡、�
   await expect(page.getByTestId("incident-type")).toContainText("班機延誤");
   await expect(page.getByTestId("facts")).toBeVisible();
   await expect(page.getByTestId("clauses")).toBeVisible();
-  // 待辦：事故當下與回國後整理兩張卡，整個行程的理賠申請書在最後一組
+  // 待辦：事故當下與回國後整理兩張卡，共同文件（理賠申請書）在最後一組
   const todos = page.getByTestId("todos");
   await expect(todos.getByRole("region", { name: "事故當下" })).toBeVisible();
   await expect(todos.getByRole("region", { name: "回國後整理" })).toBeVisible();
-  // 「整個行程」組在兩張卡（事故當下、回國後整理）各有一個，共同文件分在兩邊
-  await expect(todos.getByRole("heading", { name: "整個行程" }).first()).toBeVisible();
+  // 「共同文件」組在兩張卡（事故當下、回國後整理）各有一個，共同文件分在兩邊
+  await expect(todos.getByRole("heading", { name: "共同文件" }).first()).toBeVisible();
   await expect(todos.getByText("填寫理賠申請書")).toBeVisible();
   // 送件區：還缺文件時有「上傳文件」；問答卡有提問列
   await expect(page.getByTestId("send-box")).toContainText("還缺");
@@ -137,6 +137,8 @@ test("系統確認的待辦取消勾選前會先問", async ({ page }) => {
   await expect(agentDone).toBeVisible({ timeout: SLOW });
   // 系統會依「事故類型_待辦名稱_序號」把檔案改名，所以看不到原檔名
   await expect(agentDone.getByTestId("todo-files")).toContainText("班機延誤_");
+  // 假的 6 號存的不是真的 Drive 檔案：檔名不變成打不開的連結（真的 Drive 檔案才會連到 Drive）
+  await expect(agentDone.getByTestId("todo-file-link")).toHaveCount(0);
   const box = agentDone.getByRole("checkbox");
   await expect(box).toBeChecked();
   await box.click();
