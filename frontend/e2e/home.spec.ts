@@ -269,7 +269,10 @@ test("我的理賠只列最近 3 筆，點一列進入該事件", async ({ page,
   await expect(card.getByTestId("incident-row-status").first()).toHaveText("進行中");
 
   await titles.nth(0).click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${fourth.incidentId}$`));
+  // 列連到所屬行程頁，並選中這個事故（ADR-0029）
+  await expect(page).toHaveURL(
+    new RegExp(`/trip/${fourth.policyId}\\?incident=${fourth.incidentId}$`),
+  );
 });
 
 // 全部理賠（#208）：首頁超過 3 筆才有「看全部」，進去列出全部，新的在前，含最舊的那筆。
@@ -306,7 +309,9 @@ test("看全部：超過 3 筆才出現，進全部理賠頁列出全部、新�
 
   // 點最舊的一列進入該事件；回首頁有出口
   await titles.nth(3).click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${first.incidentId}$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/trip/${first.policyId}\\?incident=${first.incidentId}$`),
+  );
   await page.goto("/incident");
   await page.getByRole("link", { name: "回首頁" }).click();
   await expect(page).toHaveURL(/\/$/);
