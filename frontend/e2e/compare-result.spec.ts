@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { login } from "./helpers";
 
 // 推薦結果依開發資料庫的 seed（make seed）：6 天「班機延誤 → 突然生病就醫」。
 
@@ -7,13 +8,6 @@ function day(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function login(page: Page, email: string) {
-  await page.goto("/login?next=%2F");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "測試登入" }).click();
-  await expect(page).toHaveURL(/\/$/);
 }
 
 async function fillTrip(page: Page) {
