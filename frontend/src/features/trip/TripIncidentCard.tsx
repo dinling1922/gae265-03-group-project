@@ -28,6 +28,9 @@ export function TripIncidentCard({
   const date = dateOf(incident);
   const name = `${incident.incident_type_name ?? "事故"}${date ? ` · ${date}` : ""}`;
   const unsure = incident.clauses.filter((c) => c.conclusion === "insufficient").length;
+  // 沒有任何可能適用的項目：有任何一項待確認是「資訊不足」（補充說明還有機會改變結果），全部不賠才是「不符保障」
+  const noResult = !incident.covered;
+  const insufficient = noResult && unsure > 0;
   const open = selected || expanded;
   const bodyId = `incident-${incident.id}`;
   return (
@@ -47,9 +50,14 @@ export function TripIncidentCard({
             待確認 {unsure}
           </span>
         )}
-        {!incident.covered && (
+        {noResult && !insufficient && (
           <span data-testid="not-covered" className={`${TAG} bg-paper text-muted`}>
             不符保障
+          </span>
+        )}
+        {insufficient && (
+          <span data-testid="insufficient" className={`${TAG} bg-warn-soft text-warn-ink`}>
+            資訊不足，尚無法判斷
           </span>
         )}
         {!selected && (
@@ -73,9 +81,9 @@ export function TripIncidentCard({
           </span>
         )}
       </div>
-      {!incident.covered && (
-        <p className="m-0 t-caption text-muted">
-          這個事故依條款不在保障範圍，文件類待辦不需要準備、不計入送件檢查。
+      {insufficient && (
+        <p className="m-0 t-caption text-muted" data-testid="insufficient-note">
+          目前的資訊還無法判斷能不能理賠，可以在問答補充說明。
         </p>
       )}
       <IncidentCardBody ctx={incident} id={bodyId} hidden={!open} />
