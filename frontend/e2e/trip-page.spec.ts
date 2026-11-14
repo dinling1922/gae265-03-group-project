@@ -268,3 +268,65 @@ test("自己處理結案後：送件區說明沒建草稿，連結沒有的維�
   await expect(page.getByTestId("send-closed")).toContainText("未在你的 Gmail 建立草稿");
   await expect(page.getByTestId("send-box-gmail")).toHaveCount(0);
 });
+
+// 問答（F3）：捲動對齊、各事故的輸入草稿分開、手機面板。
+test("桌機：按「問答」左欄捲到該事故，總結頂端對齊問答框頂端", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "align", [
+    "班機延誤了六小時",
+    "班機取消了",
+    "行李遺失了被偷",
+  ]);
+  await page.goto(`/trip/${policyId}`);
+  const cards = page.getByTestId("trip-incident");
+  await expect(cards).toHaveCount(3);
+
+  await cards.nth(2).getByTestId("incident-ask").click();
+  await expect(cards.nth(2)).toHaveAttribute("data-selected", "true");
+  const gap = async () => {
+    const card = await cards.nth(2).boundingBox();
+    const qa = await page.getByRole("region", { name: "問答" }).boundingBox();
+    return Math.abs((card?.y ?? 9999) - (qa?.y ?? 0));
+  };
+  await expect.poll(gap, { timeout: 5000 }).toBeLessThan(8);
+});
+
+test("各事故的問答分開：輸入框打到一半的字不會帶到別的事故", async ({ page }) => {
+  const { policyId } = await setup(page, "drafts", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const cards = page.getByTestId("trip-incident");
+  const input = page.getByRole("region", { name: "問答" }).getByRole("textbox");
+
+  await input.fill("第一個事故的草稿");
+  await cards.nth(1).getByTestId("incident-ask").click();
+  await expect(cards.nth(1)).toHaveAttribute("data-selected", "true");
+  await expect(input).toHaveValue("");
+  await input.fill("第二個事故的草稿");
+
+  await cards.nth(0).getByTestId("incident-ask").click();
+  await expect(input).toHaveValue("第一個事故的草稿");
+  await cards.nth(1).getByTestId("incident-ask").click();
+  await expect(input).toHaveValue("第二個事故的草稿");
+});
+
+test("手機：問答面板占下半、沒有遮罩，上方待辦仍可捲動，收起後消失", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "mobile", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const panel = page.getByRole("region", { name: "問答" });
+  await expect(panel).toBeHidden();
+
+  await page.getByTestId("trip-incident").nth(1).getByTestId("incident-ask").click();
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("qa-title")).toContainText("班機");
+  const box = await panel.boundingBox();
+  expect(box && box.height >= 800 * 0.4 && box.height <= 800 * 0.55).toBeTruthy();
+  // 沒有遮罩：面板開著，上方待辦仍可捲動
+  await expect(page.getByRole("button", { name: "收起問答" })).toHaveCount(0);
+  const before = await page.evaluate(() => window.scrollY);
+  await page.evaluate(() => window.scrollBy(0, 200));
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThanOrEqual(before + 100);
+
+  await page.getByTestId("qa-close").click();
+  await expect(panel).toBeHidden();
+});
