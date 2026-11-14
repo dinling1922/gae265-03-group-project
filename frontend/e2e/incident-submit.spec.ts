@@ -122,7 +122,6 @@ test("備齊後：問寄送方式，進預覽，空格與收件者填完才能�
   await expect(page.getByTestId("closed")).toContainText("已用你的 Gmail 寄給保險公司", {
     timeout: SLOW,
   });
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("送件結果");
   // 寄出後跳出視窗：信在 Gmail 的寄件備份，主旨與連結
   const gmail = page.getByTestId("gmail-result-dialog");
   await expect(gmail).toContainText("寄件備份");
@@ -135,6 +134,8 @@ test("備齊後：問寄送方式，進預覽，空格與收件者填完才能�
   await expect(gmail.getByTestId("gmail-result-link")).toHaveText("到 Gmail 查看寄件備份");
   await gmail.getByRole("button", { name: "關閉" }).click();
   await expect(gmail).toHaveCount(0);
+  // 視窗開著時頁面其他內容在讀屏裡是隱藏的，關掉後才看得到標題
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("送件結果");
   await expect(page.getByTestId("open-gmail")).toHaveAttribute(
     "href",
     /^https:\/\/mail\.google\.com\//,
@@ -162,7 +163,7 @@ test("自己處理就好：草稿詢問對話框，取消就不建草稿並結�
   await page.goto(`/incident/${id}/submit`);
   await page.getByTestId("choose-self").click();
   const dialog = page.getByTestId("draft-question");
-  await expect(dialog).toContainText("都會結案");
+  await expect(dialog).toContainText("就會結案");
   await dialog.getByRole("button", { name: "取消" }).click();
   await expect(page.getByTestId("closed")).toContainText("沒有建立草稿", { timeout: SLOW });
   await expect(page.getByTestId("closed-banner")).toContainText("只能查看");

@@ -2,19 +2,14 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from app.api.deps import current_user
-from app.core.llm import embedding_model_name, get_embeddings
-from app.ingest.catalog import import_catalog
 from app.main import app
 from app.models import User
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 
 @pytest.fixture
-async def catalog_loaded(session: AsyncSession, catalog) -> None:
-    specs, rules = catalog
-    await import_catalog(
-        session, specs, rules, embeddings=get_embeddings(), model=embedding_model_name()
-    )
+async def catalog_loaded(full_catalog: None) -> None:
+    """真實的險種、條文與向量；整個測試階段只匯入一次（見 conftest.py 的 full_catalog）。"""
 
 
 @pytest.fixture

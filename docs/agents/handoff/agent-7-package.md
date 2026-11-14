@@ -110,3 +110,13 @@ class ClaimPackager(Protocol):
 - 送件信空格的格式檢查（被保險人姓名、聯絡電話），要平台與前端做。
 - `gmail.compose` 是受限 scope，正式上線前要送 Google 審核（#74）。
 - 多封信暫緩，等有第二種事故類型或整張保單送件時再決定。
+
+
+## 契約 v2.13：行程版（選配，ADR-0029）
+
+一個行程送一次件：`build_trip`、`send_trip`（`app/contracts/package_agent.py` 的 `TripClaimPackager`），收 `TripContext`。一封信涵蓋全部符合保障的事件、不拆信；空格用事故名稱（「請填寫班機延誤時間」，同類型第二次加「（2）」）；不寫適用保障與 `amount_note`；`missing_todo_ids` 含共同文件。沒實作時平台逐事件預覽、寄出回 409。假實作可當範例。完整說明見 contract-changelog 的 2.13.0。
+
+
+## 契約 v2.14：送件前小助理提醒（選配）
+
+`prepare_trip(trip, google=None, user=None) -> PackagePreparation`（`TripClaimPreparer`，獨立協定）。依整個行程的待辦、文件、事故資料，列出寄出前值得再看一眼的事（`PackageReminder`：`text`、`incident_id`、`todo_id`）。**唯讀**，可重複呼叫（畫面的「重新檢查」）；不重複 `missing_todo_ids`、`unavailable_attachments` 已提示的事；數字只能來自 facts 與保單。平台提供 `POST /policies/{id}/package/prepare`（已完成），送件頁顯示由前端做；沒實作、出錯時平台回空提醒（不擋送件），提醒指到不存在的事件或待辦會被平台丟掉。假實作可當範例，完整說明見 contract-changelog 的 2.14.0。

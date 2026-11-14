@@ -31,6 +31,8 @@ export function TripPage({
 }) {
   const { setIncident, refresh } = useIncident(id);
   const [busy, setBusy] = useState(false);
+  // 問答送出中：{ 剛送出的那句話 }；只有問答才顯示 AI「輸入中」，勾選待辦不顯示
+  const [asking, setAsking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答抽屜是否拉開
@@ -61,18 +63,21 @@ export function TripPage({
   async function ask(content: string) {
     if (!content.trim() || busy) return;
     setBusy(true);
+    setAsking(content);
     setError(null);
     const res = await sendIncidentMessage({
       path: { incident_id: id },
       body: { content, input_mode: "text" },
     });
     if (!res.data) {
+      setAsking(null);
       setBusy(false);
       return setError(errorText(res.error, res.response?.status));
     }
     // 回應裡的事件是送出當下的快照，不能直接蓋掉快取，改成重新讀取（5 號回覆可能很慢）
     await refresh();
     setQuestion("");
+    setAsking(null);
     setBusy(false);
   }
 
@@ -81,10 +86,28 @@ export function TripPage({
     text: m.content,
     citations: m.citations,
   }));
+  const lastMessage = ctx.messages?.at(-1);
+  if (asking && !(lastMessage?.role === "user" && lastMessage.content === asking)) {
+    lines.push({ from: "me", text: asking });
+  }
 
   return (
     <main data-page-paper className={`mx-auto flex flex-col gap-6 font-ui md:px-6 ${wideMain}`}>
-      <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
+        {/* 過渡用：整個入口切換前，舊的理賠頁也連得到行程頁（#360） */}
+        {ctx.policy.policy_id && (
+          <Link
+            to="/trip/$policyId"
+            params={{ policyId: ctx.policy.policy_id }}
+            search={{ incident: id }}
+            className="t-caption underline"
+            data-testid="view-trip"
+          >
+            看整個行程
+          </Link>
+        )}
+      </div>
 
       <section
         className={`${card} flex flex-wrap items-center gap-x-6 gap-y-2`}
@@ -256,6 +279,8 @@ export function TripPage({
                 value={question}
                 onChange={setQuestion}
                 busy={busy}
+                typing={asking !== null}
+                typingLabel="正在查閱條款"
                 onSend={(content) => void ask(content)}
                 maxLength={300}
                 minHeight={180}
