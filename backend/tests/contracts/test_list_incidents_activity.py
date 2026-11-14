@@ -165,3 +165,13 @@ async def test_ties_are_broken_by_id_so_the_order_is_stable(
     second = [r["title"] for r in await listing(client)]
 
     assert first == second
+
+
+async def test_清單每列帶所屬保單_畫面連到行程頁(
+    client: AsyncClient, session: AsyncSession, policy: Policy
+) -> None:
+    await three_incidents(session, policy)
+
+    rows = await listing(client)
+
+    assert {r["policy_id"] for r in rows} == {str(policy.id)}

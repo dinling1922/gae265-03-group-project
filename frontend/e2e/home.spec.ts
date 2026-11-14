@@ -188,7 +188,10 @@ async function createIncident(page: Page, description: string, policyId?: string
     id = policy.id as string;
   }
   const created = await api.post(`/api/v1/policies/${id}/incidents`, { data: { description } });
-  expect(created.ok()).toBeTruthy();
+  expect(
+    created.ok(),
+    `POST incidents 回 ${created.status()}：${await created.text()}`,
+  ).toBeTruthy();
   const body = await created.json();
   return { policyId: id, incidentId: body.incident.incident_id as string };
 }
@@ -226,7 +229,10 @@ async function closeIncident(page: Page, incidentId: string) {
   const submitted = await api.post(`/api/v1/incidents/${incidentId}/submission`, {
     data: { mode: "self" },
   });
-  expect(submitted.ok()).toBeTruthy();
+  expect(
+    submitted.ok(),
+    `POST submission 回 ${submitted.status()}：${await submitted.text()}`,
+  ).toBeTruthy();
 }
 
 // 首頁右下格「我的理賠」（#207）：沒有事件的空狀態。
@@ -263,7 +269,10 @@ test("我的理賠只列最近 3 筆，點一列進入該事件", async ({ page,
   await expect(card.getByTestId("incident-row-status").first()).toHaveText("進行中");
 
   await titles.nth(0).click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${fourth.incidentId}$`));
+  // 列連到所屬行程頁，並選中這個事故（ADR-0029）
+  await expect(page).toHaveURL(
+    new RegExp(`/trip/${fourth.policyId}\\?incident=${fourth.incidentId}$`),
+  );
 });
 
 // 全部理賠（#208）：首頁超過 3 筆才有「看全部」，進去列出全部，新的在前，含最舊的那筆。
@@ -300,7 +309,9 @@ test("看全部：超過 3 筆才出現，進全部理賠頁列出全部、新�
 
   // 點最舊的一列進入該事件；回首頁有出口
   await titles.nth(3).click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${first.incidentId}$`));
+  await expect(page).toHaveURL(
+    new RegExp(`/trip/${first.policyId}\\?incident=${first.incidentId}$`),
+  );
   await page.goto("/incident");
   await page.getByRole("link", { name: "回首頁" }).click();
   await expect(page).toHaveURL(/\/$/);
@@ -372,7 +383,8 @@ test("已完成的事件也列在我的理賠，標示已完成", async ({ page,
 
   const done = await createIncident(page, "已結案的班機延誤");
   await closeIncident(page, done.incidentId);
-  await createIncident(page, "還在處理的班機延誤", done.policyId);
+  // 結案的行程鎖住、不能再新增事件（ADR-0029），所以另一筆用另一張保單
+  await createIncident(page, "還在處理的班機延誤");
 
   await page.goto("/");
   const rows = page.getByRole("region", { name: "我的理賠" }).getByRole("link");

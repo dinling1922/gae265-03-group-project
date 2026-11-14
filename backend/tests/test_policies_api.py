@@ -10,8 +10,6 @@ from zoneinfo import ZoneInfo
 import pytest
 from app.api.deps import current_user
 from app.core.config import settings
-from app.core.llm import embedding_model_name, get_embeddings
-from app.ingest.catalog import import_catalog
 from app.main import app
 from app.models import (
     Conversation,
@@ -22,7 +20,6 @@ from app.models import (
     User,
 )
 from app.policy.table import load_code_map
-from app.seed import load_policy_codes
 from httpx import AsyncClient
 from sqlmodel import func, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -55,12 +52,8 @@ async def user(session: AsyncSession) -> AsyncGenerator[User]:
 
 
 @pytest.fixture
-async def catalog_loaded(session: AsyncSession, catalog) -> None:
-    specs, rules = catalog
-    await import_catalog(
-        session, specs, rules, embeddings=get_embeddings(), model=embedding_model_name()
-    )
-    await load_policy_codes(session)  # 比對讀資料庫的保單代碼（make seed 會做這一步）
+async def catalog_loaded(policy_codes_loaded: None) -> None:
+    """真實的條文與保單代碼對照；整個測試階段只匯入一次（見 conftest.py）。"""
 
 
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -205,6 +198,23 @@ async def test_without_a_known_code_table_it_falls_back_to_product_names(
         "/policies", **upload(make_pdf([SUMMARY_LAYOUT, *clause_pages()]))
     )
     assert response.status_code == 422
+
+
+@pytest.mark.usefixtures("user", "catalog_loaded")
+async def test_chubb_e_policy_is_matched_to_the_chubb_basic_plan(
+    client: AsyncClient,
+) -> None:
+    """安達網路投保的電子保單（6 號泰國醫療 demo 的範例，個資已換成虛構資料）。"""
+    from pathlib import Path
+
+    sample = Path(__file__).parent.parent / "app/agents/document/samples/med_policy.pdf"
+    response = await client.post("/policies", **upload(sample.read_bytes()))
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["plan_id"] == "chubb_basic"
+    assert (body["start_date"], body["end_date"]) == ("2026-07-05", "2026-07-12")
+    assert body["destination"] == "泰國"
+    assert body["sum_insured"] == 2_000_000
 
 
 @pytest.mark.usefixtures("user")
