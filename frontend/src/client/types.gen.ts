@@ -1794,6 +1794,46 @@ export type MessageView = {
 };
 
 /**
+ * PackagePreparation
+ *
+ * `prepare_trip` 的結果（v2.14）。
+ */
+export type PackagePreparation = {
+    /**
+     * Reminders
+     *
+     * 依重要程度排序；沒有要提醒的就是空的
+     */
+    reminders?: Array<PackageReminder>;
+};
+
+/**
+ * PackageReminder
+ *
+ * 小助理的一條提醒（v2.14）：說一件事，使用者看了知道要不要回去補。
+ */
+export type PackageReminder = {
+    /**
+     * Text
+     *
+     * 給使用者看的一句話，繁體中文；提到事故時用事故名稱
+     */
+    text: string;
+    /**
+     * Incident Id
+     *
+     * 提醒的是哪個事件；整個行程或共同文件的事是 None
+     */
+    incident_id?: string | null;
+    /**
+     * Todo Id
+     *
+     * 相關的待辦（畫面可以帶使用者過去）；沒有就是 None
+     */
+    todo_id?: string | null;
+};
+
+/**
  * PastComparisonOut
  *
  * 功能二「從過去比較帶入」用的摘要：只有目的地、日期與當時推薦的兩個方案。
@@ -5646,6 +5686,36 @@ export type GetTripPackageResponses = {
 };
 
 export type GetTripPackageResponse = GetTripPackageResponses[keyof GetTripPackageResponses];
+
+export type PrepareTripPackageData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/package/prepare';
+};
+
+export type PrepareTripPackageErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type PrepareTripPackageError = PrepareTripPackageErrors[keyof PrepareTripPackageErrors];
+
+export type PrepareTripPackageResponses = {
+    /**
+     * Successful Response
+     */
+    200: PackagePreparation;
+};
+
+export type PrepareTripPackageResponse = PrepareTripPackageResponses[keyof PrepareTripPackageResponses];
 
 export type CloseTripData = {
     body?: never;
