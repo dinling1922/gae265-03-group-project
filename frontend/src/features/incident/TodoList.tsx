@@ -46,6 +46,7 @@ export function TodoRow({
   disabled,
   muted = false,
   onToggle,
+  onDeleteDocument,
 }: {
   todo: TodoView;
   documents: DocumentView[];
@@ -54,6 +55,8 @@ export function TodoRow({
   /** 不符保障的事故（ADR-0029）：整列淡灰、不能勾，並說明原因。 */
   muted?: boolean;
   onToggle: (todo: TodoView, checked: boolean) => void;
+  /** 刪除已上傳的文件（點下去先由頁面確認）；沒給就是反灰的「暫無作用」按鈕。 */
+  onDeleteDocument?: (document: DocumentView) => void;
 }) {
   const [open, setOpen] = useState(false);
   const na = isNa(t);
@@ -158,7 +161,20 @@ export function TodoRow({
                   ) : (
                     <span className="[overflow-wrap:anywhere] font-bold">📎 {d.file_name}</span>
                   )}
-                  <PlaceholderButton kind="danger-link">刪除</PlaceholderButton>
+                  {onDeleteDocument ? (
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onDeleteDocument(d)}
+                      data-testid="todo-file-delete"
+                      aria-label={`刪除 ${d.file_name}`}
+                      className="inline-flex cursor-pointer items-center border-0 bg-transparent p-0 t-caption-bold text-danger hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      刪除
+                    </button>
+                  ) : (
+                    <PlaceholderButton kind="danger-link">刪除</PlaceholderButton>
+                  )}
                 </li>
               );
             })}
@@ -192,10 +208,12 @@ export function TodoCards({
   ctx,
   disabled,
   onToggle,
+  onDeleteDocument,
 }: {
   ctx: IncidentContext;
   disabled: boolean;
   onToggle: (todo: TodoView, checked: boolean) => void;
+  onDeleteDocument?: (document: DocumentView) => void;
 }) {
   const todos = ctx.todos ?? [];
   const documents = ctx.documents ?? [];
@@ -237,6 +255,7 @@ export function TodoCards({
                       disabled={disabled}
                       documents={documents.filter((d) => d.todo_id === t.id)}
                       onToggle={onToggle}
+                      onDeleteDocument={onDeleteDocument}
                     />
                   ))}
                 </ul>

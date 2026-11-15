@@ -2,6 +2,17 @@
 
 5、6、7 號 agent 的契約（`backend/app/contracts/`）、`IncidentContext` 與相關資料表的變更。**新的寫在最上面**。變更契約的人要在這裡加一筆，並更新對應的交接說明（`agent-5/6/7-*.md`）、契約測試與 `make client`。
 
+## 2026-11-15　契約 v2.17.0：使用者可以刪除已上傳的文件（11/15 會議）
+
+**版本號**：`CONTRACT_VERSION = "2.17.0"`。**沒有新欄位、沒有新協定**：5、6、7 號的實作不用改。刪除整個事故不在這次範圍（會議決議先不做）。
+- 平台新增：
+  - `DELETE /incidents/{incident_id}/documents/{document_id}`（回 `IncidentContext`）與 `DELETE /policies/{policy_id}/documents/{document_id}`（回 `TripOut`，含共同文件）。
+  - 任何辨識結果的文件都能刪（`recognized`、`incomplete`、`needs_review` 等）；別人的事件或行程、找不到的文件回 404；事件已結案或行程已送件結案回 409。
+  - 雲端的檔案請 6 號刪：行程版用 `TripDocumentDiscarder.discard_trip`，沒有就用 `DocumentDiscarder.discard`；6 號沒實作或刪不掉，平台照樣拿掉資料庫的紀錄，log 只記份數（同「都不是」）。
+  - 待辦：刪掉的是會進送件包的文件（辨識通過或使用者確認過、有存檔位置），這項待辦需要上傳、已完成、而且底下沒有別份附件時，退回「待上傳」（`status=pending`、`done_by=None`、`without_document=False`）；其他情況待辦不動。
+- 6 號：`discard`、`discard_trip` 的語意放寬為「刪掉一份文件的雲端檔案」，不再限定還沒確認的暫存檔；已確認與已改名的檔案用同一個 `storage_path` 刪。簽名不變。
+- 前端：待辦展開後每份檔案旁的「刪除」變成真的按鈕，先在畫面上確認（檔案會一併從 Google Drive 刪除），事件理賠頁與行程頁共用。
+
 ## 2026-11-15　契約 v2.16.0：事故卡的保障多帶險種名稱（#386）
 
 **版本號**：`CONTRACT_VERSION = "2.16.0"`。**只新增、選配**：舊的 5、6、7 號不受影響。

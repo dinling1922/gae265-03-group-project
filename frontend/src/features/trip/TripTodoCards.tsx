@@ -39,10 +39,12 @@ export function TripTodoCards({
   trip,
   disabled,
   onToggle,
+  onDeleteDocument,
 }: {
   trip: TripOut;
   disabled: boolean;
   onToggle: (todo: TodoView, checked: boolean) => void;
+  onDeleteDocument?: (document: DocumentView) => void;
 }) {
   const documents: DocumentView[] = [
     ...trip.shared_documents,
@@ -96,6 +98,7 @@ export function TripTodoCards({
                       muted={greyed(t, g.covered)}
                       documents={documents.filter((d) => d.todo_id === t.id)}
                       onToggle={onToggle}
+                      onDeleteDocument={onDeleteDocument}
                     />
                   ))}
                 </ul>
