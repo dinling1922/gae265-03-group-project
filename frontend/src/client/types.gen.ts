@@ -434,6 +434,12 @@ export type ClauseView = {
      */
     insurance_code: string;
     /**
+     * Insurance Name
+     *
+     * v2.16：險種名稱；整份險種沒有章名時，畫面拿它當標題
+     */
+    insurance_name?: string | null;
+    /**
      * Section
      */
     section?: string | null;
@@ -659,23 +665,6 @@ export type ConfirmDocumentIn = {
 };
 
 /**
- * ConfirmOut
- */
-export type ConfirmOut = {
-    /**
-     * Confirmed
-     */
-    confirmed: boolean;
-    /**
-     * Problems
-     *
-     * 還要解決的問題；空的代表已確認
-     */
-    problems: Array<string>;
-    split: SplitOut;
-};
-
-/**
  * ConversationOut
  */
 export type ConversationOut = {
@@ -765,6 +754,12 @@ export type CreateIncidentIn = {
      * Title
      */
     title?: string | null;
+    /**
+     * Require Confirmation
+     *
+     * 2-2 描述頁帶 true：事件要等使用者在確認彈窗按確認才進行程（#345）；行程頁新增狀況不帶
+     */
+    require_confirmation?: boolean;
 };
 
 /**
@@ -1485,6 +1480,24 @@ export type IncidentReply = {
 export type IncidentReplyOut = {
     reply: IncidentReply;
     incident: IncidentContext;
+    /**
+     * Confirmation
+     *
+     * 事件目前的確認狀態：confirmed／clarifying／awaiting（#345）
+     */
+    confirmation: string;
+    /**
+     * Show Confirm
+     *
+     * 要跳「確認目前的狀況」彈窗：5 號問完而且這輪有改到事實或結論（#345）
+     */
+    show_confirm?: boolean;
+    /**
+     * Changed
+     *
+     * 這輪回覆讓事實或條款結論跟之前不一樣
+     */
+    changed?: boolean;
 };
 
 /**
@@ -1523,6 +1536,12 @@ export type IncidentSummaryOut = {
      * 最後操作時間：事件本身、待辦、文件、對話訊息裡最新的一筆時間；清單依它由新到舊
      */
     last_activity_at: string;
+    /**
+     * Confirmation
+     *
+     * confirmed 已確認／clarifying 還在問／awaiting 等使用者確認（2-2 現況確認，#345）
+     */
+    confirmation: string;
 };
 
 /**
@@ -3984,6 +4003,12 @@ export type TripSummaryOut = {
      */
     closed_as: 'sent' | 'drafted' | 'self_submitted' | 'closed' | null;
     /**
+     * Pending Incident Id
+     *
+     * 2-2 還沒確認的事件（還在問或等確認，#345）；點行程列回 2-2 接續它。沒有是 None
+     */
+    pending_incident_id: string | null;
+    /**
      * Has Unfinished
      *
      * 紅點（0-5a）：行程至少有一個未完成待辦，已結案不顯示；「我的行程」徽章（0-5b）數這個為 True 的行程
@@ -4226,6 +4251,23 @@ export type WalkthroughOut = {
 };
 
 /**
+ * ConfirmOut
+ */
+export type AppApiRoutesBundlesConfirmOut = {
+    /**
+     * Confirmed
+     */
+    confirmed: boolean;
+    /**
+     * Problems
+     *
+     * 還要解決的問題；空的代表已確認
+     */
+    problems: Array<string>;
+    split: SplitOut;
+};
+
+/**
  * MessageIn
  */
 export type AppApiRoutesConversationsMessageIn = {
@@ -4233,6 +4275,22 @@ export type AppApiRoutesConversationsMessageIn = {
      * Content
      */
     content: string;
+};
+
+/**
+ * ConfirmOut
+ */
+export type AppApiRoutesIncidentsConfirmOut = {
+    /**
+     * Policy Id
+     *
+     * 確認後進這個行程頁 /trip/{policy_id}
+     */
+    policy_id: string;
+    /**
+     * Confirmation
+     */
+    confirmation: string;
 };
 
 /**
@@ -4788,6 +4846,36 @@ export type CreatePolicyManualResponses = {
 
 export type CreatePolicyManualResponse = CreatePolicyManualResponses[keyof CreatePolicyManualResponses];
 
+export type DeletePolicyData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}';
+};
+
+export type DeletePolicyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletePolicyError = DeletePolicyErrors[keyof DeletePolicyErrors];
+
+export type DeletePolicyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeletePolicyResponse = DeletePolicyResponses[keyof DeletePolicyResponses];
+
 export type GetPolicyData = {
     body?: never;
     path: {
@@ -4877,6 +4965,22 @@ export type CreatePolicyConversationResponses = {
 };
 
 export type CreatePolicyConversationResponse = CreatePolicyConversationResponses[keyof CreatePolicyConversationResponses];
+
+export type DeleteMyDataData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/data';
+};
+
+export type DeleteMyDataResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteMyDataResponse = DeleteMyDataResponses[keyof DeleteMyDataResponses];
 
 export type ListComparisonsData = {
     body?: never;
@@ -5231,6 +5335,36 @@ export type ListIncidentsResponses = {
 
 export type ListIncidentsResponse = ListIncidentsResponses[keyof ListIncidentsResponses];
 
+export type ConfirmIncidentData = {
+    body?: never;
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: string;
+    };
+    query?: never;
+    url: '/api/v1/incidents/{incident_id}/confirm';
+};
+
+export type ConfirmIncidentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ConfirmIncidentError = ConfirmIncidentErrors[keyof ConfirmIncidentErrors];
+
+export type ConfirmIncidentResponses = {
+    /**
+     * Successful Response
+     */
+    200: AppApiRoutesIncidentsConfirmOut;
+};
+
+export type ConfirmIncidentResponse = ConfirmIncidentResponses[keyof ConfirmIncidentResponses];
+
 export type GetIncidentData = {
     body?: never;
     path: {
@@ -5456,6 +5590,40 @@ export type RejectIncidentDocumentResponses = {
 };
 
 export type RejectIncidentDocumentResponse = RejectIncidentDocumentResponses[keyof RejectIncidentDocumentResponses];
+
+export type DeleteIncidentDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/incidents/{incident_id}/documents/{document_id}';
+};
+
+export type DeleteIncidentDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteIncidentDocumentError = DeleteIncidentDocumentErrors[keyof DeleteIncidentDocumentErrors];
+
+export type DeleteIncidentDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: IncidentContext;
+};
+
+export type DeleteIncidentDocumentResponse = DeleteIncidentDocumentResponses[keyof DeleteIncidentDocumentResponses];
 
 export type DiscardPendingIncidentDocumentsData = {
     body: DiscardPendingIn;
@@ -6024,6 +6192,40 @@ export type RejectTripDocumentResponses = {
 
 export type RejectTripDocumentResponse = RejectTripDocumentResponses[keyof RejectTripDocumentResponses];
 
+export type DeleteTripDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/documents/{document_id}';
+};
+
+export type DeleteTripDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTripDocumentError = DeleteTripDocumentErrors[keyof DeleteTripDocumentErrors];
+
+export type DeleteTripDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: TripOut;
+};
+
+export type DeleteTripDocumentResponse = DeleteTripDocumentResponses[keyof DeleteTripDocumentResponses];
+
 export type DiscardPendingTripDocumentsData = {
     body: DiscardPendingIn;
     path: {
@@ -6509,7 +6711,7 @@ export type ConfirmBundleResponses = {
     /**
      * Successful Response
      */
-    200: ConfirmOut;
+    200: AppApiRoutesBundlesConfirmOut;
 };
 
 export type ConfirmBundleResponse = ConfirmBundleResponses[keyof ConfirmBundleResponses];

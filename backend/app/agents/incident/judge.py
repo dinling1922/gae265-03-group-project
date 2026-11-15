@@ -123,7 +123,9 @@ _CORRECTION_CUES = (
     "其實",
     "更正",
     "應該是",
+    "只有",
 )
+_NOT_DURATION = re.compile(rf"不是\s*(?:{_NUMBER})\s*個?(?:小時|鐘頭)")
 _ONLY_BEFORE_DELAY = re.compile(r"[只才]\s*延誤")  # 「只延誤 2 小時」
 _QUESTION_MARKS = ("？", "?", "嗎", "多少", "幾")
 
@@ -142,12 +144,42 @@ def stated_delay_hours(text: str) -> int | None:
         any(cue in text for cue in _CORRECTION_CUES) or _ONLY_BEFORE_DELAY.search(text)
     ):
         return None
+    text = _NOT_DURATION.sub("", text)  # 「不是八個小時」的時數不計（#383）
     if len(_ANY_DURATION.findall(text)) != 1:
         return None  # 沒有時數，或說了多個時數：不猜
     m = _STATED_DURATION.search(text)
     if m is None or text[: m.start()].rstrip().endswith(_NEGATIONS):
         return None
     return _number(m.group(1))
+
+
+_CLOCK = r"([0-9]{1,2})\s*[:：]\s*([0-9]{2})"
+_PLANNED_CLOCK = re.compile(rf"(?:原定|原訂|預定)[^0-9]{{0,6}}?{_CLOCK}")
+_ACTUAL_CLOCK = re.compile(rf"實際[^0-9]{{0,6}}?{_CLOCK}")
+
+
+def _clock(m: re.Match[str] | None) -> str | None:
+    if m is None:
+        return None
+    hour, minute = int(m.group(1)), int(m.group(2))
+    if hour > 23 or minute > 59:
+        return None
+    return f"{hour:02d}:{minute:02d}"
+
+
+def stated_clock_times(text: str) -> dict[str, str]:
+    """旅客直接說出的原定／實際起飛時間（例：「原訂14:00，實際16:00」），由程式取出，不經 LLM。
+
+    只認 `HH:MM`，要有「原定／原訂／預定」或「實際」當線索，回傳 `dep_plan`、`dep_act`。
+    問句（？、嗎、多少、幾）一律不算：「原定 14:00 實際 16:00 可以賠嗎？」是在問條款（#382）。
+    """
+    if any(mark in text for mark in _QUESTION_MARKS):
+        return {}
+    found = {
+        "dep_plan": _clock(_PLANNED_CLOCK.search(text)),
+        "dep_act": _clock(_ACTUAL_CLOCK.search(text)),
+    }
+    return {k: v for k, v in found.items() if v}
 
 
 def parse_date(value: str | None) -> date | None:

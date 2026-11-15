@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { patchIncidentTodo, sendIncidentMessage } from "../../client";
-import type { IncidentContext, TodoView } from "../../client/types.gen";
+import { deleteIncidentDocument, patchIncidentTodo, sendIncidentMessage } from "../../client";
+import type { DocumentView, IncidentContext, TodoView } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn, btnPri, btnSm, btnSmPri } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
@@ -39,6 +39,7 @@ export function TripPage({
   // 系統已確認的待辦被取消勾選前，先問一次；需上傳但還沒有文件的待辦勾選前，也先問一次
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
+  const [deleting, setDeleting] = useState<DocumentView | null>(null);
 
   const closed = ctx.status === "completed";
   const todos = ctx.todos ?? [];
@@ -56,6 +57,18 @@ export function TripPage({
       body: { is_done: checked },
     });
     setBusy(false);
+    if (!res.data) return setError(errorText(res.error, res.response?.status));
+    setIncident(res.data);
+  }
+
+  async function removeDocument(document: DocumentView) {
+    setBusy(true);
+    setError(null);
+    const res = await deleteIncidentDocument({
+      path: { incident_id: id, document_id: document.id },
+    });
+    setBusy(false);
+    setDeleting(null);
     if (!res.data) return setError(errorText(res.error, res.response?.status));
     setIncident(res.data);
   }
@@ -207,6 +220,7 @@ export function TripPage({
                     if (checked && todo.requires_upload && !hasFile) return setTicking(todo);
                     void toggle(todo, checked);
                   }}
+                  onDeleteDocument={setDeleting}
                 />
               </>
             )}
@@ -334,6 +348,31 @@ export function TripPage({
               onClick={() => ticking && void toggle(ticking, true)}
             >
               我要打勾
+            </button>
+          </>
+        }
+      />
+      <DialogShell
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="刪除這份文件？"
+        description={
+          <p>
+            「{deleting?.file_name}」會從這個待辦移除，也會從你的 Google Drive
+            刪除，刪掉就拿不回來。 如果它是這項待辦唯一的文件，待辦會回到「待上傳」。
+          </p>
+        }
+        testId="delete-document-dialog"
+        actions={
+          <>
+            <Dialog.Close className={btn}>保留</Dialog.Close>
+            <button
+              type="button"
+              className={btnPri}
+              data-testid="delete-document-confirm"
+              onClick={() => deleting && void removeDocument(deleting)}
+            >
+              刪除文件
             </button>
           </>
         }

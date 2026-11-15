@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { patchTripTodo, sendIncidentMessage } from "../../client";
-import type { TodoView, TripOut } from "../../client/types.gen";
+import { deleteTripDocument, patchTripTodo, sendIncidentMessage } from "../../client";
+import type { DocumentView, TodoView, TripOut } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn, btnPri, btnSm } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
@@ -16,6 +16,10 @@ import { TripUploader } from "./TripUploader";
 import { useTrip } from "./useTrip";
 
 const H2 = "m-0 t-section-title text-heading";
+// 捲動自動切換（#385）：閱讀線在視窗上緣下方這麼多 px（按「問答」時卡片對齊在 24px，留一點餘地）；
+// 程式觸發的捲動最多等這麼久（ms）才放開自動切換
+const READING_LINE = 48;
+const AUTO_SCROLL_MS = 1200;
 
 /**
  * 行程頁（規格 2-3，ADR-0029）：一張保單的所有事故收在一頁——事故卡、重大注意事項、待辦（依事故分組加
@@ -48,9 +52,13 @@ export function TripPage({
   const [scrollTo, setScrollTo] = useState<string | null>(null);
   // 剛問完的事故：快取裡可能還是舊的行程（還沒有這個事故），資料更新後才找得到，所以用 effect 套用一次
   const appliedInitial = useRef<string | null>(null);
+  // 程式觸發的捲動進行中（按「問答」、從事故導過來）：這段時間不自動切換問答
+  const programmaticScroll = useRef(false);
+  const summaryRef = useRef<HTMLElement>(null); // 「狀況總結」區塊：捲動自動切換以它為範圍
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答面板是否拉開
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
+  const [deleting, setDeleting] = useState<DocumentView | null>(null);
 
   const locked = trip.locked;
   // 預設選中發生日期最早的事故（事故已依發生時間排序）
@@ -73,11 +81,77 @@ export function TripPage({
   useEffect(() => {
     if (!scrollTo) return;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    // 這一捲是程式觸發的：捲動期間途中經過的卡片不能搶走選中（#385）。放開的時機：捲完（scrollend）而且
+    // 目標卡片已經到閱讀線上，或逾時。只看 scrollend 不夠：事故卡展開時瀏覽器會先做一次版面微調的捲動，
+    // 它的 scrollend 比平滑捲動早，太早放開會讓途中的卡片把選中搶走，平滑捲動也跟著被打斷
+    programmaticScroll.current = true;
+    const target = scrollTo;
+    const release = () => {
+      programmaticScroll.current = false;
+      window.removeEventListener("scrollend", onScrollEnd);
+      window.clearTimeout(timer);
+    };
+    const onScrollEnd = () => {
+      const top = document
+        .querySelector(`[data-incident-id="${target}"]`)
+        ?.getBoundingClientRect().top;
+      if (top === undefined || top <= READING_LINE) release();
+    };
+    const timer = window.setTimeout(release, reduce ? 100 : AUTO_SCROLL_MS);
+    window.addEventListener("scrollend", onScrollEnd);
     document
       .querySelector(`[data-incident-id="${scrollTo}"]`)
       ?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
     setScrollTo(null);
   }, [scrollTo]);
+
+  // 左欄捲到哪一個事故的狀況總結，右欄問答就換成那個事故（#385）。只改選中的事故，不拉開面板、不捲動；
+  // 看過的卡片維持展開（和按「問答」一樣加進 expanded），否則離開的卡片收起，下方整個往上跳，會連續觸發切換。
+  // 下面的情況不切：輸入框有字、正在等回覆、手機問答面板拉開、程式觸發的捲動期間。
+  const autoSwitch = useRef({ selectedId: "", hold: false });
+  autoSwitch.current = {
+    selectedId: selected?.id ?? "",
+    hold:
+      locked ||
+      question !== "" ||
+      busy ||
+      asking !== null ||
+      (qaOpen && !window.matchMedia?.("(min-width: 1024px)").matches),
+  };
+  const manyIncidents = trip.incidents.length > 1;
+  useEffect(() => {
+    if (!manyIncidents) return;
+    let frame = 0;
+    const pick = () => {
+      frame = 0;
+      if (programmaticScroll.current || autoSwitch.current.hold) return;
+      // 以「狀況總結」整個區塊為範圍：閱讀線還在區塊內，取上緣已過線的最後一張卡片（卡片之間的空隙算前一張；
+      // 快速捲動時被跳過的矮卡片也不會漏）；線在第一張之上（含頁面最上方）取第一張；
+      // 線已經離開區塊（重大注意事項、理賠待辦、送件）不切
+      const cards = [...document.querySelectorAll<HTMLElement>("[data-incident-id]")];
+      const summary = summaryRef.current;
+      if (!summary || cards.length === 0 || summary.getBoundingClientRect().bottom <= READING_LINE)
+        return;
+      let current = cards[0];
+      for (const el of cards) {
+        if (el.getBoundingClientRect().top > READING_LINE) break;
+        current = el;
+      }
+      const id = current?.dataset.incidentId;
+      if (id && id !== autoSwitch.current.selectedId) {
+        setSelectedId(id);
+        setExpanded((prev) => new Set(prev).add(id));
+      }
+    };
+    const onScroll = () => {
+      if (!frame) frame = window.requestAnimationFrame(pick);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [manyIncidents]);
   const hasUpload = [...trip.shared_todos, ...trip.incidents.flatMap((i) => i.todos)].some(
     (t) => t.requires_upload,
   );
@@ -92,6 +166,18 @@ export function TripPage({
       body: { is_done: checked },
     });
     setBusy(false);
+    if (!res.data) return setError(errorText(res.error, res.response?.status));
+    setTrip(res.data);
+  }
+
+  async function removeDocument(document: DocumentView) {
+    setBusy(true);
+    setError(null);
+    const res = await deleteTripDocument({
+      path: { policy_id: policyId, document_id: document.id },
+    });
+    setBusy(false);
+    setDeleting(null);
     if (!res.data) return setError(errorText(res.error, res.response?.status));
     setTrip(res.data);
   }
@@ -200,7 +286,7 @@ export function TripPage({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[7fr_5fr] lg:items-start">
         <div className="flex flex-col gap-6 lg:col-start-1 lg:row-start-1">
-          <section className="flex flex-col gap-4" aria-label="狀況總結">
+          <section ref={summaryRef} className="flex flex-col gap-4" aria-label="狀況總結">
             <h2 className={H2}>狀況總結</h2>
             {trip.incidents.map((incident) => (
               <TripIncidentCard
@@ -271,7 +357,12 @@ export function TripPage({
                     所有待辦都完成了，可以送件。
                   </p>
                 )}
-                <TripTodoCards trip={trip} disabled={busy || locked} onToggle={onToggle} />
+                <TripTodoCards
+                  trip={trip}
+                  disabled={busy || locked}
+                  onToggle={onToggle}
+                  onDeleteDocument={setDeleting}
+                />
               </>
             )}
           </section>
@@ -368,6 +459,31 @@ export function TripPage({
               onClick={() => ticking && void toggle(ticking, true)}
             >
               我要打勾
+            </button>
+          </>
+        }
+      />
+      <DialogShell
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="刪除這份文件？"
+        description={
+          <p>
+            「{deleting?.file_name}」會從這個待辦移除，也會從你的 Google Drive
+            刪除，刪掉就拿不回來。 如果它是這項待辦唯一的文件，待辦會回到「待上傳」。
+          </p>
+        }
+        testId="delete-document-dialog"
+        actions={
+          <>
+            <Dialog.Close className={btn}>保留</Dialog.Close>
+            <button
+              type="button"
+              className={btnPri}
+              data-testid="delete-document-confirm"
+              onClick={() => deleting && void removeDocument(deleting)}
+            >
+              刪除文件
             </button>
           </>
         }

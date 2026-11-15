@@ -160,7 +160,10 @@ async def test_every_sample_can_be_downloaded_and_walked(
         photo = s["name"].startswith("photo_")
         kind = "image/jpeg" if photo else "application/pdf"
         assert got.headers["content-type"] == kind
-        assert len(got.content) < 500 * 1024  # pre-commit 擋大檔
+        if (
+            s["name"] != "med_policy"
+        ):  # 假保單附真實條款，字型不能再裁，放行（.pre-commit-config.yaml）
+            assert len(got.content) < 500 * 1024  # pre-commit 擋大檔
         name = f"{s['name']}.{'jpg' if photo else 'pdf'}"
         scenario = "medical" if "med_" in s["name"] else "flight_delay"
         body = (

@@ -55,7 +55,7 @@ class DocumentRecognizer(Protocol):
 ### 選配：選完待辦再檢查、刪掉暫存檔（契約 v2.11，規格 v3.7 第 3 點）
 
 - `recheck`（`DocumentRechecker`）：使用者替「需要你確認」的文件選了待辦後呼叫。讀回先存的檔案，當成那項待辦的文件檢查；合格回 recognized，不合格或讀不出來先刪掉雲端的檔案再回 incomplete／failed，暫時做不到回 needs_review。
-- `discard`（`DocumentDiscarder`）：使用者選「都不是」、或上次沒選就離開時呼叫，永久刪除暫存檔；刪不掉回 False。
+- `discard`（`DocumentDiscarder`）：使用者選「都不是」、上次沒選就離開、或在待辦清單刪除已上傳的文件（v2.17，任何辨識結果、含已確認與已改名的）時呼叫，永久刪除雲端的檔案；刪不掉回 False（平台照樣拿掉紀錄）。簽名不變，已實作的 6 號不用改，只要刪除時不要假設文件還沒確認。
 
 ## 規則（違反會被平台擋下，回 502）
 

@@ -105,5 +105,4 @@ def test_chubb_e_policy_sample_matches_the_advanced_plan():
     sample = Path(__file__).parents[2] / "app/agents/document/samples/med_policy.pdf"
     text = "\n".join(p.text for p in PdfTextExtractor().extract(sample.read_bytes()))
     plan = match_plan([i.code for i in match_insurances(text, CHUBB)], load_plans())
-    # 第 1 頁是基礎型的 4 個險種，第 2 頁（續頁）是進階型多的 4 個
     assert plan is not None and plan.id == "chubb_advanced"

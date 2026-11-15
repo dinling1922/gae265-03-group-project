@@ -1,7 +1,7 @@
 """產生 /dev 文件辨識測試台的範例文件（只在開發者的 Mac 上跑，產出的 PDF 一起 commit）。
 
     cd backend && uv run python -m app.agents.document.samples.make_samples
-    cd backend && uv run python -m app.agents.document.samples.make_samples --medical  # 只重做泰國醫療那幾份
+    cd backend && uv run python -m app.agents.document.samples.make_samples --medical  # 只重做醫療那幾份
 
 版面參考真實的航空公司文件與電子機票收據，資料全部是虛構的：旅客「陳怡君」、
 航空公司「福爾摩沙天空航空」都不存在，每頁底部都印「測試範例（資料虛構）」。
@@ -831,59 +831,24 @@ def passport_copy(doc: pymupdf.Document) -> None:
 
 
 POLICY_BLANK = HERE / "chubb_policy_blank.pdf"
-
-
-# 進階型多出來的保障（續頁）。金額照方案資料（plan_data.json 的 chubb_advanced、保額 200 萬）；
-# 前四個險種與國際制裁條款印在第 1 頁，跟底稿（基礎型）一樣。
-CHUBB_ADVANCED_ROWS = (
-    (
-        "安達產物個人海外旅行不便保險(C)",
-        (
-            ("班機延誤保險金（每滿4小時）", "定額6,000元"),
-            ("行李延誤保險金", "定額6,000元"),
-            ("行李損失保險金", "定額6,000元"),
-            ("旅行文件損失保險金", "定額3,000元"),
-            ("旅程取消保險金", "80,000元"),
-            ("旅程更改保險金", "80,000元"),
-            ("班機改降補償保險金", "定額5,000元"),
-            ("劫機補償保險金", "定額5,000元"),
-        ),
-    ),
-    (
-        "安達產物個人海外旅行綜合保險",
-        (
-            ("第三人責任保險金（無自負額）", "5,000,000元"),
-            ("旅行期間居家竊盜保險金", "60,000元"),
-            ("現金竊盜損失保險金", "3,000元"),
-            ("信用卡盜用損失保險金", "30,000元"),
-            ("等待返國住宿費用保險金", "5,000元"),
-            ("旅行期間居家火災臨時住宿補償保險金", "10,000元"),
-            ("行動電話被竊損失保險金", "2,000元"),
-        ),
-    ),
-    (
-        "安達產物個人海外旅行不便保險旅程取消費用傳染病及檢疫給付附加條款",
-        (("旅程取消保險金（法定傳染病）", "80,000元"),),
-    ),
-    (
-        "安達產物個人海外旅行不便保險旅程更改費用傳染病及檢疫給付附加條款",
-        (("旅程更改保險金（法定傳染病）", "80,000元"),),
-    ),
-)
-PRODUCT_WRAP = 15  # 商品名稱欄一行約 15 個字，跟第 1 頁一樣折行
+# 真實保單的投保須知、個資告知與附的條款 6 頁（原第 2、5～11 頁，沒有個人資料），原樣放在承保內容後面；
+# 字型是嵌好的，不要再裁（會變亂碼），所以這兩個檔案超過 500KB，pre-commit 與測試都已放行
+POLICY_ATTACHMENTS = HERE / "chubb_policy_attachments.pdf"
 
 
 def travel_policy(doc: pymupdf.Document) -> None:
-    """保險單（D25）：安達網路投保的「旅行平安綜合保險保險單」進階型，填上 demo 的虛構資料。
+    """保險單（D25）：安達網路投保的「旅行平安綜合保險保險單」進階型，填上 demo 的虛構資料（日本）。
 
-    底稿是組員提供的真實保單第 3 頁（基礎型），產生 chubb_policy_blank.pdf 時已把原本的姓名、
-    保單號碼、保險期間、旅遊地區、保費與列印時間整段移除（不是蓋上白色方塊），出生日期與
-    身分證字號原本就塗黑。這裡把虛構資料寫回同樣的位置；進階型多出來的保障印在第 2 頁
-    （續頁），表頭與欄位照第 1 頁。
+    底稿是組員提供的真實保單第 3 頁，產生 chubb_policy_blank.pdf 時已把原本的姓名、
+    保單號碼、保險期間、旅遊地區、保費與列印時間整段移除（不是蓋上白色方塊），
+    出生日期與身分證字號原本就塗黑；這裡只把虛構資料寫回同樣的位置。
     """
-    blank = pymupdf.open(POLICY_BLANK)
-    doc.insert_pdf(blank)
-    page = doc[-1]
+    # 自己畫的頁面先放在 own 裁字型；附件頁的字型原本就是裁好嵌進去的，再裁一次會變亂碼，
+    # 所以最後才照順序接在一起（main 對這份不再呼叫 subset_fonts）
+    own = pymupdf.open()
+    _policy_cover_page(own)
+    own.insert_pdf(pymupdf.open(POLICY_BLANK))
+    page = own[-1]
     page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
     for x, y, text in (
         (57.7, 87.5, "保單號碼：ECITWAA0000153"),
@@ -905,56 +870,123 @@ def travel_policy(doc: pymupdf.Document) -> None:
         fontname="L",
         fontsize=7,
     )
-    page.insert_text((450, 520), "第 1 頁，共 2 頁", fontname="L", fontsize=7)
     page.insert_text(
         (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
     )
-    _policy_continuation(doc, blank)
+    _policy_advanced_page(own)
+    _policy_receipt_page(own)
+    own.subset_fonts()
+    attachments = pymupdf.open(POLICY_ATTACHMENTS)
+    doc.insert_pdf(own, from_page=0, to_page=0)  # 封面
+    doc.insert_pdf(attachments, from_page=0, to_page=0)  # 旅遊保險網路投保投保人須知
+    doc.insert_pdf(own, from_page=1)  # 承保內容、進階型續頁、保險費收據
+    doc.insert_pdf(attachments, from_page=1)  # 個資告知與附的條款 6 頁
 
 
-def _policy_continuation(doc: pymupdf.Document, blank: pymupdf.Document) -> None:
-    """第 2 頁：沿用第 1 頁的表頭（公司名稱、保單名稱），下面印進階型多出來的保障。"""
-    doc.insert_pdf(blank)
-    page = doc[-1]
-    page.add_redact_annot(
-        pymupdf.Rect(0, 76, page.rect.width, page.rect.height), fill=(1, 1, 1)
-    )
-    # 圖片也一起移除（總經理章只留在第 1 頁）；pymupdf 的型別檔沒列這個常數
-    page.apply_redactions(images=pymupdf.PDF_REDACT_IMAGE_REMOVE)  # pyright: ignore[reportAttributeAccessIssue]
+# 進階型多出來的商品（CHUBB05～08）與保障內容，金額同方案資料（保額 200 萬）
+ADVANCED_ROWS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    (
+        "安達產物個人海外旅行不便保險(C)",
+        (
+            ("旅程取消保險(實支實付)", "80,000元"),
+            ("旅程更改保險(實支實付)", "80,000元"),
+            ("班機延誤保險(定額給付-累進式)", "6,000元"),
+            ("行李延誤保險(定額給付)", "6,000元"),
+            ("行李損失保險(定額給付)", "6,000元"),
+            ("旅行文件損失保險(定額給付)", "3,000元"),
+        ),
+    ),
+    (
+        "安達產物個人海外旅行綜合保險",
+        (
+            ("班機改降補償保險", "5,000元"),
+            ("劫機補償保險", "5,000元"),
+            ("第三人責任保險(無自負額)", "5,000,000元"),
+            ("旅行期間居家竊盜保險", "60,000元"),
+            ("現金竊盜損失保險", "3,000元"),
+            ("信用卡盜用損失保險", "30,000元"),
+            ("等待返國住宿費用保險", "5,000元"),
+            ("旅行期間居家火災臨時住宿補償保險", "10,000元"),
+            ("行動電話被竊損失保險", "2,000元"),
+        ),
+    ),
+    (
+        "安達產物個人海外旅行不便保險旅程取消費用傳染病及檢疫給付附加條款",
+        (("旅程取消保險(法定傳染病)", "80,000元"),),
+    ),
+    (
+        "安達產物個人海外旅行不便保險旅程更改費用傳染病及檢疫給付附加條款",
+        (("旅程更改保險(法定傳染病)", "80,000元"),),
+    ),
+)
+
+
+def _policy_advanced_page(doc: pymupdf.Document) -> None:
+    """保險單第 2 頁：進階型加上的不便險與綜合險商品。商品名稱逐字用條款庫的全名，方案才比對得到進階型。"""
+    page = doc.new_page()
     page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
     page.insert_text(
-        (57.7, 99.5), "保單號碼：ECITWAA0000153", fontname="L", fontsize=10
+        (57.7, 60), "旅行平安綜合保險保險單（續）", fontname="L", fontsize=12
     )
-    page.insert_text((57.7, 113), "承保內容（續）", fontname="L", fontsize=10)
-    x0, x1, x2, x3 = 56.7, 172.9, 352.9, 545
-    y = 124.0
-    page.draw_rect(pymupdf.Rect(x0, y, x3, y + 14), color=(0, 0, 0), width=0.6)
-    for x, label in ((61.7, "商品名稱"), (176.9, "保障內容"), (356.9, "保險金額(NT$)")):
-        page.insert_text((x, y + 10), label, fontname="L", fontsize=7)
-    y += 14
-    for product, items in CHUBB_ADVANCED_ROWS:
-        name_lines = [
-            product[i : i + PRODUCT_WRAP] for i in range(0, len(product), PRODUCT_WRAP)
-        ]
-        height = max(len(items), len(name_lines)) * 13 + 4
-        page.draw_rect(pymupdf.Rect(x0, y, x3, y + height), color=(0, 0, 0), width=0.6)
-        page.draw_line((x1, y), (x1, y + height), color=(0, 0, 0), width=0.6)
-        page.draw_line((x2, y), (x2, y + height), color=(0, 0, 0), width=0.6)
-        for i, line in enumerate(name_lines):
-            page.insert_text((57.7, y + 11 + i * 8), line, fontname="L", fontsize=7)
-        for i, (cover, amount) in enumerate(items):
-            page.insert_text((174.9, y + 11 + i * 13), cover, fontname="L", fontsize=7)
-            page.insert_text((355.0, y + 11 + i * 13), amount, fontname="L", fontsize=7)
-            if i:
-                page.draw_line(
-                    (x1, y + i * 13 + 2),
-                    (x3, y + i * 13 + 2),
-                    color=(0, 0, 0),
-                    width=0.3,
-                )
-        y += height
-    page.insert_text((231.7, y + 16), "(以下空白)", fontname="L", fontsize=7)
-    page.insert_text((450, 520), "第 2 頁，共 2 頁", fontname="L", fontsize=7)
+    page.insert_text((57.7, 78), "保單號碼：ECITWAA0000153", fontname="L", fontsize=10)
+    y = 104.0
+    for product, rows in ADVANCED_ROWS:
+        page.insert_text((57.7, y), product, fontname="L", fontsize=9.5)
+        y += 14
+        for name, amount in rows:
+            page.insert_text((72, y), name, fontname="L", fontsize=9)
+            page.insert_text((440, y), amount, fontname="L", fontsize=9)
+            y += 13
+        y += 8
+    page.insert_text((57.7, y + 4), "(以下空白)", fontname="L", fontsize=9)
+    page.insert_text(
+        (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
+    )
+
+
+def _policy_cover_page(doc: pymupdf.Document) -> None:
+    """保險單封面：收件地址、保單號碼與標題（真實保單的第 1 頁版面，資料虛構）。"""
+    page = doc.new_page()
+    page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
+    for y, text in (
+        (96, "100"),
+        (108, "臺北市示範區"),
+        (120, "陳怡君"),
+        (132, "保單號碼：ECITWAA0000153"),
+        (144, "郵寄方式：TravelForm:Epolicy"),
+    ):
+        page.insert_text((228, y), text, fontname="L", fontsize=8.5)
+    page.insert_text((24, 170), "-" * 150, fontname="L", fontsize=5, color=GRAY)
+    page.insert_text(
+        (75, 205), "安達產物保險旅行平安綜合保險保險單", fontname="L", fontsize=20
+    )
+    page.insert_text(
+        (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
+    )
+
+
+def _policy_receipt_page(doc: pymupdf.Document) -> None:
+    """保險費收據正本（真實保單的第 4 頁）：保單號碼、被保險人、期間與總保費，沒有印章。"""
+    page = doc.new_page()
+    page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
+    page.insert_text((300, 52), "Series No : ECITWAA0000153", fontname="L", fontsize=8)
+    page.insert_text((300, 64), "Date : 01 Jul 2026", fontname="L", fontsize=8)
+    page.insert_text((57.7, 52), "CHUBB　保險費收據正本", fontname="L", fontsize=11)
+    for y, label, value in (
+        (92, "保單號碼", "ECITWAA0000153"),
+        (112, "被保險人", "陳怡君 等1 人"),
+        (132, "保險期間", "05-Jul-2026 00時00分至11-Jul-2026 24時00分止，共7天"),
+        (152, "繳款人", "陳怡君"),
+        (172, "總保費", "NT$658.-"),
+    ):
+        page.insert_text((57.7, y), label, fontname="L", fontsize=9)
+        page.insert_text((150, y), value, fontname="L", fontsize=9)
+    page.insert_text(
+        (57.7, 210),
+        "茲收到上開保險費無誤，並經本公司或代收機構於收款人處蓋章為憑。",
+        fontname="L",
+        fontsize=8,
+    )
     page.insert_text(
         (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
     )
@@ -1012,6 +1044,7 @@ SAMPLE_FILES = {
     "med_policy": travel_policy,
 }
 LOCKED = {"ticket_locked"}
+NO_SUBSET = {"med_policy"}  # 附件頁的字型已經裁好，travel_policy 自己處理
 MEDICAL = [name for name in SAMPLE_FILES if name.startswith("med_")]
 
 
@@ -1142,7 +1175,7 @@ PHOTO_FILES = {
     "photo_claim_form": lambda: noisy(
         shadow(on_table(_page_image("claim_form", dpi=200), tilt=0.04), 0.3), 24
     ),
-    # 手機拍診所收據：斜拍＋陰影，字還清楚（泰國醫療 demo）
+    # 手機拍診所收據：斜拍＋陰影，字還清楚（東京診所，醫療 demo）
     "photo_med_receipt": lambda: noisy(
         shadow(on_table(_page_image("med_receipt"), tilt=0.05), 0.35), 25
     ),
@@ -1160,14 +1193,15 @@ def make_photos(names: list[str] | None = None) -> None:
 
 
 def main(only_medical: bool = False) -> None:
-    """產生全部範例；only_medical 只重做泰國醫療那幾份，其他已 commit 的檔案不動。"""
+    """產生全部範例；only_medical 只重做醫療那幾份，其他已 commit 的檔案不動。"""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     for name, build in SAMPLE_FILES.items():
         if only_medical and name not in MEDICAL:
             continue
         doc = pymupdf.open()
         build(doc)
-        doc.subset_fonts()  # 再裁成這一份實際用到的字
+        if name not in NO_SUBSET:
+            doc.subset_fonts()  # 再裁成這一份實際用到的字
         out = HERE / f"{name}.pdf"
         if name in LOCKED:
             doc.save(

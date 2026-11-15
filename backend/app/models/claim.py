@@ -15,6 +15,8 @@ from app.models.base import BaseTable
 
 PHASES = ("on_site", "after_return")  # 事故當下／回家後
 INCIDENT_STATUSES = ("open", "completed")
+# 2-2 現況確認（#345）：confirmed 一般事件／clarifying 5 號還在問／awaiting 問完、等使用者按確認
+CONFIRMATIONS = ("confirmed", "clarifying", "awaiting")
 DONE_BY = ("user", "agent")
 TODO_STATUSES = ("pending", "done", "not_applicable")
 RECOGNITION_STATUSES = ("pending", "recognized", "needs_review", "incomplete", "failed")
@@ -107,6 +109,10 @@ class Incident(BaseTable, table=True):
             f"status IN ({', '.join(repr(s) for s in INCIDENT_STATUSES)})",
             name="status_valid",
         ),
+        CheckConstraint(
+            f"confirmation IN ({', '.join(repr(s) for s in CONFIRMATIONS)})",
+            name="confirmation_valid",
+        ),
     )
 
     policy_id: uuid.UUID = Field(
@@ -121,6 +127,12 @@ class Incident(BaseTable, table=True):
     title: str
     description: str = Field(description="使用者的第一句描述（可能含個資）")
     status: str = Field(default="open", description="open／completed")
+    confirmation: str = Field(
+        default="confirmed",
+        sa_column_kwargs={"server_default": "confirmed"},
+        description="2-2 現況確認（#345）：confirmed 已確認（一般事件、既有事件）／clarifying 還在問／awaiting 等使用者確認；"
+        "非 confirmed 的事件不進行程資料，共同待辦也要等確認才建立",
+    )
     occurred_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )

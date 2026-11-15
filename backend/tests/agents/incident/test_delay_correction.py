@@ -13,6 +13,7 @@ from tests.agents.incident.test_agent_v1 import (
     agent,
     concluded_baggage,
     conclusion_of,
+    doc_todo,
     fact,
     make_ctx,
     revising,
@@ -96,17 +97,18 @@ def test_更正用的解析_問句一律不算更正(said: str) -> None:
     assert stated_delay_hours(said) is None
 
 
-async def test_記錄的起飛時間與說的時數不同_不改狀況_請旅客確認時間() -> None:
+async def test_記錄的起飛時間與說的時數不同_改記時數_重新判斷() -> None:
     ctx = make_ctx(facts=CONCLUDED_WITH_TIMES, type_code="flight_delay")
 
     # 預設的 answer 一被呼叫就失敗：不可以落到問答
     reply = await agent(revise=revising()).reply(ctx, CORRECTION, "text", SERVICES)
 
-    assert "原定 2026/11/12 21:40" in reply.message
-    assert "實際 2026/11/13 04:40" in reply.message
-    assert "延誤約 7 小時 0 分" in reply.message
-    assert "請告訴我正確的原定或實際起飛時間" in reply.message
-    assert reply.facts == [] and reply.clauses is None and reply.todos is None
+    assert reply.message.startswith("好的，已依您更正的延誤 2 小時重新判斷。")
+    assert fact(reply, "dep_act") == "不知道"
+    assert fact(reply, "dep_act_date") == "不知道"
+    assert fact(reply, "delay_hours") == "2"
+    assert conclusion_of(reply) == "excluded"
+    assert "請告訴我正確的原定或實際起飛時間" not in reply.message
 
 
 async def test_旅客接著說出正確的起飛時間_走欄位更正_重新下結論() -> None:
@@ -198,7 +200,7 @@ def test_正式站的原句_stated_delay_hours_取得_2() -> None:
     assert stated_delay_hours(PRODUCTION_SAYING) == 2
 
 
-async def test_正式站的原句_已有結論後_回報記錄的時間與時數_不呼叫問答() -> None:
+async def test_正式站的原句_已有結論後_直接重新判斷_不呼叫問答() -> None:
     ctx = make_ctx(facts=CONCLUDED_WITH_TIMES, type_code="flight_delay")
 
     # 預設的 answer 一被呼叫就失敗：不可以落到問答（那會回整段條款原文）
@@ -206,7 +208,80 @@ async def test_正式站的原句_已有結論後_回報記錄的時間與時數
         ctx, PRODUCTION_SAYING, "text", SERVICES
     )
 
-    assert reply.message.startswith("目前記錄的是")
-    assert "延誤約 7 小時 0 分" in reply.message
-    assert "21:40" in reply.message and "04:40" in reply.message
-    assert reply.facts == [] and reply.clauses is None
+    assert "延誤 2 小時" in reply.message
+    assert fact(reply, "delay_hours") == "2"
+    assert conclusion_of(reply) == "excluded"
+
+
+# 正式站 11/15 的第 3 句：同一句有兩個時數，「不是八個小時」的不計
+PRODUCTION_SAYING_2 = "有關啊只是班機延誤只有兩個小時不是八個小時"
+
+
+def test_不是N小時的時數不計() -> None:
+    assert stated_delay_hours(PRODUCTION_SAYING_2) == 2
+    assert stated_delay_hours("不是八個小時，其實是延誤 2 小時") == 2
+    assert stated_delay_hours("只有兩個小時") is None  # 沒有「延誤」，不是更正用的說法
+
+
+async def test_第二個正式站原句_取_2_重新判斷() -> None:
+    ctx = make_ctx(facts=CONCLUDED_WITH_TIMES, type_code="flight_delay")
+
+    reply = await agent(revise=revising()).reply(
+        ctx, PRODUCTION_SAYING_2, "text", SERVICES
+    )
+
+    assert fact(reply, "delay_hours") == "2"
+    assert conclusion_of(reply) == "excluded"
+
+
+async def test_反方向_記錄不到四小時_更正成六小時_改回可申請() -> None:
+    short = {
+        **CONCLUDED_WITH_TIMES,
+        "dep_plan": "14:00",
+        "dep_act": "16:00",
+        "dep_act_date": "2026/11/12",
+    }
+    ctx = make_ctx(facts=short, type_code="flight_delay")
+    todo = doc_todo("D03", None, applicable=False)
+    ctx = ctx.model_copy(update={"todos": [todo]})
+
+    reply = await agent(revise=revising()).reply(
+        ctx, "我記錯了，其實延誤了 6 小時", "text", SERVICES
+    )
+
+    assert fact(reply, "delay_hours") == "6"
+    assert conclusion_of(reply) == "applicable"
+    assert [(u.todo_id, u.applicable) for u in reply.todo_applicability] == [
+        (todo.id, True)
+    ]
+
+
+async def test_更正之後旅客再說實際時間_以時間為準() -> None:
+    corrected = {
+        **CONCLUDED_WITH_TIMES,
+        "dep_act": "不知道",
+        "dep_act_date": "不知道",
+        "delay_hours": "2",
+    }
+    ctx = make_ctx(facts=corrected, type_code="flight_delay")
+
+    reply = await agent(revise=revising()).reply(
+        ctx, "實際是 23:40 起飛", "text", SERVICES
+    )
+
+    assert fact(reply, "dep_act") == "23:40"
+    assert fact(reply, "dep_act_date") == "2026/11/12"
+    assert conclusion_of(reply) == "excluded"  # 21:40 → 23:40 約 2 小時
+
+
+async def test_模型對更正的句子亂填欄位_仍由程式依時數重新判斷() -> None:
+    # eval 實測：模型對「其實班機延誤只有兩個小時，我搞錯了」回了亂填的 dep_act
+    ctx = make_ctx(facts=CONCLUDED_WITH_TIMES, type_code="flight_delay")
+
+    reply = await agent(revise=revising(dep_act="2")).reply(
+        ctx, "其實班機延誤只有兩個小時，我搞錯了", "text", SERVICES
+    )
+
+    assert fact(reply, "delay_hours") == "2"
+    assert fact(reply, "dep_act") == "不知道"
+    assert conclusion_of(reply) == "excluded"
