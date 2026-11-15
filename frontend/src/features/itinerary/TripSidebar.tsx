@@ -112,23 +112,32 @@ export function TripSidebar({
         )}
         <FieldError>{saveError}</FieldError>
       </div>
-      <div className="flex items-center gap-3 rounded-tile border border-[#dce9c4] bg-leaf-soft p-3.5">
+      <Button
+        onClick={onOpenTools}
+        disabled={!onOpenTools}
+        data-testid="open-tools"
+        className="flex w-full items-center gap-3 rounded-tile border border-[#dce9c4] bg-leaf-soft p-3.5 text-left hover:bg-[#e8f2d6] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:opacity-40"
+      >
         <span className="grid size-9 flex-none place-items-center rounded-tag bg-white text-leaf-text">
           <SparkleIcon className="size-5" />
         </span>
-        <div className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1">
           <b className="t-label text-heading">邀請你的 agent</b>
-          <p className="m-0 t-caption text-muted">它可以排活動、填空檔，也能幫你改目的地和日期。</p>
-        </div>
-        <Button
-          onClick={onOpenTools}
-          disabled={!onOpenTools}
-          aria-label="看 agent 可以用的工具"
-          className="rounded-lg px-2 py-1 t-label text-brand hover:bg-white focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-leaf disabled:opacity-40"
-        >
+          <span className="m-0 block t-caption text-muted">
+            它可以排活動、填空檔，也能幫你改目的地和日期。
+          </span>
+          <span className="mt-1.5 flex items-center gap-2 t-caption-bold text-heading">
+            <span
+              aria-hidden="true"
+              className="size-2 rounded-full bg-leaf shadow-[0_0_0_3px_var(--color-leaf-soft)]"
+            />
+            WebMCP · 7 個工具
+          </span>
+        </span>
+        <span aria-hidden="true" className="t-label text-brand">
           →
-        </Button>
-      </div>
+        </span>
+      </Button>
       <Button onClick={onNext} disabled={nextDisabled} className={`${btnPri} w-full`}>
         下一步：選擇在意的事
       </Button>

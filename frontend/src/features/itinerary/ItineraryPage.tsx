@@ -13,7 +13,7 @@ import type {
   Destination,
 } from "../../client/types.gen";
 import { CalendarIcon } from "../../components/icons";
-import { btn, btnPri, btnSm } from "../../components/ui/buttons";
+import { btn, btnPri } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
 import { FieldError } from "../../components/ui/Field";
 import { Tabs } from "../../components/ui/Tabs";
@@ -213,19 +213,6 @@ function Itinerary({
       />
 
       <main className="flex min-w-0 flex-col gap-6 p-4 md:p-6">
-        <div className="flex justify-end">
-          <Button
-            onClick={() => setToolsOpen(true)}
-            data-testid="open-tools"
-            className={`${btnSm} gap-2`}
-          >
-            <span
-              aria-hidden="true"
-              className="size-2 rounded-full bg-leaf shadow-[0_0_0_3px_var(--color-leaf-soft)]"
-            />
-            WebMCP · 7 個工具
-          </Button>
-        </div>
         {comparison && dates.length > 0 ? (
           <>
             <DayTabs
