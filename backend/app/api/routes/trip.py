@@ -126,6 +126,9 @@ class TripSummaryOut(BaseModel):
     closed_as: Literal["sent", "drafted", "self_submitted", "closed"] | None = Field(
         description="結案方式：已寄出、已建草稿、自行送件、直接結案（全部不符保障）；沒結案是 None"
     )
+    pending_incident_id: uuid.UUID | None = Field(
+        description="2-2 還沒確認的事件（還在問或等確認，#345）；點行程列回 2-2 接續它。沒有是 None"
+    )
     has_unfinished: bool = Field(
         description="紅點（0-5a）：行程至少有一個未完成待辦，已結案不顯示；「我的行程」徽章（0-5b）數這個為 True 的行程"
     )
@@ -184,8 +187,14 @@ async def list_trips(
     stmt = (
         select(
             Policy,
-            func.count(col(Incident.id)),
-            func.count(col(Incident.id)).filter(col(Incident.status) != "completed"),
+            # 還沒確認的事件（#345）不計入事件數；行程仍列出（描述中），最後操作時間照算
+            func.count(col(Incident.id)).filter(
+                col(Incident.confirmation) == "confirmed"
+            ),
+            func.count(col(Incident.id)).filter(
+                col(Incident.confirmation) == "confirmed",
+                col(Incident.status) != "completed",
+            ),
             last_activity,
         )
         .join(Incident, col(Incident.policy_id) == col(Policy.id))
@@ -199,7 +208,18 @@ async def list_trips(
     for p, total, open_count, last in (await session.exec(stmt)).all():
         trip = await trip_domain.build_trip_context(session, p)
         done, count = trip_domain.progress(trip)
-        locked = open_count == 0
+        locked = total > 0 and open_count == 0
+        pending_incident_id = (
+            await session.exec(
+                select(Incident.id)
+                .where(
+                    Incident.policy_id == p.id,
+                    col(Incident.confirmation) != "confirmed",
+                )
+                .order_by(col(Incident.created_at).desc())
+                .limit(1)
+            )
+        ).first()
         names = list(
             dict.fromkeys(
                 i.incident_type_name for i in trip.incidents if i.incident_type_name
@@ -223,6 +243,7 @@ async def list_trips(
                 closed_as=_closed_as(await _latest_submission(session, p.id))
                 if locked
                 else None,
+                pending_incident_id=pending_incident_id,
                 has_unfinished=not locked and done < count,
             )
         )
