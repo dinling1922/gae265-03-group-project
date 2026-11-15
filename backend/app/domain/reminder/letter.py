@@ -1,4 +1,4 @@
-"""提醒信的內容（規格書 4.9、ADR-0028）：固定範本，由程式帶入，不經 AI。"""
+"""提醒信的內容（規格書 4.9、ADR-0031）：固定範本，由程式帶入，不經 AI。"""
 
 import uuid
 from dataclasses import dataclass
@@ -42,7 +42,7 @@ def trip_name(destination: str | None, start: date | None, end: date | None) -> 
 def message_id(
     policy_id: uuid.UUID, started_at: datetime, number: int, sender: str
 ) -> str:
-    """固定的 Message-ID：同一張保單、同一輪、第幾封都相同時，重寄也是同一個 ID（ADR-0028）。"""
+    """固定的 Message-ID：同一張保單、同一輪、第幾封都相同時，重寄也是同一個 ID（ADR-0031）。"""
     domain = sender.rsplit("@", 1)[-1]
     return f"<reminder-{policy_id}-{int(started_at.timestamp())}-{number}@{domain}>"
 
@@ -60,7 +60,9 @@ def build_letter(data: LetterInput) -> Letter:
         "\n"
         f"{groups}\n"
         "\n"
-        f"上傳完成後，我們可以協助你把文件寄給{data.company}。理賠申請有期限，請盡早準備。\n"
+        f"上傳完成後，我們可以協助你把文件寄給{data.company}，"
+        "或者你自己處理就好將文件儲存至Gmail草稿。\n"
+        "提醒：理賠申請有規定期限，應盡早準備。\n"
         "\n"
         f"前往上傳：{data.upload_url}\n"
         "\n"
@@ -82,8 +84,9 @@ def _html(data: LetterInput) -> str:
         f"<p>{escape(data.user_name or '')}你好，</p>"
         f"<p>你的行程「{escape(data.trip_name)}」還有以下理賠文件尚未上傳：</p>"
         f"{groups}"
-        f"<p>上傳完成後，我們可以協助你把文件寄給{escape(data.company)}。"
-        "理賠申請有期限，請盡早準備。</p>"
+        f"<p>上傳完成後，我們可以協助你把文件寄給{escape(data.company)}，"
+        "或者你自己處理就好將文件儲存至Gmail草稿。<br>"
+        "提醒：理賠申請有規定期限，應盡早準備。</p>"
         f'<p><a href="{url}" style="display:inline-block;padding:10px 20px;'
         'background:#2563eb;color:#fff;border-radius:6px;text-decoration:none">'
         "前往上傳</a></p>"

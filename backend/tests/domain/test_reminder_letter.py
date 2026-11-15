@@ -44,7 +44,8 @@ def test_純文字內文照規格的範本() -> None:
         "・航空公司開立的班機取消證明\n"
         "・住宿收據\n"
         "\n"
-        "上傳完成後，我們可以協助你把文件寄給富邦產物。理賠申請有期限，請盡早準備。\n"
+        "上傳完成後，我們可以協助你把文件寄給富邦產物，或者你自己處理就好將文件儲存至Gmail草稿。\n"
+        "提醒：理賠申請有規定期限，應盡早準備。\n"
         "\n"
         "前往上傳：https://example.com/incident/abc\n"
         "\n"
@@ -85,8 +86,8 @@ def test_沒有保險期間或目的地時只用有的部分_都沒有就叫行�
 def test_Message_ID_由保單_這一輪的起點與第幾封組成_重寄時相同() -> None:
     policy = uuid.UUID("12345678-1234-5678-1234-567812345678")
     started = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)
-    sender = "DoNotReply@abc.azurecomm.net"
+    sender = "haoxianyouni.noreply@gmail.com"
     assert (
         message_id(policy, started, 2, sender)
-        == "<reminder-12345678-1234-5678-1234-567812345678-1783760400-2@abc.azurecomm.net>"
+        == "<reminder-12345678-1234-5678-1234-567812345678-1783760400-2@gmail.com>"
     )

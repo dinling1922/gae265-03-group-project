@@ -1,5 +1,6 @@
-"""掃描到期的保單並寄提醒信（ADR-0028）。規則在 `rules.py`，信件內容在 `letter.py`。"""
+"""掃描到期的保單並寄提醒信（ADR-0031）。規則在 `rules.py`，信件內容在 `letter.py`。"""
 
+import re
 import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -24,11 +25,22 @@ from app.domain.reminder.rules import (
     sync_round,
 )
 from app.domain.reminder.store import policy_todos
-from app.models import Identity, Incident, IncidentTodo, Policy, User
+from app.models import (
+    Identity,
+    Incident,
+    IncidentFact,
+    IncidentTodo,
+    IncidentType,
+    Policy,
+    User,
+)
 
 TAIPEI = ZoneInfo("Asia/Taipei")
-# 只缺整個行程共用的文件（理賠申請書）時，信裡這一組的標題
-TRIP_GROUP_LABEL = "整個行程"
+# 還沒判斷出事故類型時的名稱；和理賠頁一致（UploadBox、TodoList）
+UNTYPED_INCIDENT_LABEL = "這次事故"
+_FACT_DATE = re.compile(r"^\d{4}[/-]\d{1,2}[/-]\d{1,2}$")
+# 整個行程共用的文件（共同文件，ADR-0029）在信裡這一組的標題；和行程頁一致
+TRIP_GROUP_LABEL = "共同文件"
 
 
 def _state(policy: Policy) -> ReminderState:
@@ -65,16 +77,43 @@ async def _verified_email(session: AsyncSession, user: User) -> str | None:
     return user.email if verified else None
 
 
+def _incident_date(incident: Incident, fact_date: str | None) -> str | None:
+    """發生日：先用 occurred_at，沒有就用整理出的事故日期（和理賠頁的 `dateOf` 一致）。"""
+    if incident.occurred_at is not None:
+        return f"{incident.occurred_at.astimezone(TAIPEI):%Y/%m/%d}"
+    if fact_date and _FACT_DATE.match(fact_date):
+        return fact_date.replace("-", "/")
+    return None
+
+
 async def _letter_input(
     session: AsyncSession, policy: Policy, user: User, missing: list[IncidentTodo]
 ) -> LetterInput:
-    incidents = (
+    rows = (
         await session.exec(
-            select(Incident)
+            select(Incident, IncidentType.name)
+            .join(
+                IncidentType,
+                col(Incident.incident_type_id) == col(IncidentType.id),
+                isouter=True,
+            )
             .where(Incident.policy_id == policy.id)
             .order_by(col(Incident.created_at))
         )
     ).all()
+    incidents = [incident for incident, _ in rows]
+    type_names = {incident.id: name for incident, name in rows}
+    fact_dates = {
+        f.incident_id: f.value
+        for f in (
+            await session.exec(
+                select(IncidentFact).where(
+                    col(IncidentFact.incident_id).in_([i.id for i in incidents]),
+                    IncidentFact.fact_key == "date",
+                )
+            )
+        ).all()
+    }
     groups: list[MissingGroup] = []
     first_incident: uuid.UUID | None = None
     for incident in incidents:
@@ -85,9 +124,11 @@ async def _letter_input(
         if not todos:
             continue
         first_incident = first_incident or incident.id
-        label = incident.title
-        if incident.occurred_at is not None:
-            label += f" · {incident.occurred_at.astimezone(TAIPEI):%Y/%m/%d}"
+        # 和理賠頁一樣用事故類型名稱；title 沒帶時是使用者描述的前 50 字，不放進信裡
+        label = type_names[incident.id] or UNTYPED_INCIDENT_LABEL
+        day = _incident_date(incident, fact_dates.get(incident.id))
+        if day:
+            label += f" · {day}"
         groups.append(MissingGroup(label=label, documents=[t.title for t in todos]))
     trip_todos = [t for t in missing if t.incident_id is None]
     if trip_todos:
@@ -96,7 +137,7 @@ async def _letter_input(
                 label=TRIP_GROUP_LABEL, documents=[t.title for t in trip_todos]
             )
         )
-    # 只缺理賠申請書時，連到這張保單最新的事故
+    # 連到行程頁並選中第一個缺件的事故；只缺共同文件時選最新的事故
     target = first_incident or (incidents[-1].id if incidents else None)
     base = (settings.PUBLIC_BASE_URL or "http://localhost:5173").rstrip("/")
     plan = get_plan(policy.plan_id)
@@ -105,7 +146,8 @@ async def _letter_input(
         trip_name=trip_name(policy.destination, policy.start_date, policy.end_date),
         groups=groups,
         company=(plan.company if plan and plan.company else "保險公司"),
-        upload_url=f"{base}/incident/{target}" if target else base,
+        upload_url=f"{base}/trip/{policy.id}"
+        + (f"?incident={target}" if target else ""),
     )
 
 

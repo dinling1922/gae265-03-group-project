@@ -1,4 +1,4 @@
-"""掃描與寄提醒信（ADR-0028）：連測試資料庫，用假的寄信器記下寄了什麼。"""
+"""掃描與寄提醒信（ADR-0031）：連測試資料庫，用假的寄信器記下寄了什麼。"""
 
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
@@ -6,7 +6,15 @@ from datetime import UTC, date, datetime, timedelta
 import pytest
 from app.domain.reminder.mailer import OutgoingMail
 from app.domain.reminder.service import due_policy_ids, send_reminder
-from app.models import Identity, Incident, IncidentTodo, Policy, User
+from app.models import (
+    Identity,
+    Incident,
+    IncidentFact,
+    IncidentTodo,
+    IncidentType,
+    Policy,
+    User,
+)
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 ADDED = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)  # 待辦建立時間＝這一輪的起點
@@ -31,7 +39,9 @@ class Trip:
     todo: IncidentTodo
 
 
-async def make_trip(session: AsyncSession, *, verified: bool = True) -> Trip:
+async def make_trip(
+    session: AsyncSession, *, verified: bool = True, typed: bool = True
+) -> Trip:
     user = User(email="traveler@example.com", name="王小明")
     session.add(user)
     await session.flush()
@@ -53,10 +63,15 @@ async def make_trip(session: AsyncSession, *, verified: bool = True) -> Trip:
     )
     session.add(policy)
     await session.flush()
+    itype = IncidentType(code="cancel", name="班機取消", follow_up_questions=[])
+    session.add(itype)
+    await session.flush()
+    # 沒帶標題時，事故的 title 是使用者描述的前 50 字
     incident = Incident(
         policy_id=policy.id,
-        title="班機取消",
-        description="班機取消了",
+        incident_type_id=itype.id if typed else None,
+        title="颱風來了，回台灣的班機被取消。",
+        description="颱風來了，回台灣的班機被取消。",
         occurred_at=datetime(2026, 7, 10, 2, 0, tzinfo=UTC),
     )
     session.add(incident)
@@ -181,11 +196,49 @@ async def test_信裡依事故分組_行程共用的文件另列_連到第一個
 
     text = mailer.sent[0].letter.text
     assert (
-        "班機取消 · 2026/07/10\n・航空公司開立的班機取消證明\n\n整個行程\n・理賠申請書\n"
+        "班機取消 · 2026/07/10\n・航空公司開立的班機取消證明\n\n共同文件\n・理賠申請書\n"
         in text
     )
-    assert "寄給富邦產物。" in text
-    assert f"前往上傳：https://trip.example.com/incident/{trip.incident.id}\n" in text
+    assert "寄給富邦產物，" in text
+    assert (
+        f"前往上傳：https://trip.example.com/trip/{trip.policy.id}"
+        f"?incident={trip.incident.id}\n"
+    ) in text
+
+
+async def test_事故用類型名稱_不用使用者的描述(session: AsyncSession) -> None:
+    trip = await make_trip(session)
+    mailer = FakeMailer()
+
+    await send_reminder(session, trip.policy.id, FIRST_DUE, mailer)
+
+    text = mailer.sent[0].letter.text
+    assert "班機取消 · 2026/07/10\n" in text
+    assert "颱風來了" not in text
+
+
+async def test_還沒判斷出類型時寫這次事故_日期可用整理出的事故日期(
+    session: AsyncSession,
+) -> None:
+    trip = await make_trip(session, typed=False)
+    trip.incident.occurred_at = None
+    session.add(trip.incident)
+    session.add(
+        IncidentFact(
+            incident_id=trip.incident.id,
+            fact_key="date",
+            label="日期",
+            value="2026-07-09",
+        )
+    )
+    await session.commit()
+    mailer = FakeMailer()
+
+    await send_reminder(session, trip.policy.id, FIRST_DUE, mailer)
+
+    text = mailer.sent[0].letter.text
+    assert "這次事故 · 2026/07/09\n" in text
+    assert "颱風來了" not in text
 
 
 async def test_掃描不挑信箱沒驗證的保單_免得每次都派發不會寄的工作(
