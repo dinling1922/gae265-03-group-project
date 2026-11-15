@@ -127,7 +127,7 @@ export function ZoomDialog({
       <img
         src={last.url}
         alt={`${last.name} 放大`}
-        className="max-h-[60vh] w-full rounded-tag object-contain"
+        className="max-h-[60dvh] w-full rounded-tag object-contain"
       />
     </DialogShell>
   );
