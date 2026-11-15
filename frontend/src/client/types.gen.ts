@@ -434,6 +434,12 @@ export type ClauseView = {
      */
     insurance_code: string;
     /**
+     * Insurance Name
+     *
+     * v2.16：險種名稱；整份險種沒有章名時，畫面拿它當標題
+     */
+    insurance_name?: string | null;
+    /**
      * Section
      */
     section?: string | null;
