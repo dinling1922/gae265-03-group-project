@@ -33,15 +33,13 @@ export function tripSubtitle(t: TripSummaryOut): string {
     .join(" · ");
 }
 
+const ROW_CLASS =
+  "group flex items-center gap-3 border-b border-line py-4 last:border-b-0 md:gap-6 md:py-[22px] md:pr-2";
+
 /** 首頁「我的行程」與全部行程頁的一列：整列連到行程頁；有未完成待辦且未結案時右側顯示紅點（0-5a）。 */
 export function TripRow({ trip: t }: { trip: TripSummaryOut }) {
-  return (
-    <Link
-      to="/trip/$policyId"
-      params={{ policyId: t.policy_id }}
-      data-testid="trip-row"
-      className="group flex items-center gap-3 border-b border-line py-4 last:border-b-0 md:gap-6 md:py-[22px] md:pr-2"
-    >
+  const body = (
+    <>
       <span className="grid size-10 flex-none place-items-center rounded-full bg-leaf-soft text-leaf md:size-[52px]">
         <ShieldIcon className="size-[22px] md:size-7" />
       </span>
@@ -70,6 +68,29 @@ export function TripRow({ trip: t }: { trip: TripSummaryOut }) {
       <span className="grid size-[26px] flex-none place-items-center rounded-full bg-leaf-soft text-leaf transition-colors group-hover:bg-leaf group-hover:text-white md:size-[30px]">
         <ChevronIcon className="size-4" />
       </span>
+    </>
+  );
+  // 描述中、還有沒確認的事件（#345）：回 2-2 接續它（再跳確認彈窗）；行程頁還沒有東西可看
+  if (t.state === "describing" && t.pending_incident_id) {
+    return (
+      <Link
+        to="/incident/$id"
+        params={{ id: t.pending_incident_id }}
+        data-testid="trip-row"
+        className={ROW_CLASS}
+      >
+        {body}
+      </Link>
+    );
+  }
+  return (
+    <Link
+      to="/trip/$policyId"
+      params={{ policyId: t.policy_id }}
+      data-testid="trip-row"
+      className={ROW_CLASS}
+    >
+      {body}
     </Link>
   );
 }

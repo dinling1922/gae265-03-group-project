@@ -53,6 +53,8 @@ test("出事了：手選保單後走完 說明、待辦、上傳、送件", asyn
   await page.getByTestId("message").fill("昨天在東京成田機場");
   await page.getByTestId("send").click();
   await replied;
+  // 問完先跳「確認目前的狀況」（2-2g），按確認才進行程頁（#345）
+  await page.getByTestId("confirm-yes").click();
   await expect(page.getByTestId("todos").getByRole("checkbox").first()).toBeVisible({
     timeout: SLOW,
   });

@@ -25,12 +25,16 @@ from app.models import (
 async def policy_incidents(
     session: AsyncSession, policy_id: uuid.UUID
 ) -> list[Incident]:
-    """依發生時間排序（沒有發生時間的排最後），同時間依建立順序。"""
+    """已確認的事件，依發生時間排序（沒有發生時間的排最後），同時間依建立順序。"""
     return list(
         (
             await session.exec(
                 select(Incident)
-                .where(Incident.policy_id == policy_id)
+                # 還沒確認的事件（#345）不進行程；它自己的 API 仍看得到
+                .where(
+                    Incident.policy_id == policy_id,
+                    Incident.confirmation == "confirmed",
+                )
                 .order_by(
                     col(Incident.occurred_at).is_(None),
                     col(Incident.occurred_at),
