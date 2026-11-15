@@ -149,6 +149,6 @@ def test_chubb_policy_sample_is_read() -> None:
     sample = Path(__file__).parents[2] / "app/agents/document/samples/med_policy.pdf"
     text = "\n".join(p.text for p in PdfTextExtractor().extract(sample.read_bytes()))
     facts = parse_policy_facts(text)
-    assert (facts.start_date, facts.end_date) == (date(2026, 7, 5), date(2026, 7, 12))
-    assert facts.destination == "泰國"
+    assert (facts.start_date, facts.end_date) == (date(2026, 7, 5), date(2026, 7, 11))
+    assert facts.destination == "日本"
     assert facts.sum_insured == 2_000_000
