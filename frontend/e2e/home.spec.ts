@@ -18,7 +18,6 @@ async function createComparison(page: Page, destination: string, departOffset: n
       destination,
       depart_date: day(departOffset),
       return_date: day(departOffset + 5),
-      age: 30,
     },
   });
   expect(response.ok()).toBeTruthy();

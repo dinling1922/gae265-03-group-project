@@ -47,7 +47,7 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
   const update = useMutation(updateComparisonMutation());
   const [goingNext, setGoingNext] = useState(false);
 
-  const save = (to: "/compare/$id/background" | "/compare/$id/result") => {
+  const save = (to: "/compare/$id/itinerary" | "/compare/$id/result") => {
     setGoingNext(to === "/compare/$id/result");
     update.mutate(
       { path: { comparison_id: id }, body: { concerns, note } },
@@ -98,7 +98,7 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
       </div>
       <ActionBar twoColumns>
         <Button
-          onClick={() => save("/compare/$id/background")}
+          onClick={() => save("/compare/$id/itinerary")}
           disabled={update.isPending}
           className={btn}
         >

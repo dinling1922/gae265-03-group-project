@@ -22,7 +22,7 @@ import {
 import { FileDrop, FilePickButton, PickedFile } from "../../components/ui/FileDrop";
 import { Segmented } from "../../components/ui/Segmented";
 import { useToast } from "../../components/ui/Toast";
-import { DESTINATIONS } from "../compare/BackgroundForm";
+import { DESTINATIONS } from "../itinerary/tripRules";
 import { IMPORT_HINT, type ImportedTrip, ImportFromComparison } from "./ImportFromComparison";
 import { errorText } from "./shared";
 

@@ -13,13 +13,13 @@ import { ActionBar } from "../components/ui/ActionBar";
 import { btn, btnPri, lnk } from "../components/ui/buttons";
 import { FieldError } from "../components/ui/Field";
 import { PageHead } from "../components/ui/PageHead";
-import { tripDays } from "../features/compare/BackgroundForm";
 import { ComparisonTable } from "../features/compare/ComparisonTable";
 import { PlanCard } from "../features/compare/PlanCard";
 import { ReasonCard } from "../features/compare/ReasonCard";
 import { TermDialog } from "../features/compare/TermDialog";
 import { WithComparison } from "../features/compare/WithComparison";
 import { card as cardClass } from "../features/incident/shared";
+import { tripDays } from "../features/itinerary/tripRules";
 import { money } from "../lib/format";
 
 export const Route = createFileRoute("/_authed/compare/$id/result")({
@@ -88,7 +88,7 @@ function Result({
       <PageHead
         crumb="出發前：幫我選方案 · 3／3"
         title="推薦方案與比較表"
-        meta={`${comparison.destination} · ${tripRange(comparison.depart_date, comparison.return_date)} · ${days} 天 · ${comparison.age} 歲`}
+        meta={`${comparison.destination} · ${tripRange(comparison.depart_date, comparison.return_date)} · ${days} 天`}
       />
 
       <div className="grid gap-4 md:grid-cols-2 md:gap-6">
