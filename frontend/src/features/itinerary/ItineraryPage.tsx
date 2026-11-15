@@ -213,7 +213,7 @@ function Itinerary({
         onNext={() => void goNext()}
       />
 
-      <main className="flex min-w-0 flex-col gap-6 p-4 md:p-6">
+      <main className="flex min-w-0 flex-col gap-6 p-4 pt-0 min-[768px]:p-6 min-[768px]:pt-0">
         {comparison && dates.length > 0 ? (
           <>
             <DayTabs
@@ -257,7 +257,7 @@ function Itinerary({
         ) : (
           <section
             data-testid="itinerary-empty"
-            className="rounded-panel border border-line bg-white p-6 shadow-card"
+            className="mt-4 rounded-panel border border-line bg-white p-6 shadow-card min-[768px]:mt-6"
           >
             <h2 className="m-0 t-section-title text-heading">先填好旅行規劃</h2>
             <p className="m-0 mt-2 t-body text-muted">

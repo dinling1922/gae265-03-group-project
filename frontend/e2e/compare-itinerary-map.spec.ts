@@ -183,6 +183,10 @@ test("日程頁的欄數隨寬度變化：三欄、兩欄、單欄", async ({ pa
   let b = await boxes();
   expect(b.banner.x).toBeGreaterThan(b.form.x + b.form.width - 1);
   expect(b.map.x).toBeGreaterThan(b.banner.x + b.banner.width - 1);
+  // 三欄的頂端對齊：左欄標題、橫幅、地圖標題
+  const crumb = (await page.getByText("出發前：幫我選方案").boundingBox())?.y ?? NaN;
+  expect(Math.abs(b.banner.y - crumb), `橫幅 y=${b.banner.y}、左欄 y=${crumb}`).toBeLessThan(2);
+  expect(Math.abs(b.map.y - crumb), `地圖 y=${b.map.y}、左欄 y=${crumb}`).toBeLessThan(2);
 
   await page.setViewportSize({ width: 900, height: 900 });
   b = await boxes();
