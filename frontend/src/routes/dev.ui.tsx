@@ -28,6 +28,7 @@ import { DaysSummary } from "../features/compare/DaysSummary";
 import { PlanCard } from "../features/compare/PlanCard";
 import { ReasonCard } from "../features/compare/ReasonCard";
 import { MiniTable, SimulationCard, Story } from "../features/compare/ScenarioParts";
+import { ReminderNotice } from "../features/incident/ReminderNotice";
 import { UploadProgressPreview } from "../features/incident/UploadProgressPreview";
 
 export const Route = createFileRoute("/dev/ui")({
@@ -129,6 +130,11 @@ function Preview() {
             顯示 Toast
           </button>
         </div>
+      </section>
+
+      <section className={panel} aria-label="提醒信說明">
+        <h2 className="t-section-title text-heading">提醒信說明（行程頁送件區上方）</h2>
+        <ReminderNotice missingUploads={2} />
       </section>
 
       <section className={panel} aria-label="標籤">

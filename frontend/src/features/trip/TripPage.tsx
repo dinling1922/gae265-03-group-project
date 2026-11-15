@@ -8,10 +8,11 @@ import { Dialog, DialogShell } from "../../components/ui/DialogShell";
 import { Pill, ProgressPill } from "../../components/ui/Tag";
 import { GoogleAuthResult } from "../google/GoogleAuthResult";
 import { type ChatLine, DescribeChat } from "../incident/DescribeChat";
+import { ReminderNotice } from "../incident/ReminderNotice";
 import { card, errorText, policyMeta, tripTitle, useIncident, wideMain } from "../incident/shared";
 import { TripIncidentCard } from "./TripIncidentCard";
 import { TripSendBox } from "./TripSendBox";
-import { TripTodoCards, tripProgress } from "./TripTodoCards";
+import { TripTodoCards, tripPending, tripProgress } from "./TripTodoCards";
 import { TripUploader } from "./TripUploader";
 import { useTrip } from "./useTrip";
 
@@ -276,6 +277,10 @@ export function TripPage({
             )}
           </section>
 
+          {/* 提醒信說明（ADR-0031）：只有 Google 登入的使用者會收到，結案後不再寄 */}
+          {!locked && googleUser && (
+            <ReminderNotice missingUploads={tripPending(trip).missingUploads} />
+          )}
           <TripSendBox policyId={policyId} trip={trip} />
         </div>
 
