@@ -2,6 +2,13 @@
 
 5、6、7 號 agent 的契約（`backend/app/contracts/`）、`IncidentContext` 與相關資料表的變更。**新的寫在最上面**。變更契約的人要在這裡加一筆，並更新對應的交接說明（`agent-5/6/7-*.md`）、契約測試與 `make client`。
 
+## 2026-11-15　契約 v2.16.0：事故卡的保障多帶險種名稱（#386）
+
+**版本號**：`CONTRACT_VERSION = "2.16.0"`。**只新增、選配**：舊的 5、6、7 號不受影響。
+- `ClauseView` 多 `insurance_name: str | None`：險種名稱。整份險種沒有章名（如 CHUBB04）時，前端用它當標題，原本顯示成「整份」。
+- 平台 `build_context` 從險種資料表帶入；5 號回覆 `ClauseUpdate` 的格式不變。
+- 前端 `clauseLabel`：節名 → 章名 → 險種名稱 → 險種代碼。
+
 ## 2026-11-15　契約 v2.15.0：小助理的總結與一鍵修正（ADR-0030）
 
 **版本號**：`CONTRACT_VERSION = "2.15.0"`。**只新增、選配**：沒實作的 7 號照常能用，不傳 `mode` 時行為同 2.14，`summary` 是 `None`、`actions` 是空的。

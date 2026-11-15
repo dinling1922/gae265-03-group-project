@@ -22,10 +22,10 @@ const GROUPS: { key: NonNullable<ClauseView["conclusion"]>; title: string; dot: 
   { key: "insufficient", title: "待確認事項", dot: "bg-sun" },
 ];
 
-/** 保障名稱：有節就顯示節名（去掉「第二節」的編號，例如「班機延誤保險(定額給付-累進式)」），否則章名，整份險種是「整份」。 */
+/** 保障名稱：有節就顯示節名（去掉「第二節」的編號，例如「班機延誤保險(定額給付-累進式)」），否則章名；整份險種沒有章名，用險種名稱。 */
 export function clauseLabel(c: ClauseView): string {
   if (c.subsection) return c.subsection.replace(/^第[^節]+節\s*/, "");
-  return c.section ?? "整份";
+  return c.section ?? c.insurance_name ?? c.insurance_code;
 }
 
 function Heading({ dot, children }: { dot: string; children: string }) {
