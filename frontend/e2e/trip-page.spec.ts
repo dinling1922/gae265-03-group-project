@@ -370,6 +370,42 @@ test("手機：問答面板占下半、沒有遮罩，上方待辦仍可捲動�
   await expect(panel).toBeHidden();
 });
 
+test("手機：只有一個事故時，選中的事故卡也有「問答」，能打開、收起、再打開；桌機沒有（#422）", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "single-mobile", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const panel = page.getByRole("region", { name: "問答" });
+  const ask = page.getByTestId("trip-incident").getByTestId("incident-ask-mobile");
+  await expect(panel).toBeHidden();
+
+  await expect(ask).toBeVisible();
+  await ask.click();
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("qa-title")).toContainText("班機");
+
+  await page.getByTestId("qa-close").click();
+  await expect(panel).toBeHidden();
+  await ask.click();
+  await expect(panel).toBeVisible();
+
+  // 桌機：右欄固定顯示，沒有這個鈕
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(ask).toBeHidden();
+  await expect(panel).toBeVisible();
+});
+
+test("手機：有兩個事故時，選中的事故卡也有「問答」（#422）", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "two-mobile", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const cards = page.getByTestId("trip-incident");
+  await expect(cards.nth(0).getByTestId("incident-ask-mobile")).toBeVisible();
+  await expect(cards.nth(1).getByTestId("incident-ask-mobile")).toHaveCount(0);
+  await expect(cards.nth(1).getByTestId("incident-ask")).toBeVisible();
+});
+
 test("手機橫式矮視窗：問答面板是貼右的整高欄位，輸入框看得到、不蓋住說明文字（#410）", async ({
   page,
 }) => {
