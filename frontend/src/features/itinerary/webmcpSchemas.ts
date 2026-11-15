@@ -39,7 +39,7 @@ export const TOOL_SCHEMAS = {
   },
   set_trip_details: {
     description:
-      "設定目的地、城市與出發、回程日；頁面還沒有日程時會建立一份。使用者說出要去哪裡、哪幾天，或要改日期時使用。日期縮短會移除範圍外的活動，此時會先回報並要求使用者同意。",
+      "設定目的地、城市與出發、回程日；頁面還沒有日程時會建立一份。使用者說出要去哪裡、哪幾天，或要改日期時使用。日期縮短會移除範圍外的活動，此時畫面會跳出確認視窗，要使用者按下確認才會改，取消就什麼都不改（回 USER_DECLINED）。",
     inputSchema: {
       type: "object",
       properties: {
@@ -76,10 +76,6 @@ export const TOOL_SCHEMAS = {
         end_date: {
           type: "string",
           description: "回程日，YYYY-MM-DD 或 M/D；旅遊天數 4～10 天（含頭尾）",
-        },
-        confirm_remove: {
-          type: "boolean",
-          description: "使用者已同意移除新日期範圍外的活動時才設為 true",
         },
       },
       required: ["destination", "start_date", "end_date"],

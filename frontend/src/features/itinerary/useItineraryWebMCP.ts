@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { useWebMCP } from "use-webmcp-tool";
 import type {
+  ActivityBrief,
   ActivityCategory,
   ActivityIn,
   ActivityOut,
@@ -36,6 +37,8 @@ export type WebMCPContext = {
   toast: (text: string) => void;
   /** 在畫面上開「清除所有活動」確認視窗，等使用者按；回傳使用者是否同意。 */
   askClear: () => Promise<boolean>;
+  /** 縮短日期會刪活動時，在畫面上開確認視窗列出這些活動，等使用者按；回傳使用者是否同意。 */
+  askShorten: (activities: ActivityBrief[]) => Promise<boolean>;
 };
 
 /** 每個工具回應的字元上限：模型要讀完整個回應，太長會擠掉其他內容。 */
@@ -158,7 +161,6 @@ type TripArgs = {
   city?: string;
   start_date: string;
   end_date: string;
-  confirm_remove?: boolean;
 };
 type ActivityArgs = DayRef & {
   hour: number;
@@ -229,30 +231,24 @@ export function useItineraryWebMCP(ctx: WebMCPContext): { supported: boolean } {
       if (errors.length > 0) throw new Error(errors.join(" "));
 
       const before = latest.current;
-      const oldDates = before.comparison
-        ? datesBetween(before.comparison.depart_date, before.comparison.return_date)
-        : [];
-      const result = await before.actions.saveTrip(
-        {
-          destination: args.destination,
-          city: (args.city ?? "").trim(),
-          depart_date: start,
-          return_date: end,
-        },
-        args.confirm_remove === true,
-      );
-      if (!result.ok) {
-        if (result.code !== "WOULD_REMOVE_ACTIVITIES") throw new Error(result.message);
-        const list = (
-          result.detail as { activities: { date: string; hour: number; title: string }[] }
-        ).activities;
-        const names = list
-          .slice(0, 8)
-          .map((a) => `第 ${oldDates.indexOf(a.date) + 1} 天 ${formatHour(a.hour)}「${a.title}」`);
-        throw new Error(
-          `WOULD_REMOVE_ACTIVITIES：改成 ${formatMD(start)}–${formatMD(end)} 會移除 ${list.length} 個活動：${names.join("、")}${list.length > 8 ? " 等" : ""}。請先徵得使用者同意，再帶 confirm_remove: true 重新呼叫。`,
-        );
+      const trip_ = {
+        destination: args.destination,
+        city: (args.city ?? "").trim(),
+        depart_date: start,
+        return_date: end,
+      };
+      let result = await before.actions.saveTrip(trip_);
+      if (!result.ok && result.code === "WOULD_REMOVE_ACTIVITIES") {
+        // 一定要使用者在畫面上看過會刪哪些活動並按確認；agent 沒有參數可以跳過
+        const list = (result.detail as { activities: ActivityBrief[] }).activities;
+        if (!(await before.askShorten(list))) {
+          throw new Error(
+            `USER_DECLINED：使用者在畫面上沒有同意移除 ${list.length} 個活動，旅行規劃沒有改。`,
+          );
+        }
+        result = await latest.current.actions.saveTrip(trip_, true);
       }
+      if (!result.ok) throw new Error(result.message);
       const { comparison, removed } = result.data;
       const created = !before.comparison;
       if (created) {

@@ -192,21 +192,14 @@
 
 - **使用者**：「回程改成 9/20」
 - **工具呼叫**：`set_trip_details({ destination: "日本", city: "京都", start_date: "2026-09-18", end_date: "9/20" })`
-- **工具回應（錯誤）**：
-  ```json
-  { "error": "改成 9/18–9/20 會移除第 4、5 天的 2 個活動：清水燒陶藝小店、鴨川邊最後一杯咖啡。請先徵得使用者同意，再帶 confirm_remove: true 重新呼叫。",
-    "code": "WOULD_REMOVE_ACTIVITIES" }
-  ```
-- **網站反應**：無，什麼都沒改。
-- **agent 回覆**：「改成 9/20 回程會刪掉第 4、5 天的 2 個活動（清水燒陶藝小店、鴨川邊最後一杯咖啡），要繼續嗎？」
-- **使用者**：「好」
-- **工具呼叫**：同上加 `confirm_remove: true` → `{ "removed_activity_count": 2, "day_count": 3, … }`
-- **網站反應**：日期分頁剩 3 天，toast「agent 修改了日期，移除了 2 個活動」。
+- **網站反應**：畫面跳出確認視窗，列出會被移除的活動（清水燒陶藝小店、鴨川邊最後一杯咖啡），工具等使用者按。
+- **使用者按「確認移除」**：工具回 `{ "removed_activity_count": 2, "day_count": 3, … }`；日期分頁剩 3 天，toast「agent 修改了日期，移除了 2 個活動」。
+- **使用者按「取消」**：工具回 `USER_DECLINED`，什麼都沒改；agent 告訴使用者沒改。
 
 ### 自我檢討
 
-- **邊界**：原本決定「agent 改日期不跳確認、只在工具說明寫清楚」，推演後發現 agent 不一定會先讀說明 → **改成程式擋下來，要 `confirm_remove: true` 才執行**。這是對話層的確認，不是畫面上的對話框；人在畫面上改日期仍跳確認視窗。
-- **發現**：`set_trip_details` 不標 `consequentialHint`（不刪活動時只是普通設定），靠回傳錯誤做確認；`remove_itinerary_activity` 一次一筆、可馬上重加，也不標，避免每刪一筆都要使用者按確認。
+- **邊界**：一開始決定「靠回傳錯誤要 agent 先問、再帶 `confirm_remove: true`」，實際測試發現 agent 會直接帶 `confirm_remove: true` 跳過 → **改成畫面上的確認視窗，工具等使用者按**；沒有任何參數可以跳過。清空所有活動（`clear_itinerary_activities`）同理。
+- **發現**：`set_trip_details` 不標 `consequentialHint`（不刪活動時只是普通設定）；`remove_itinerary_activity` 一次一筆、可馬上重加，也不標，避免每刪一筆都要使用者按確認。
 
 ---
 
@@ -216,7 +209,7 @@
 |---|---|---|
 | `get_trip_state` | `get_trip_state` | 改成摘要：每天只回活動數；加 `selected_activity_id`；回應不超過 1,500 字 |
 | `list_time_slots`、`get_itinerary_map` | `get_day_plan` | 兩者回答同一類問題；地圖編號與沒有座標的數量併進來 |
-| `set_trip_details` | `set_trip_details` | 日期接受 `M/D`；會刪活動時要 `confirm_remove` |
+| `set_trip_details` | `set_trip_details` | 日期接受 `M/D`；會刪活動時畫面跳確認視窗，使用者按了才改 |
 | `add_itinerary_activity` | `add_itinerary_activities` | 改成批次，部分成功逐筆回報 |
 | `update_itinerary_activity` | `update_itinerary_activity` | 可改時段與日子 |
 | `remove_itinerary_activity` | `remove_itinerary_activity` | 不標 `consequentialHint` |

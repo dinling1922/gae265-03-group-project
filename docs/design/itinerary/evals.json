@@ -123,21 +123,14 @@
     ]
   },
   {
-    "name": "縮短日期被擋下後，使用者同意才帶 confirm_remove",
+    "name": "縮短日期：直接呼叫，確認交給畫面上的視窗",
     "messages": [
-      { "role": "user", "type": "message", "content": "京都的回程改成 9/20" },
-      { "role": "model", "type": "functioncall", "name": "set_trip_details", "arguments": { "destination": "日本", "city": "京都", "start_date": "2026-09-18", "end_date": "9/20" } },
-      {
-        "role": "user", "type": "functionresponse", "name": "set_trip_details",
-        "response": { "result": { "error": "改成 9/18–9/20 會移除第 4、5 天的 2 個活動：清水燒陶藝小店、鴨川邊最後一杯咖啡。請先徵得使用者同意，再帶 confirm_remove: true 重新呼叫。", "code": "WOULD_REMOVE_ACTIVITIES" } }
-      },
-      { "role": "model", "type": "message", "content": "改成 9/20 回程會刪掉第 4、5 天的 2 個活動（清水燒陶藝小店、鴨川邊最後一杯咖啡），要繼續嗎？" },
-      { "role": "user", "type": "message", "content": "好，刪掉沒關係" }
+      { "role": "user", "type": "message", "content": "京都的回程改成 9/20" }
     ],
     "expectedCall": [
       {
         "functionName": "set_trip_details",
-        "arguments": { "destination": "日本", "end_date": { "$pattern": "0?9[-/]20$" }, "confirm_remove": true }
+        "arguments": { "destination": "日本", "end_date": { "$pattern": "0?9[-/]20$" } }
       }
     ]
   },

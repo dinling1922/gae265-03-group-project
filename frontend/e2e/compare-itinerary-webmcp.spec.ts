@@ -343,9 +343,7 @@ test("update_itinerary_activity 與 remove_itinerary_activity：畫面更新、�
   await expect(page.getByRole("tab", { name: /第 2 天/ })).toContainText("0 個活動");
 });
 
-test("縮短日期：未帶 confirm_remove 回 WOULD_REMOVE_ACTIVITIES 且什麼都沒刪，帶了才刪", async ({
-  page,
-}) => {
+test("縮短日期：畫面跳確認視窗列出會刪的活動，取消什麼都不改，確認才改", async ({ page }) => {
   await login(page, "e2e-webmcp-shorten@example.com");
   await createTrip(page);
   await ok(page, "add_itinerary_activities", {
@@ -356,18 +354,26 @@ test("縮短日期：未帶 confirm_remove 回 WOULD_REMOVE_ACTIVITIES 且什麼
     ],
   });
   const shorter = { destination: "日本", city: "京都", start_date: day(7), end_date: day(10) };
+  const dialog = page.getByTestId("shorten-dialog");
 
-  const blocked = await fail(page, "set_trip_details", shorter);
-  expect(blocked).toContain("WOULD_REMOVE_ACTIVITIES");
-  expect(blocked).toContain("陶藝小店");
-  expect(blocked).toContain("最後一杯咖啡");
-  expect(blocked).toContain("confirm_remove");
+  // 取消：工具回 USER_DECLINED，日期與活動都沒變
+  const declined = fail(page, "set_trip_details", shorter);
+  await expect(dialog.getByRole("heading", { name: "將移除 2 個活動" })).toBeVisible();
+  await expect(dialog).toContainText("陶藝小店");
+  await expect(dialog).toContainText("最後一杯咖啡");
+  await dialog.getByRole("button", { name: "取消" }).click();
+  expect(await declined).toContain("USER_DECLINED");
+  await expect(dialog).toBeHidden();
   await expect(page.getByLabel("回程日")).toHaveValue(day(12));
   await expect(page.getByRole("tab")).toHaveCount(6);
   expect((await ok(page, "get_trip_state")).activity_count).toBe(3);
 
-  const done = await ok(page, "set_trip_details", { ...shorter, confirm_remove: true });
-  expect(done).toMatchObject({ created: false, day_count: 4, removed_activity_count: 2 });
+  // 確認：agent 沒有參數可以跳過；使用者按了才改
+  const done = ok(page, "set_trip_details", shorter);
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("回程日")).toHaveValue(day(12)); // 還沒按，沒改
+  await dialog.getByRole("button", { name: "確認移除" }).click();
+  expect(await done).toMatchObject({ created: false, day_count: 4, removed_activity_count: 2 });
   await expect(page.getByRole("tab")).toHaveCount(4);
   await expect(page.getByLabel("回程日")).toHaveValue(day(10));
   await expect(page.getByTestId("toast")).toHaveText("agent 修改了日期，移除了 2 個活動");

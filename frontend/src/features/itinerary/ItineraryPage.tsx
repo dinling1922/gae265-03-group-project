@@ -134,6 +134,25 @@ function Itinerary({
     return () => clearTimeout(timer.current);
   }, [valid, dirty, toRemove, saving, form, comparison]);
 
+  // agent 縮短日期會刪活動時，用同一個確認視窗等使用者按；這裡存等待中的結果（沒人等時是 null）
+  const shortenAsk = useRef<((approved: boolean) => void) | null>(null);
+  function answerShorten(approved: boolean) {
+    shortenAsk.current?.(approved);
+    setToRemove(null);
+  }
+  function askShorten(list: ActivityBrief[]): Promise<boolean> {
+    shortenAsk.current?.(false);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => answerShorten(false), 120_000);
+      shortenAsk.current = (approved) => {
+        clearTimeout(timer);
+        shortenAsk.current = null;
+        resolve(approved);
+      };
+      setToRemove(list);
+    });
+  }
+
   const cancelShorten = () => {
     setToRemove(null);
     if (comparison) {
@@ -191,6 +210,7 @@ function Itinerary({
       }),
     toast: toast.show,
     askClear,
+    askShorten,
   });
   const { stops, unmapped } = mapStops(dates, activities, view.scope, day);
   const counts: Record<string, number> = {};
@@ -322,8 +342,8 @@ function Itinerary({
       <ShortenDialog
         activities={toRemove}
         error={saveError}
-        onCancel={cancelShorten}
-        onConfirm={() => void save(true)}
+        onCancel={() => (shortenAsk.current ? answerShorten(false) : cancelShorten())}
+        onConfirm={() => (shortenAsk.current ? answerShorten(true) : void save(true))}
       />
     </div>
   );
