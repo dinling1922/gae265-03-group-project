@@ -61,6 +61,7 @@ from app.contracts import (
     GoogleAccess,
     IncidentContext,
     Recognition,
+    TripContext,
     UploadedFile,
     UserContext,
 )
@@ -71,6 +72,8 @@ logger = logging.getLogger(__name__)
 
 # 收到去識別化後的文字，回傳猜的文件代碼（D01…）或 None
 ClassifyFallback = Callable[[str], Awaitable[str | None]]
+# 待辦（或還沒對到待辦時的 None）→ 命名與存檔用的事件 context（行程版：待辦所屬的事件）
+Owner = Callable[[TodoView | None], IncidentContext]
 
 NEED_GOOGLE = "請使用者先授權存取雲端（Google Drive），授權後再上傳一次"
 NEED_OCR = "照片與掃描檔目前無法自動辨識，請選擇這份文件對應的待辦"
@@ -114,13 +117,35 @@ class DocumentAgent:
         user: UserContext,
         google: GoogleAccess,
     ) -> Recognition:
-        result = await self._recognize(ctx, file, user, google)
-        logger.info(
-            "document recognition: status=%s kind=%s todo_complete=%s",
-            result.status,
-            result.document_kind,
-            result.todo_complete,
-        )
+        result = await self._recognize(ctx, file, user, google, lambda _: ctx)
+        _log_result("document recognition", result)
+        return result
+
+    async def recognize_trip(
+        self,
+        trip: TripContext,
+        file: UploadedFile,
+        user: UserContext,
+        google: GoogleAccess,
+    ) -> Recognition:
+        """行程頁的上傳框（契約 v2.13，ADR-0029）：在整個行程的待辦裡找（共同文件與各事件的）。
+
+        流程與 `recognize` 相同，只差在找待辦的範圍是整個行程；對到待辦後，檔名、事故資料夾與
+        「待辦是否完成」都用那項待辦所屬的事件（共同文件用第一個事件，與逐事件呼叫時一樣）。
+        同一種文件對到好幾個事件的待辦時回「不確定」，候選待辦放進 `candidate_todo_ids`。
+        """
+        if not trip.incidents:
+            result = Recognition(
+                status="failed", failure="not_matched", reason=NOT_IN_TODOS
+            )
+        else:
+            pool = trip.incidents[0].model_copy(
+                update={"todos": trip.todos, "documents": trip.documents}
+            )
+            result = await self._recognize(
+                pool, file, user, google, lambda todo: owner_of(trip, todo)
+            )
+        _log_result("document recognition (trip)", result)
         return result
 
     async def _recognize(
@@ -129,13 +154,18 @@ class DocumentAgent:
         file: UploadedFile,
         user: UserContext,
         google: GoogleAccess,
+        owner: Owner,
     ) -> Recognition:
+        """`ctx.todos` 是找待辦的範圍；`owner` 給命名與存檔用的事件（逐事件呼叫時就是 ctx 本身）。"""
+        target = next((t for t in ctx.todos if t.id == file.target_todo_id), None)
         try:
             read = await read_document(file, self.ocr)
         except UnreadableFile as e:
             return Recognition(status="failed", failure="unreadable", reason=str(e))
         except OcrUnavailable:
-            return await self._unsure(ctx, file, user, google, reason=NEED_OCR)
+            return await self._unsure(
+                owner(target), file, user, google, reason=NEED_OCR
+            )
         except OcrFailed:
             return Recognition(status="needs_review", reason=OCR_DOWN)
 
@@ -152,18 +182,19 @@ class DocumentAgent:
 
         kinds = classify(read.text)
         if not kinds:
-            return await self._fallback(ctx, file, user, google, read, confidence)
+            return await self._fallback(
+                ctx, file, user, google, read, confidence, owner
+            )
         if len(kinds) > 1:
+            candidates = [t for k in kinds for t in matching_todos(k.code, ctx.todos)]
             return await self._unsure(
-                ctx,
+                owner(target or next(iter(candidates), None)),
                 file,
                 user,
                 google,
                 reason=AMBIGUOUS_KIND,
                 confidence=confidence,
-                candidates=[
-                    t for k in kinds for t in matching_todos(k.code, ctx.todos)
-                ],
+                candidates=candidates,
             )
         kind = kinds[0]
 
@@ -173,7 +204,7 @@ class DocumentAgent:
             todos = [t for t in todos if t.id == file.target_todo_id]
             if not todos:
                 return await self._unsure(
-                    ctx,
+                    owner(target),
                     file,
                     user,
                     google,
@@ -192,7 +223,7 @@ class DocumentAgent:
             )
         if len(todos) > 1:
             return await self._unsure(
-                ctx,
+                owner(todos[0]),
                 file,
                 user,
                 google,
@@ -202,6 +233,7 @@ class DocumentAgent:
                 candidates=todos,
             )
         todo = todos[0]
+        ctx = owner(todo)  # 之後的命名、存檔與「待辦是否完成」都看待辦所屬的事件
 
         problem = check(kind.code, read, self.rules, self.threshold, policy_period(ctx))
         reminder = None
@@ -248,7 +280,7 @@ class DocumentAgent:
                 google,
                 token,
                 document_file_name(ctx, kind.code, todo, content_type),
-                in_trip_folder=kind.code == CLAIM_FORM_CODE,
+                in_trip_folder=_in_trip_folder(ctx, kind.code),
             )
         except Exception as e:  # 存檔失敗一律不能回通過；log 只記例外型別
             logger.warning("document storage failed: %s", type(e).__name__)
@@ -280,8 +312,10 @@ class DocumentAgent:
         google: GoogleAccess,
         read: ReadResult,
         confidence: float,
+        owner: Owner,
     ) -> Recognition:
         """關鍵字認不出來時才問 LLM；送出的文字先去識別化，結果一律「不確定」。"""
+        target = next((t for t in ctx.todos if t.id == file.target_todo_id), None)
         spec = None
         if self.classify_fallback is not None:
             code = await self.classify_fallback(
@@ -292,7 +326,12 @@ class DocumentAgent:
             if file.target_todo_id is not None:
                 # 使用者指定了待辦：由他確認，不直接判失敗
                 return await self._unsure(
-                    ctx, file, user, google, reason=UNKNOWN_KIND, confidence=confidence
+                    owner(target),
+                    file,
+                    user,
+                    google,
+                    reason=UNKNOWN_KIND,
+                    confidence=confidence,
                 )
             return Recognition(
                 status="failed",
@@ -301,15 +340,16 @@ class DocumentAgent:
                 confidence=confidence,
             )
         kind = Kind(spec.code, spec.parts[0].key)
+        candidates = matching_todos(spec.code, ctx.todos)
         return await self._unsure(
-            ctx,
+            owner(target or next(iter(candidates), None)),
             file,
             user,
             google,
             reason=LLM_GUESS.format(label=spec.name),
             document_kind=kind.document_kind,
             confidence=confidence,
-            candidates=matching_todos(spec.code, ctx.todos),
+            candidates=candidates,
         )
 
     async def _unsure(
@@ -348,7 +388,8 @@ class DocumentAgent:
                 google,
                 token,
                 pending_file_name(ctx, sniff_type(file)),
-                in_trip_folder=False,
+                # 最可能是共同文件時（行程版）直接放行程資料夾，不另開「共同文件 日期」的事故資料夾
+                in_trip_folder=_in_trip_folder(ctx, ""),
             )
         except Exception as e:  # log 只記例外型別
             logger.warning("document storage failed: %s", type(e).__name__)
@@ -382,7 +423,8 @@ class DocumentAgent:
     ) -> str | None:
         """把「待確認」檔名改成「事故類型_待辦名稱_序號」；雲端失敗回 None（沿用舊檔名）。
 
-        理賠申請書（D10）整趟行程共用一份、放在行程資料夾，所以確認成 D10 時連資料夾一起搬（#196）。
+        理賠申請書（D10）整趟行程共用一份、放在行程資料夾，所以確認成 D10 時連資料夾一起搬（#196）；
+        行程版的共同文件也一樣。
         """
         name = document_file_name(
             ctx,
@@ -396,7 +438,7 @@ class DocumentAgent:
         except Exception as e:  # log 只記例外型別
             logger.warning("document rename failed: %s", type(e).__name__)
             return None
-        if (todo.document_code or "") == CLAIM_FORM_CODE:
+        if _in_trip_folder(ctx, todo.document_code or ""):
             await self._move_to_trip_folder(ctx, document, token, user, google)
         return name
 
@@ -541,6 +583,45 @@ class DocumentAgent:
             return False
         return await self._delete(token, document.storage_path)
 
+    async def discard_trip(
+        self,
+        trip: TripContext,
+        document: DocumentView,
+        user: UserContext,
+        google: GoogleAccess,
+    ) -> bool:
+        """行程版的 `discard`（契約 v2.13；v2.17 起也用於刪除已上傳的文件）：只看檔案編號，與事件無關。"""
+        if not document.storage_path:
+            return True
+        token = await self._token(user, google)
+        if not token:
+            return False
+        return await self._delete(token, document.storage_path)
+
+    async def recheck_trip(
+        self,
+        trip: TripContext,
+        document: DocumentView,
+        todo: TodoView,
+        user: UserContext,
+        google: GoogleAccess,
+    ) -> Recognition:
+        """行程版的 `recheck`：用使用者選的待辦所屬的事件檢查、命名。"""
+        return await self.recheck(owner_of(trip, todo), document, todo, user, google)
+
+    async def rename_trip(
+        self,
+        trip: TripContext,
+        document: DocumentView,
+        todo: TodoView,
+        user: UserContext,
+        google: GoogleAccess,
+    ) -> str | None:
+        """行程版的 `rename_confirmed`：檔名用使用者選的待辦所屬的事件。"""
+        return await self.rename_confirmed(
+            owner_of(trip, todo), document, todo, user, google
+        )
+
     async def _delete(self, token: str, storage_path: str) -> bool:
         try:
             await self.drive.delete(token, storage_path)
@@ -590,6 +671,44 @@ def next_step(rule: FieldRule, code: str) -> str | None:
     if not rule.issuer or spec is None:
         return None
     return f"請向{rule.issuer}索取載明{rule.label}的{spec.name}"
+
+
+SHARED_NAME = "共同文件"
+
+
+def owner_of(trip: TripContext, todo: TodoView | None) -> IncidentContext:
+    """待辦所屬的事件，加上共同文件的待辦與檔案（與平台逐事件呼叫時給的 context 相同）。
+
+    還沒對到待辦時用第一個事件（呼叫端保證行程至少有一個事件）。共同文件的待辦不屬於任何事件：
+    也用第一個事件，但事故類型換成「共同文件」，檔名照契約 v2.13 寫成「共同文件_待辦名稱_序號」，
+    並和理賠申請書一樣存在行程資料夾（`_in_trip_folder`）。
+    """
+    incident = next(
+        (i for i in trip.incidents if todo and i.incident_id == todo.incident_id),
+        trip.incidents[0],
+    )
+    update: dict[str, object] = {
+        "todos": trip.shared_todos + incident.todos,
+        "documents": trip.shared_documents + incident.documents,
+    }
+    if todo is not None and todo.incident_id is None:
+        update["incident_type_name"] = SHARED_NAME
+    return incident.model_copy(update=update)
+
+
+def _in_trip_folder(ctx: IncidentContext, code: str) -> bool:
+    """理賠申請書，以及行程版的共同文件，存在行程資料夾；其他文件存在事故資料夾。"""
+    return code == CLAIM_FORM_CODE or ctx.incident_type_name == SHARED_NAME
+
+
+def _log_result(label: str, result: Recognition) -> None:
+    logger.info(
+        "%s: status=%s kind=%s todo_complete=%s",
+        label,
+        result.status,
+        result.document_kind,
+        result.todo_complete,
+    )
 
 
 def _confidence(read: ReadResult) -> float:

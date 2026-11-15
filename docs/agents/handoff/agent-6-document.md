@@ -110,3 +110,10 @@ class DocumentRecognizer(Protocol):
 ## 契約 v2.13：行程版（選配，ADR-0029）
 
 行程頁只有一個上傳框，平台之後會改呼叫 `recognize_trip`、`recheck_trip`、`discard_trip`、`rename_trip`（`app/contracts/document_agent.py` 的 `TripDocument*` 協定），收 `TripContext`（`for_agents_6_7()` 後的）。規則與舊方法相同，另外：待辦在整個行程（共同文件加各事件）裡找；同一文件代碼對到多個事件時回 `needs_review` 加 `candidate_todo_ids`，不自己挑事件；共同文件（`todo.incident_id` 是 `None`）檔名「共同文件_待辦名稱_序號」。沒實作時平台退回逐事件的舊方法。假實作可當範例。完整說明見 contract-changelog 的 2.13.0。
+
+**已實作（2026-11-15，Lala）**：`DocumentAgent` 四個行程版方法都有了（`recognizer.py`）。之前只有逐事件的舊方法，行程有兩個以上事件時，平台不知道該把上傳交給哪個事件，行程頁上傳一律回 409「行程有多個事件，請先選要上傳到哪一項待辦」；日本 demo（班機延誤＋腸胃炎）因此卡住。
+
+- `recognize_trip`：讀檔與認種類只做一次，在 `trip.todos`（共同文件＋各事件）裡找待辦；找到後，檢查、檔名、存放資料夾與「待辦是否完成」都用那項待辦所屬的事件（`owner_of`，等同平台逐事件呼叫時的 context）。
+- 共同文件（D02、D10、D11、D24）檔名寫成「共同文件_待辦名稱_序號」，和理賠申請書一樣存在行程資料夾；逐事件的舊方法不變。
+- `recheck_trip`、`rename_trip` 用使用者選的待辦所屬的事件；`discard_trip` 只看檔案編號。
+- 測試：`tests/agents/test_document_trip.py`（日本 demo 兩個事件）、`tests/contracts/test_document_agent_api.py` 的「行程有兩個事件」。
