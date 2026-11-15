@@ -7,15 +7,16 @@ import { taipeiDate } from "../../lib/format";
 const STATUS_LABEL: Record<string, string> = { open: "進行中", completed: "已完成" };
 
 /**
- * 首頁「我的理賠」的一列。整列是連結，一律進事件的第一步（說明狀況與待辦）。
+ * 首頁「我的理賠」的一列。整列是連結，連到所屬行程頁並選中這個事故（ADR-0029）。
  * 標題為主；下一行是「事故類型 · 最後操作 日期」，類型還沒判斷出來就只顯示日期。清單也依最後操作時間排序。
  */
 export function IncidentRow({ incident: i }: { incident: IncidentSummaryOut }) {
   const done = i.status === "completed";
   return (
     <Link
-      to="/incident/$id"
-      params={{ id: i.id }}
+      to="/trip/$policyId"
+      params={{ policyId: i.policy_id }}
+      search={{ incident: i.id }}
       className="group flex items-center gap-3 border-b border-line py-4 last:border-b-0 md:gap-6 md:py-[22px] md:pr-2"
     >
       <span className="grid size-10 flex-none place-items-center rounded-full bg-leaf-soft text-leaf md:size-[52px]">

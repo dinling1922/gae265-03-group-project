@@ -57,6 +57,7 @@ async def test_creating_an_incident_prefills_coverages_and_basic_todos(
     assert str(conversation.incident_id) == incident["incident_id"]
 
 
+@pytest.mark.usefixtures("full_catalog")
 async def test_full_flow_from_message_to_submission(
     client: AsyncClient, session: AsyncSession, policy: Policy
 ) -> None:

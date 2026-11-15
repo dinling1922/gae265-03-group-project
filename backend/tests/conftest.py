@@ -43,15 +43,156 @@ async def session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
         yield session
 
 
-@pytest.fixture(autouse=True)
-async def truncate_tables(engine: AsyncEngine) -> AsyncGenerator[None]:
-    yield
-    # 每個測試後清空所有資料表
-    tables = ", ".join(f'"{t.name}"' for t in SQLModel.metadata.sorted_tables)
+# ---- 共用的條款庫資料（分層，整個測試階段只匯入一次）----
+#
+# 匯入條款庫（險種、條文、向量）要 2 秒多，原本每個測試都匯入一次。現在依測試需要取最少的一層：
+#   incident_catalog：事故類型與待辦範本（seed_sample_catalog）
+#   insurances_loaded：真實的險種資料列，沒有條文與向量（保單對得到險種就夠的測試）
+#   full_catalog：真實的險種、條文與向量（檢索、結論卡要讀條文內容的測試）
+#   policy_codes_loaded：full_catalog 再加上「章名 → 保單代碼」對照（解析保單的測試）
+# 這些資料在測試之間不清空。沒有要求它們的測試開始前會先清掉（和原本一樣是空的）；
+# 測試結束時發現共用資料被改過（指紋不同）就全部清空重來，所以改條款庫的測試不會污染別人。
+# 自己匯入小型假資料的測試不要求這些 fixture，行為和以前完全相同。
+
+_GROUPS = {
+    "insurances": ("insurance", "insurance_rule", "rule_embedding"),
+    "incidents": ("incident_type", "todo_template"),
+}
+_SHARED = {
+    "insurances_loaded",
+    "full_catalog",
+    "policy_codes_loaded",
+    "incident_catalog",
+}
+
+
+class _Shared:
+    """資料庫裡現在留著哪幾層共用資料，以及它們匯入後的指紋。"""
+
+    insurances = False
+    rules = False
+    codes = False
+    incidents = False
+    fingerprint: dict[str, str] = {}
+
+    @classmethod
+    def clear(cls) -> None:
+        cls.insurances = cls.rules = cls.codes = cls.incidents = False
+        cls.fingerprint = {}
+
+    @classmethod
+    def groups(cls) -> list[str]:
+        return [
+            g
+            for g, on in (("insurances", cls.insurances), ("incidents", cls.incidents))
+            if on
+        ]
+
+
+async def _fingerprint(engine: AsyncEngine) -> dict[str, str]:
+    out: dict[str, str] = {}
+    async with engine.connect() as conn:
+        for group in _Shared.groups():
+            for table in _GROUPS[group]:
+                row = await conn.execute(
+                    text(
+                        "SELECT md5(coalesce(string_agg(id::text || updated_at::text, ',' "
+                        f"ORDER BY id), '')) FROM \"{table}\""
+                    )
+                )
+                out[table] = row.scalar_one()
+    return out
+
+
+async def _truncate(engine: AsyncEngine, keep: set[str]) -> None:
+    tables = ", ".join(
+        f'"{t.name}"' for t in SQLModel.metadata.sorted_tables if t.name not in keep
+    )
     if not tables:
         return
     async with engine.begin() as conn:
         await conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+
+
+def _kept_tables() -> set[str]:
+    return {t for g in _Shared.groups() for t in _GROUPS[g]}
+
+
+@pytest.fixture(autouse=True)
+async def truncate_tables(
+    request: pytest.FixtureRequest, engine: AsyncEngine
+) -> AsyncGenerator[None]:
+    wanted = _SHARED & set(request.fixturenames)
+    # 開始前：共用資料有這個測試沒要求的層就清掉（要了 insurances_loaded、留著條文也沒關係）
+    layers = {"insurances_loaded", "full_catalog", "policy_codes_loaded"}
+    stale = (
+        (_Shared.insurances and not wanted & layers)
+        or (_Shared.codes and "policy_codes_loaded" not in wanted)
+        or (_Shared.incidents and "incident_catalog" not in wanted)
+    )
+    if stale:
+        await _truncate(engine, set())
+        _Shared.clear()
+    yield
+    # 結束後：共用資料被改過就全部清空重來，沒改就留著，只清其他資料表
+    if _Shared.groups() and await _fingerprint(engine) != _Shared.fingerprint:
+        await _truncate(engine, set())
+        _Shared.clear()
+    else:
+        await _truncate(engine, _kept_tables())
+
+
+@pytest.fixture
+async def incident_catalog(session: AsyncSession, engine: AsyncEngine) -> None:
+    """事故類型與待辦範本（`make seed` 載入的同一份 incident_catalog.json）。"""
+    if not _Shared.incidents:
+        from app.contracts.fakes import seed_sample_catalog
+
+        await seed_sample_catalog(session)
+        _Shared.incidents = True
+        _Shared.fingerprint = await _fingerprint(engine)
+
+
+@pytest.fixture
+async def insurances_loaded(
+    session: AsyncSession, engine: AsyncEngine, catalog
+) -> None:
+    """真實的險種資料列（FUBON01 等），沒有條文與向量。"""
+    if not _Shared.insurances:
+        from app.models import Insurance
+
+        specs, _ = catalog
+        for spec in specs:
+            session.add(
+                Insurance(
+                    code=spec.code,
+                    name=spec.name,
+                    approval_no=spec.approval_no,
+                    approval_date=spec.approval_date,
+                )
+            )
+        await session.commit()
+        _Shared.insurances = True
+        _Shared.fingerprint = await _fingerprint(engine)
+
+
+@pytest.fixture
+async def full_catalog(session: AsyncSession, engine: AsyncEngine, catalog) -> None:
+    """真實的險種、條文與向量（`make ingest` 實際匯入的內容）。"""
+    if not _Shared.rules:
+        from app.core.llm import embedding_model_name, get_embeddings
+        from app.ingest.catalog import import_catalog
+
+        specs, rules = catalog
+        await import_catalog(
+            session,
+            specs,
+            rules,
+            embeddings=get_embeddings(),
+            model=embedding_model_name(),
+        )
+        _Shared.insurances = _Shared.rules = True
+        _Shared.fingerprint = await _fingerprint(engine)
 
 
 @pytest.fixture
@@ -98,3 +239,17 @@ def catalog(catalog_raw):
 
     specs, rules = catalog_raw
     return specs, apply_errata(rules, load_errata())
+
+
+@pytest.fixture
+async def policy_codes_loaded(
+    session: AsyncSession, engine: AsyncEngine, full_catalog: None
+) -> None:
+    """條文之外再補上保單代碼對照（`make seed` 會做的那一步）。"""
+    assert full_catalog is None  # 要先有條文
+    if not _Shared.codes:
+        from app.seed import load_policy_codes
+
+        await load_policy_codes(session)
+        _Shared.codes = True
+        _Shared.fingerprint = await _fingerprint(engine)

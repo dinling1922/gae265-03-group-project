@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { login } from "./helpers";
 
 // 試算依開發資料庫的 seed（make seed）與 scenario_rules.json：6 天「班機延誤 → 突然生病就醫」，
 // 推薦富邦國外旅平險-進階型、次推薦華南國外旅平險-基礎型。
@@ -9,13 +10,6 @@ function day(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function login(page: Page, email: string) {
-  await page.goto("/login?next=%2F");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "測試登入" }).click();
-  await expect(page).toHaveURL(/\/$/);
 }
 
 async function fillTrip(page: Page) {
@@ -88,9 +82,6 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
 
   // 問答：常見問題
   const chat = page.getByRole("region", { name: "問答" });
-  await expect(
-    chat.getByText("點下方常見問題，或自己輸入。問答內容不會保存，離開這頁就會清空。"),
-  ).toBeVisible();
   await chat.getByRole("button", { name: "班機延誤多久才能賠？" }).click();
   await expect(chat.getByTestId("question")).toHaveText(["班機延誤多久才能賠？"]);
   await expect(chat.getByTestId("answer")).toHaveCount(1, { timeout: 60_000 });

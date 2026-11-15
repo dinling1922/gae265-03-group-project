@@ -79,6 +79,33 @@ export function ChatMessage({
   );
 }
 
+/**
+ * AI 輸入中的泡泡（正在做的事在最左邊，三個跳動的點在它右邊）：旅客送出後、回覆回來前放在對話區最下面。
+ * `role="status"`、`data-testid="busy"`，讀屏會唸出 `label`，沒有就唸「5 號正在輸入」。
+ * 前端不知道後端走到哪一步，所以 `label` 依頁面固定寫（例如「正在確認狀況」），不做假的進度。
+ */
+export function TypingBubble({ label }: { label?: string }) {
+  return (
+    <li
+      data-from="ai"
+      role="status"
+      aria-label={label ?? "5 號正在輸入"}
+      data-testid="busy"
+      className="flex w-fit items-center gap-1.5 self-start rounded-bubble rounded-bl-[4px] border border-line bg-white px-4 py-3.5"
+    >
+      {label && <span className="mr-1 t-caption text-muted">{label}</span>}
+      {[0, 150, 300].map((delay) => (
+        <span
+          key={delay}
+          aria-hidden="true"
+          style={{ animationDelay: `${delay}ms` }}
+          className="size-2 animate-bounce rounded-full bg-muted motion-reduce:animate-none"
+        />
+      ))}
+    </li>
+  );
+}
+
 /** 系統分隔：例如「以下依新的推薦回答」，兩側各一條線。 */
 export function ChatDivider({ children }: { children: ReactNode }) {
   return (

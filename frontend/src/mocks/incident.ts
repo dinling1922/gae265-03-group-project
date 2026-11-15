@@ -15,6 +15,8 @@ import type {
   PolicyUploadOut,
   SubmissionOut,
   TodoView,
+  TripOut,
+  TripSummaryOut,
 } from "../client/types.gen";
 
 // 出事了流程（保單 → 事件 → 待辦 → 文件 → 送件）的假資料，行為照後端的假 agent：
@@ -48,6 +50,7 @@ const policies: PolicyOut[] = [BASE_POLICY];
 
 function summaryOf(p: PolicyOut): IncidentContext["policy"] {
   return {
+    policy_id: p.id,
     plan_id: p.plan_id,
     plan_name: p.plan_name,
     sum_insured: p.sum_insured,
@@ -58,7 +61,13 @@ function summaryOf(p: PolicyOut): IncidentContext["policy"] {
   };
 }
 
-const todo = (n: number, title: string, requiresUpload: boolean, done = false): TodoView => ({
+const todo = (
+  n: number,
+  title: string,
+  requiresUpload: boolean,
+  done = false,
+  scope: TodoView["scope"] = "incident",
+): TodoView => ({
   id: uuid(900 + n),
   phase: "after_return",
   title,
@@ -66,12 +75,12 @@ const todo = (n: number, title: string, requiresUpload: boolean, done = false): 
   status: done ? "done" : "pending",
   done_by: done ? "agent" : null,
   sort_order: n,
-  scope: "incident",
+  scope,
   requires_upload: requiresUpload,
 });
 
 const flightDelayTodos = (done: boolean): TodoView[] => [
-  todo(1, "理賠申請書", true, done),
+  todo(1, "理賠申請書", true, done, "policy"),
   todo(2, "機票及登機證，或航空業者出具的搭機證明", true, done),
   todo(3, "航空業者出具、載有班機延誤期間的證明", true, done),
 ];
@@ -144,6 +153,7 @@ const incidents = new Map<string, MockIncident>();
 
 const summary = (id: string, m: MockIncident): IncidentSummaryOut => ({
   id,
+  policy_id: m.ctx.policy.policy_id ?? "",
   title: m.ctx.title,
   status: m.ctx.status,
   incident_type_name: m.ctx.incident_type_name ?? null,
@@ -258,6 +268,49 @@ function mockRecognize(ctx: IncidentContext, name: string): MockResult {
   };
 }
 
+/** 行程（一張保單）的假資料：從事件組出來，共同文件（scope 為 policy 的待辦）整個行程只列一次。 */
+function tripOf(policyId: string): TripOut | null {
+  const entries = [...incidents.values()]
+    .filter((m) => m.ctx.policy.policy_id === policyId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  const first = entries[0];
+  if (!first) return null;
+  const shared = entries
+    .flatMap((m) => (m.ctx.todos ?? []).filter((t) => t.scope === "policy"))
+    .filter((t, i, all) => all.findIndex((x) => x.title === t.title) === i);
+  const own = (m: MockIncident) => (m.ctx.todos ?? []).filter((t) => t.scope !== "policy");
+  const locked = entries.every((m) => m.ctx.status === "completed");
+  const active = [...shared, ...entries.flatMap(own)];
+  return {
+    policy: first.ctx.policy,
+    status: locked ? "completed" : "open",
+    locked,
+    destination: first.ctx.destination ?? null,
+    incidents: entries.map((m) => ({
+      id: m.ctx.incident_id,
+      title: m.ctx.title,
+      description: m.ctx.description,
+      status: m.ctx.status,
+      incident_type_code: m.ctx.incident_type_code ?? null,
+      incident_type_name: m.ctx.incident_type_name ?? null,
+      destination: m.ctx.destination ?? null,
+      occurred_at: m.ctx.occurred_at ?? null,
+      covered: true,
+      clauses: m.ctx.clauses ?? [],
+      facts: m.ctx.facts ?? [],
+      todos: own(m),
+      documents: m.ctx.documents ?? [],
+    })),
+    shared_todos: shared,
+    shared_documents: [],
+    major_notices: first.ctx.major_notices ?? [],
+    can_send: true,
+    can_submit: !locked && active.length > 0 && active.every((t) => t.is_done),
+    can_close: false,
+    submission: { status: first.closedAs ?? null, gmail_url: null },
+  };
+}
+
 export const incidentHandlers = [
   http.get("*/api/v1/policies", () => HttpResponse.json<PolicyOut[]>([...policies].reverse())),
   http.post("*/api/v1/policies", () => {
@@ -331,6 +384,41 @@ export const incidentHandlers = [
       [...incidents].map(([id, m]) => summary(id, m)).reverse(),
     ),
   ),
+  // 我的行程：假資料依保單把事件分組，待辦進度與送件狀態都簡化
+  http.get("*/api/v1/trips", () => {
+    const byPolicy = new Map<string, IncidentContext[]>();
+    for (const m of incidents.values()) {
+      const key = m.ctx.policy.policy_id ?? "";
+      byPolicy.set(key, [...(byPolicy.get(key) ?? []), m.ctx]);
+    }
+    return HttpResponse.json<TripSummaryOut[]>(
+      [...byPolicy].map(([policyId, ctxs]) => {
+        const p = policies.find((x) => x.id === policyId) ?? BASE_POLICY;
+        const todos = ctxs.flatMap((c) => c.todos ?? []).filter((t) => t.applicable !== false);
+        const done = todos.filter((t) => t.is_done).length;
+        const locked = ctxs.every((c) => c.status === "completed");
+        return {
+          policy_id: policyId,
+          display_name: p.display_name,
+          destination: p.destination,
+          start_date: p.start_date,
+          end_date: p.end_date,
+          incident_count: ctxs.length,
+          open_count: ctxs.filter((c) => c.status !== "completed").length,
+          locked,
+          last_activity_at: new Date().toISOString(),
+          incident_type_names: [
+            ...new Set(ctxs.map((c) => c.incident_type_name).filter((n): n is string => !!n)),
+          ],
+          todo_done: done,
+          todo_total: todos.length,
+          state: todos.length === 0 ? "describing" : done === todos.length ? "done" : "in_progress",
+          closed_as: locked ? "self_submitted" : null,
+          has_unfinished: !locked && done < todos.length,
+        };
+      }),
+    );
+  }),
   http.post("*/api/v1/policies/:policyId/incidents", async ({ params, request }) => {
     const policy = policies.find((p) => p.id === params.policyId);
     if (!policy) return HttpResponse.json({ detail: "找不到這份保單" }, { status: 404 });
@@ -343,6 +431,52 @@ export const incidentHandlers = [
       quick_replies: ["在機場", "已回國"],
     };
     return HttpResponse.json<IncidentReplyOut>({ reply, incident: m.ctx }, { status: 201 });
+  }),
+  http.get("*/api/v1/policies/:policyId/trip", ({ params }) => {
+    const trip = tripOf(String(params.policyId));
+    return trip ? HttpResponse.json<TripOut>(trip) : notFound();
+  }),
+  // 假資料模式沒有 Google Drive：行程的「下載全部文件」維持反灰
+  http.get("*/api/v1/policies/:policyId/drive-folder", () => HttpResponse.json({ url: null })),
+  // 小助理提醒：和假 7 號一樣，勾了需要文件、卻沒附文件的待辦就提醒「另行提供」
+  http.post("*/api/v1/policies/:policyId/package/prepare", ({ params }) => {
+    const trip = tripOf(String(params.policyId));
+    if (!trip) return notFound();
+    const attached = new Set(
+      [...trip.shared_documents, ...trip.incidents.flatMap((i) => i.documents)].map(
+        (d) => d.todo_id,
+      ),
+    );
+    const todos = [...trip.shared_todos, ...trip.incidents.flatMap((i) => i.todos)];
+    return HttpResponse.json({
+      reminders: todos
+        .filter((t) => t.is_done && t.requires_upload && !attached.has(t.id))
+        .map((t) => ({
+          text: `「${t.title}」沒有附文件，信裡會寫「另行提供」。`,
+          incident_id: t.incident_id ?? null,
+          todo_id: t.id,
+        })),
+    });
+  }),
+  http.patch("*/api/v1/policies/:policyId/todos/:todoId", async ({ params, request }) => {
+    const policyId = String(params.policyId);
+    if (!tripOf(policyId)) return notFound();
+    const { is_done } = (await request.json()) as { is_done: boolean };
+    for (const m of incidents.values()) {
+      if (m.ctx.policy.policy_id !== policyId) continue;
+      m.ctx.todos = m.ctx.todos?.map((t) =>
+        t.id === params.todoId
+          ? {
+              ...t,
+              is_done,
+              status: is_done ? "done" : "pending",
+              done_by: is_done ? "user" : null,
+              without_document: is_done && !!t.requires_upload,
+            }
+          : t,
+      );
+    }
+    return HttpResponse.json<TripOut>(tripOf(policyId) as TripOut);
   }),
   http.get("*/api/v1/incidents/:id", ({ params }) => {
     const m = incidents.get(String(params.id));

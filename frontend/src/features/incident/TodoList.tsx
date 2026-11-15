@@ -5,12 +5,24 @@ import { ProgressPill, TodoTag } from "../../components/ui/Tag";
 import { dateOf } from "./IncidentCard";
 import { card } from "./shared";
 
-const isNa = (t: TodoView) => t.applicable === false;
+export const isNa = (t: TodoView) => t.applicable === false;
 
 /** 「待辦 N／M」：不適用的不算。 */
 export function progressOf(todos: TodoView[]) {
   const active = todos.filter((t) => !isNa(t));
   return { done: active.filter((t) => t.is_done).length, total: active.length };
+}
+
+/**
+ * 已存到使用者 Google Drive 的檔案，在 Drive 打開的網址（Drive 自己能放大、翻頁）。
+ * 6 號的 storage_path 就是 Drive 檔案編號；假資料（mock/…）與開發用假雲端（dev-fake-…）
+ * 不是真的檔案，回 null，檔名照舊只顯示文字。
+ */
+export function driveFileUrl(storagePath: string): string | null {
+  if (storagePath.startsWith("dev-fake") || !/^[A-Za-z0-9_-]{20,}$/.test(storagePath)) {
+    return null;
+  }
+  return `https://drive.google.com/file/d/${encodeURIComponent(storagePath)}/view`;
 }
 
 /** 狀態晶片（設計稿 v3.7）：已附檔案數、等待說明、待上傳；其餘不顯示。 */
@@ -28,16 +40,19 @@ function statusOf(t: TodoView, fileCount: number): { text: string; className: st
  * 一項待辦（設計稿 v3.7）：一行＝勾選框、名稱與標籤、右側狀態晶片、展開箭頭；
  * 展開後看已附檔案、等待與上傳說明、注意事項。手機版晶片排到名稱下一行。
  */
-function TodoRow({
+export function TodoRow({
   todo: t,
   documents,
   disabled,
+  muted = false,
   onToggle,
 }: {
   todo: TodoView;
   documents: DocumentView[];
   /** 結案、處理中時停用。 */
   disabled: boolean;
+  /** 不符保障的事故（ADR-0029）：整列淡灰、不能勾，並說明原因。 */
+  muted?: boolean;
   onToggle: (todo: TodoView, checked: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -47,13 +62,16 @@ function TodoRow({
   const needUpload = t.requires_upload && !t.is_done && !na && documents.length === 0;
   const panelId = `todo-${t.id}`;
   return (
-    <li className={`border-b border-line last:border-b-0 ${na ? "opacity-75" : ""}`}>
+    <li
+      className={`border-b border-line last:border-b-0 ${na ? "opacity-75" : ""} ${muted ? "opacity-50" : ""}`}
+      data-muted={muted || undefined}
+    >
       <div className="flex items-start gap-2.5 py-3.5 md:gap-3">
         <input
           type="checkbox"
           checked={t.is_done ?? false}
           // 需上傳的待辦也可以自己勾（規格 v3.4）：沒有文件時會標「未附文件」，勾之前先確認
-          disabled={disabled || na}
+          disabled={disabled || na || muted}
           onChange={(e) => onToggle(t, e.target.checked)}
           aria-label={t.title}
           className="mt-0.5 size-[22px] shrink-0 cursor-pointer accent-brand disabled:cursor-not-allowed"
@@ -122,12 +140,28 @@ function TodoRow({
         )}
         {documents.length > 0 && (
           <ul className="m-0 flex list-none flex-col gap-1 p-0" data-testid="todo-files">
-            {documents.map((d) => (
-              <li key={d.id} className="flex flex-wrap items-center gap-2.5 t-caption text-brand">
-                <span className="[overflow-wrap:anywhere] font-bold">📎 {d.file_name}</span>
-                <PlaceholderButton kind="danger-link">刪除</PlaceholderButton>
-              </li>
-            ))}
+            {documents.map((d) => {
+              const url = driveFileUrl(d.storage_path);
+              return (
+                <li key={d.id} className="flex flex-wrap items-center gap-2.5 t-caption text-brand">
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="[overflow-wrap:anywhere] font-bold text-brand underline underline-offset-2"
+                      title="在 Google Drive 打開"
+                      data-testid="todo-file-link"
+                    >
+                      📎 {d.file_name}
+                    </a>
+                  ) : (
+                    <span className="[overflow-wrap:anywhere] font-bold">📎 {d.file_name}</span>
+                  )}
+                  <PlaceholderButton kind="danger-link">刪除</PlaceholderButton>
+                </li>
+              );
+            })}
           </ul>
         )}
         {t.wait_note && <p className="m-0">⏱ {t.wait_note}</p>}
@@ -145,14 +179,14 @@ function TodoRow({
   );
 }
 
-const PHASES = [
+export const PHASES = [
   { phase: "on_site", title: "事故當下" },
   { phase: "after_return", title: "回國後整理" },
 ] as const;
 
 /**
  * 待辦清單：分成「事故當下」與「回國後整理」兩張卡，每張卡裡先列這個事故的待辦，
- * 再列「整個行程」共用的待辦（理賠申請書）。不適用的排在同組最後。
+ * 再列「共同文件」共用的待辦（理賠申請書）。不適用的排在同組最後。
  */
 export function TodoCards({
   ctx,
@@ -179,7 +213,7 @@ export function TodoCards({
         if (inPhase.length === 0) return null;
         const groups = [
           { title: incidentTitle, items: sorted(inPhase.filter((t) => t.scope !== "policy")) },
-          { title: "整個行程", items: sorted(inPhase.filter((t) => t.scope === "policy")) },
+          { title: "共同文件", items: sorted(inPhase.filter((t) => t.scope === "policy")) },
         ].filter((g) => g.items.length > 0);
         const { done, total } = progressOf(inPhase);
         return (

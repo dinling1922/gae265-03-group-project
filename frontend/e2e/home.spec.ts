@@ -1,17 +1,11 @@
-import { expect, type Page, test } from "@playwright/test";
+import { type APIRequestContext, expect, type Page, test } from "@playwright/test";
+import { login } from "./helpers";
 
 /** 今天往後 offset 天的 YYYY-MM-DD（瀏覽器的本地日期）。 */
 function day(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function login(page: Page, email: string) {
-  await page.goto("/login?next=%2F");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "測試登入" }).click();
-  await expect(page).toHaveURL(/\/$/);
 }
 
 /** 每次用新的帳號，才不會被開發資料庫裡先前留下的比較紀錄影響。 */
@@ -188,13 +182,16 @@ async function createIncident(page: Page, description: string, policyId?: string
     id = policy.id as string;
   }
   const created = await api.post(`/api/v1/policies/${id}/incidents`, { data: { description } });
-  expect(created.ok()).toBeTruthy();
+  expect(
+    created.ok(),
+    `POST incidents 回 ${created.status()}：${await created.text()}`,
+  ).toBeTruthy();
   const body = await created.json();
   return { policyId: id, incidentId: body.incident.incident_id as string };
 }
 
-/** 把事件的待辦做完並選「自己處理」結案（做法同 incident-flow.spec.ts）。 */
-async function closeIncident(page: Page, incidentId: string) {
+/** 一直回答到事件產生結論與待辦（行程的完成度要有待辦才算）。 */
+async function finishDescribing(page: Page, incidentId: string) {
   const api = page.request;
   for (let i = 0; i < 15; i++) {
     const res = await api.post(`/api/v1/incidents/${incidentId}/messages`, {
@@ -205,6 +202,12 @@ async function closeIncident(page: Page, incidentId: string) {
     if (!reply.reply) throw new Error(`POST messages 回 ${res.status()}：${JSON.stringify(reply)}`);
     if (reply.reply.finished) break;
   }
+}
+
+/** 把事件的待辦做完並選「自己處理」結案（做法同 incident-flow.spec.ts）。 */
+async function closeIncident(page: Page, incidentId: string) {
+  const api = page.request;
+  await finishDescribing(page, incidentId);
   for (let i = 0; i < 20; i++) {
     const ctx = await (await api.get(`/api/v1/incidents/${incidentId}`)).json();
     const undone = ctx.todos.filter(
@@ -226,179 +229,165 @@ async function closeIncident(page: Page, incidentId: string) {
   const submitted = await api.post(`/api/v1/incidents/${incidentId}/submission`, {
     data: { mode: "self" },
   });
-  expect(submitted.ok()).toBeTruthy();
+  expect(
+    submitted.ok(),
+    `POST submission 回 ${submitted.status()}：${await submitted.text()}`,
+  ).toBeTruthy();
 }
 
-// 首頁右下格「我的理賠」（#207）：沒有事件的空狀態。
-test("沒有事件時，我的理賠顯示空狀態", async ({ page, request }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await login(page, freshEmail("incidents-empty"));
+// 首頁「我的行程」（規格 0-4）：一張保單一列。需要 make seed。
+const tripRows = (page: Page) =>
+  page.getByRole("region", { name: "我的行程" }).getByTestId("trip-row");
 
-  const card = page.getByRole("region", { name: "我的理賠" });
-  await expect(card.getByRole("heading", { name: "我的理賠" })).toBeVisible();
-  await expect(card.getByText("處理過的理賠會自動存在這裡")).toBeVisible();
-  await expect(card.getByTestId("incident-row-title")).toHaveCount(0);
+const hasSeed = async (request: APIRequestContext) => (await request.get("/api/v1/plans")).ok();
+
+test("沒有事件時，我的行程顯示空狀態", async ({ page, request }) => {
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
+  await login(page, freshEmail("trips-empty"));
+
+  const card = page.getByRole("region", { name: "我的行程" });
+  await expect(card.getByRole("heading", { name: "我的行程" })).toBeVisible();
+  await expect(card.getByText("出事時點上方按鈕，處理過的行程會存在這裡")).toBeVisible();
+  await expect(tripRows(page)).toHaveCount(0);
+  await expect(page.getByTestId("unfinished-badge")).toHaveCount(0);
 });
 
-// 建 4 筆事件：只列最新 3 筆，新的在前；點一列進到該事件。
-test("我的理賠只列最近 3 筆，點一列進入該事件", async ({ page, request }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await login(page, freshEmail("incidents-recent"));
-
-  const first = await createIncident(page, "第一件：班機延誤了");
-  await createIncident(page, "第二件：班機延誤了", first.policyId);
-  await createIncident(page, "第三件：班機延誤了", first.policyId);
-  const fourth = await createIncident(page, "第四件：班機延誤了", first.policyId);
-
-  await page.goto("/");
-  const card = page.getByRole("region", { name: "我的理賠" });
-  const titles = card.getByTestId("incident-row-title");
-  await expect(titles).toHaveCount(3);
-  await expect(titles.nth(0)).toContainText("第四件");
-  await expect(titles.nth(1)).toContainText("第三件");
-  await expect(titles.nth(2)).toContainText("第二件");
-  await expect(card.getByText("第一件")).toHaveCount(0);
-  // 超過 3 筆：標題列出現「看全部」（#208）
-  await expect(card.getByRole("link", { name: "看全部" })).toBeVisible();
-  await expect(card.getByTestId("incident-row-status").first()).toHaveText("進行中");
-
-  await titles.nth(0).click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${fourth.incidentId}$`));
-});
-
-// 全部理賠（#208）：首頁超過 3 筆才有「看全部」，進去列出全部，新的在前，含最舊的那筆。
-test("看全部：超過 3 筆才出現，進全部理賠頁列出全部、新的在前，點一列進入該事件", async ({
+test("我的行程一張保單一列：同一張保單的兩個事故只有一列，點進行程頁", async ({
   page,
   request,
 }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await login(page, freshEmail("incidents-all"));
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
+  await login(page, freshEmail("trips-one-row"));
 
-  const first = await createIncident(page, "第一件：班機延誤了");
-  await createIncident(page, "第二件：班機延誤了", first.policyId);
-  await createIncident(page, "第三件：班機延誤了", first.policyId);
+  const a = await createIncident(page, "第一件：班機延誤了");
+  await createIncident(page, "第二件：班機延誤了", a.policyId);
+  await finishDescribing(page, a.incidentId);
+  await page.goto("/");
+  await expect(tripRows(page)).toHaveCount(1);
+  await expect(page.getByTestId("trip-row-subtitle").first()).toContainText("待辦");
+
+  await tripRows(page).first().click();
+  await expect(page).toHaveURL(new RegExp(`/trip/${a.policyId}$`));
+});
+
+test("我的行程只列最近 3 筆；看全部進全部行程頁，列出全部、新的在前", async ({ page, request }) => {
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
+  await login(page, freshEmail("trips-all"));
+
+  const t1 = await createIncident(page, "行程一：班機延誤了");
+  const t2 = await createIncident(page, "行程二：班機延誤了");
+  const t3 = await createIncident(page, "行程三：班機延誤了");
   // 剛好 3 筆：不出現「看全部」
   await page.goto("/");
-  const card = page.getByRole("region", { name: "我的理賠" });
-  await expect(card.getByTestId("incident-row-title")).toHaveCount(3);
+  const card = page.getByRole("region", { name: "我的行程" });
+  await expect(tripRows(page)).toHaveCount(3);
   await expect(card.getByRole("link", { name: "看全部" })).toHaveCount(0);
 
-  await createIncident(page, "第四件：班機延誤了", first.policyId);
+  const t4 = await createIncident(page, "行程四：班機延誤了");
   await page.goto("/");
-  await expect(card.getByTestId("incident-row-title")).toHaveCount(3);
+  await expect(tripRows(page)).toHaveCount(3);
+  await expect(tripRows(page).nth(0)).toHaveAttribute("href", new RegExp(`/trip/${t4.policyId}`));
+  await expect(card.getByText(t1.policyId)).toHaveCount(0);
+  await expect(card.getByRole("link", { name: "看全部" })).toBeVisible();
+  void t2;
+  void t3;
+
   await card.getByRole("link", { name: "看全部" }).click();
+  await expect(page).toHaveURL(/\/trip$/);
+  await expect(page.getByRole("heading", { name: "全部行程" })).toBeVisible();
+  await expect(page.getByTestId("all-trips-count")).toHaveText("共 4 筆，依最後操作時間由新到舊");
+  const rows = page.getByRole("region", { name: "全部行程" }).getByTestId("trip-row");
+  await expect(rows).toHaveCount(4);
+  await expect(rows.nth(0)).toHaveAttribute("href", new RegExp(`/trip/${t4.policyId}`));
+  await expect(rows.nth(3)).toHaveAttribute("href", new RegExp(`/trip/${t1.policyId}`));
 
-  await expect(page).toHaveURL(/\/incident$/);
-  await expect(page.getByRole("heading", { name: "全部理賠" })).toBeVisible();
-  await expect(page.getByTestId("all-incidents-count")).toHaveText(
-    "共 4 筆，依最後操作時間由新到舊",
-  );
-  const titles = page.getByRole("region", { name: "全部理賠" }).getByTestId("incident-row-title");
-  await expect(titles).toHaveCount(4);
-  await expect(titles.nth(0)).toContainText("第四件");
-  await expect(titles.nth(3)).toContainText("第一件");
-
-  // 點最舊的一列進入該事件；回首頁有出口
-  await titles.nth(3).click();
-  await expect(page).toHaveURL(new RegExp(`/incident/${first.incidentId}$`));
-  await page.goto("/incident");
+  await rows.nth(3).click();
+  await expect(page).toHaveURL(new RegExp(`/trip/${t1.policyId}$`));
+  await page.goto("/trip");
   await page.getByRole("link", { name: "回首頁" }).click();
   await expect(page).toHaveURL(/\/$/);
 });
 
-// 依最後操作時間排序（#208）：舊事件有新動作（這裡是傳一則訊息）就排到最前面，列上標最後操作日期。
-test("最後操作的事件排在最前面：舊事件有新動作，首頁與全部理賠頁都排到最前", async ({
-  page,
-  request,
-}) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await login(page, freshEmail("incidents-activity"));
+test("最後操作的行程排在最前面：舊行程有新動作就排到最前", async ({ page, request }) => {
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
+  await login(page, freshEmail("trips-activity"));
 
   const older = await createIncident(page, "較早建立：班機延誤了");
-  await createIncident(page, "較晚建立：班機延誤了", older.policyId);
+  const newer = await createIncident(page, "較晚建立：班機延誤了");
   await page.goto("/");
-  const titles = page.getByRole("region", { name: "我的理賠" }).getByTestId("incident-row-title");
-  await expect(titles.nth(0)).toContainText("較晚建立");
+  await expect(tripRows(page).nth(0)).toHaveAttribute(
+    "href",
+    new RegExp(`/trip/${newer.policyId}`),
+  );
 
-  // 對較早建立的事件說一句話：它的最後操作時間比較晚，所以排到最前
   const sent = await page.request.post(`/api/v1/incidents/${older.incidentId}/messages`, {
     data: { content: "不知道" },
   });
   expect(sent.ok()).toBeTruthy();
 
   await page.goto("/");
-  await expect(titles.nth(0)).toContainText("較早建立");
-  await expect(titles.nth(1)).toContainText("較晚建立");
-  await expect(
-    page
-      .getByRole("region", { name: "我的理賠" })
-      .getByText(/最後操作 \d{4}\/\d{2}\/\d{2}/)
-      .first(),
-  ).toBeVisible();
-
-  await page.goto("/incident");
-  const all = page.getByRole("region", { name: "全部理賠" }).getByTestId("incident-row-title");
-  await expect(all.nth(0)).toContainText("較早建立");
-});
-
-test("全部理賠：沒有事件時顯示空狀態；已完成的也列", async ({ page, request }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await login(page, freshEmail("incidents-all-empty"));
-  await page.goto("/incident");
-  await expect(page.getByRole("heading", { name: "全部理賠" })).toBeVisible();
-  await expect(page.getByText("處理過的理賠會自動存在這裡")).toBeVisible();
-  await expect(page.getByTestId("all-incidents-count")).toHaveText(
-    "共 0 筆，依最後操作時間由新到舊",
+  await expect(tripRows(page).nth(0)).toHaveAttribute(
+    "href",
+    new RegExp(`/trip/${older.policyId}`),
+  );
+  await expect(tripRows(page).nth(1)).toHaveAttribute(
+    "href",
+    new RegExp(`/trip/${newer.policyId}`),
   );
 });
 
-test("手機寬度下，全部理賠沒有橫向捲動", async ({ page, request }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await page.setViewportSize({ width: 375, height: 800 });
-  await login(page, freshEmail("incidents-all-mobile"));
-  await createIncident(page, "手機寬度的班機延誤");
-  await page.goto("/incident");
-  await expect(page.getByTestId("incident-row-title")).toHaveCount(1);
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  );
-  expect(overflow).toBe(false);
-});
-
-// 已結案的事件也列，並標示「已完成」。
-test("已完成的事件也列在我的理賠，標示已完成", async ({ page, request }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
-  await login(page, freshEmail("incidents-done"));
+test("紅點與徽章：有未完成待辦的行程顯示紅點並計入徽章，已結案的不顯示", async ({
+  page,
+  request,
+}) => {
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
+  await login(page, freshEmail("trips-dot"));
 
   const done = await createIncident(page, "已結案的班機延誤");
   await closeIncident(page, done.incidentId);
-  await createIncident(page, "還在處理的班機延誤", done.policyId);
+  const open = await createIncident(page, "還在處理的班機延誤");
+  await finishDescribing(page, open.incidentId);
 
   await page.goto("/");
-  const rows = page.getByRole("region", { name: "我的理賠" }).getByRole("link");
-  await expect(rows).toHaveCount(2);
-  await expect(rows.nth(0)).toContainText("還在處理");
-  await expect(rows.nth(0).getByTestId("incident-row-status")).toHaveText("進行中");
-  // 結案那筆的標題不比對：e2e 用的假 5 號回覆時會自己改標題，真正的 5 號不會
-  await expect(rows.nth(1).getByTestId("incident-row-status")).toHaveText("已完成");
+  await expect(tripRows(page)).toHaveCount(2);
+  // 結案的那筆沒有紅點、標示送件狀態；還在處理的有紅點
+  const rowOf = (policyId: string) => tripRows(page).and(page.locator(`a[href*="${policyId}"]`));
+  await expect(rowOf(open.policyId).getByTestId("trip-row-dot")).toBeVisible();
+  await expect(rowOf(done.policyId).getByTestId("trip-row-dot")).toHaveCount(0);
+  await expect(rowOf(done.policyId).getByTestId("trip-row-subtitle")).toContainText("自行送件");
+  await expect(page.getByTestId("unfinished-badge")).toHaveText("1");
 });
 
-// 手機寬度：我的理賠排在最近的比較下面，整頁沒有橫向捲動。
-test("手機寬度下，我的理賠在最近的比較下面，沒有橫向捲動", async ({ page, request }) => {
-  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
+test("舊的 /incident 全部理賠網址導到全部行程；沒有行程時顯示空狀態", async ({ page, request }) => {
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
+  await login(page, freshEmail("trips-all-empty"));
+  await page.goto("/incident");
+  await expect(page).toHaveURL(/\/trip$/);
+  await expect(page.getByRole("heading", { name: "全部行程" })).toBeVisible();
+  await expect(page.getByText("出事時點上方按鈕，處理過的行程會存在這裡")).toBeVisible();
+  await expect(page.getByTestId("all-trips-count")).toHaveText("共 0 筆，依最後操作時間由新到舊");
+});
+
+// 手機寬度：我的行程排在最近的比較下面，首頁與全部行程頁都沒有橫向捲動。
+test("手機寬度下，我的行程在最近的比較下面，沒有橫向捲動", async ({ page, request }) => {
+  test.skip(!(await hasSeed(request)), "條款庫沒有載入，先 make seed");
   await page.setViewportSize({ width: 375, height: 800 });
-  await login(page, freshEmail("incidents-mobile"));
+  await login(page, freshEmail("trips-mobile"));
   await createIncident(page, "手機寬度的班機延誤");
   await page.goto("/");
 
   const comparisons = page.getByRole("region", { name: "最近的比較" });
-  const incidents = page.getByRole("region", { name: "我的理賠" });
-  await expect(incidents.getByTestId("incident-row-title")).toHaveCount(1);
+  const trips = page.getByRole("region", { name: "我的行程" });
+  await expect(tripRows(page)).toHaveCount(1);
   const above = await comparisons.boundingBox();
-  const below = await incidents.boundingBox();
+  const below = await trips.boundingBox();
   expect(above && below && below.y >= above.y + above.height).toBeTruthy();
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-  );
-  expect(overflow).toBe(false);
+  const noOverflow = () =>
+    page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    );
+  expect(await noOverflow()).toBe(true);
+  await page.goto("/trip");
+  await expect(page.getByTestId("trip-row")).toHaveCount(1);
+  expect(await noOverflow()).toBe(true);
 });

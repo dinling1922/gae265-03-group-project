@@ -18,6 +18,12 @@ _CODE_RE = re.compile(r"(?<![A-Za-z0-9])(T\d{3}|TA\d{2})(?![A-Za-z0-9])")
 COMPANY_PREFIXES = ("富邦產物", "富邦產險", "國泰產物", "國泰產險")
 # 中信不放進 COMPANY_PREFIXES：條款庫裡中信的險種名稱本身就帶公司名，
 # 放進去的話，富邦的「旅行平安保險」會被「中國信託產物旅行平安保險」誤配
+# 保單上的險種名稱跟條款庫不一樣、但確定是同一個險種的寫法（一樣逐字比對，不放寬規則）。
+# 安達網路投保的保單把 CHUBB02 印成「…傷害醫療保險給付附加條款」，條款庫是「…傷害醫療保險」；
+# 沒有這個別名，安達的保單少對到一個險種，認不出方案。
+NAME_ALIASES: dict[str, tuple[str, ...]] = {
+    "CHUBB02": ("安達產物旅行平安保險傷害醫療保險給付附加條款",),
+}
 
 
 @dataclass(frozen=True)
@@ -48,7 +54,13 @@ def match_insurances(
     text = _normalize(text)
     codes = set(_CODE_RE.findall(text))
     matched = [
-        i for i in catalog if i.code in codes or _name_matches(_normalize(i.name), text)
+        i
+        for i in catalog
+        if i.code in codes
+        or any(
+            _name_matches(_normalize(name), text)
+            for name in (i.name, *NAME_ALIASES.get(i.code, ()))
+        )
     ]
     return sorted(matched, key=lambda i: i.code)
 

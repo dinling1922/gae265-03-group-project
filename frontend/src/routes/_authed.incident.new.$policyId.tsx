@@ -17,6 +17,8 @@ export const Route = createFileRoute("/_authed/incident/new/$policyId")({
  * 2-2 描述事故（建立前）：保單已經好了，事件還沒有。旅客送出第一句才建立事件並叫起 5 號，
  * 成功後換到 `/incident/$id`（取代歷史紀錄，上一頁不會回到空的對話）。
  * 目的地不用另外問：後端沒帶時用保單的目的地（#203）。
+ * 送出後立刻把旅客的話顯示在對話最下面，後面接 5 號輸入中的泡泡（和追問頁一樣），不蓋全頁遮罩；
+ * 建立失敗就移除這兩則並顯示錯誤，輸入框保留原本的字。
  */
 function DescribePage() {
   const { policyId } = Route.useParams();
@@ -25,17 +27,21 @@ function DescribePage() {
   const policy = policies.data?.find((p) => p.id === policyId);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  // 剛送出、事件還沒建好的那句話：先顯示在對話裡，換頁後由追問頁的訊息接手
+  const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function start(content: string) {
     if (!content.trim() || busy) return;
     setBusy(true);
+    setPending(content);
     setError(null);
     const res = await createIncident({
       path: { policy_id: policyId },
       body: { description: content },
     });
     if (!res.data) {
+      setPending(null);
       setBusy(false);
       return setError(errorText(res.error, res.response?.status));
     }
@@ -79,13 +85,16 @@ function DescribePage() {
 
       <div data-testid="start-form">
         <DescribeChat
-          busyOverlay="正在整理理賠項目…"
-          lines={[{ from: "ai", text: FIRST_QUESTION }]}
+          lines={[
+            { from: "ai", text: FIRST_QUESTION },
+            ...(pending ? [{ from: "me" as const, text: pending }] : []),
+          ]}
           quickReplies={[]}
           placeholder="描述發生的事"
           value={text}
           onChange={setText}
           busy={busy}
+          typingLabel="正在確認狀況"
           onSend={(content) => void start(content)}
         />
       </div>

@@ -39,6 +39,7 @@ from app.contracts import (
 from app.contracts.incident_agent import InputMode
 from app.contracts.package_agent import SendMode
 from app.domain.incident import service
+from app.domain.incident import trip as trip_domain
 from app.domain.incident.drive_folder import trip_folder_url
 from app.domain.incident.fill_rules import fill_problems
 from app.domain.incident.gmail_link import gmail_url, is_gmail_url
@@ -73,6 +74,9 @@ class MessageIn(BaseModel):
 
 class IncidentSummaryOut(BaseModel):
     id: uuid.UUID
+    policy_id: uuid.UUID = Field(
+        description="所屬保單；行程 ＝ 保單，畫面連到 /trip/{policy_id}"
+    )
     title: str
     status: str
     incident_type_name: str | None
@@ -228,6 +232,11 @@ async def create_incident(
     policy = await session.get(Policy, policy_id)
     if policy is None or policy.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到這份保單")
+    if await trip_domain.trip_locked(session, policy_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "這個行程已送件結案，不能再新增事件；請重新建立行程",
+        )
     incident = await service.create_incident(
         session,
         policy,
@@ -317,6 +326,7 @@ async def list_incidents(
     return [
         IncidentSummaryOut(
             id=i.id,
+            policy_id=i.policy_id,
             title=i.title,
             status=i.status,
             incident_type_name=name,
@@ -851,6 +861,13 @@ async def get_incident_submission(
             .limit(1)
         )
     ).first()
+    return submission_status(user.email, submission)
+
+
+def submission_status(
+    email: str, submission: PolicySubmission | None
+) -> SubmissionStatusOut:
+    """送件紀錄 → 結案方式與 Gmail 連結（事件與行程共用）。沒有紀錄回空的。"""
     if submission is None:
         return SubmissionStatusOut()
     status_ = cast(Literal["sent", "drafted", "self_submitted"], submission.status)
@@ -865,5 +882,5 @@ async def get_incident_submission(
     url = None
     if message_id and status_ in ("sent", "drafted"):
         kind: Literal["sent", "draft"] = "sent" if status_ == "sent" else "draft"
-        url = gmail_url(user.email, kind, message_id)
+        url = gmail_url(email, kind, message_id)
     return SubmissionStatusOut(status=status_, gmail_url=url)

@@ -34,6 +34,7 @@ import { Route as AuthedCompareNewRouteImport } from './routes/_authed.compare.n
 import { Route as AuthedIncidentIndexRouteImport } from './routes/_authed.incident.index'
 import { Route as AuthedIncidentIdRouteImport } from './routes/_authed.incident.$id'
 import { Route as AuthedIncidentNewRouteImport } from './routes/_authed.incident.new'
+import { Route as AuthedTripIndexRouteImport } from './routes/_authed.trip.index'
 import { Route as DevChatIndexRouteImport } from './routes/dev.chat.index'
 import { Route as DevChatConversationIdRouteImport } from './routes/dev.chat.$conversationId'
 import { Route as AuthedCompareIdBackgroundRouteImport } from './routes/_authed.compare.$id.background'
@@ -45,6 +46,8 @@ import { Route as AuthedIncidentIdDocumentsRouteImport } from './routes/_authed.
 import { Route as AuthedIncidentIdSubmitRouteImport } from './routes/_authed.incident.$id.submit'
 import { Route as AuthedIncidentNewIndexRouteImport } from './routes/_authed.incident.new.index'
 import { Route as AuthedIncidentNewPolicyIdRouteImport } from './routes/_authed.incident.new.$policyId'
+import { Route as AuthedTripPolicyIdIndexRouteImport } from './routes/_authed.trip.$policyId.index'
+import { Route as AuthedTripPolicyIdSubmitRouteImport } from './routes/_authed.trip.$policyId.submit'
 
 const AuthedRoute = AuthedRouteImport.update({
   id: '/_authed',
@@ -170,6 +173,11 @@ const AuthedIncidentNewRoute = AuthedIncidentNewRouteImport.update({
   path: '/incident/new',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTripIndexRoute = AuthedTripIndexRouteImport.update({
+  id: '/trip/',
+  path: '/trip/',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const DevChatIndexRoute = DevChatIndexRouteImport.update({
   id: '/chat/',
   path: '/chat/',
@@ -229,6 +237,17 @@ const AuthedIncidentNewPolicyIdRoute =
     path: '/$policyId',
     getParentRoute: () => AuthedIncidentNewRoute,
   } as any)
+const AuthedTripPolicyIdIndexRoute = AuthedTripPolicyIdIndexRouteImport.update({
+  id: '/trip/$policyId/',
+  path: '/trip/$policyId/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedTripPolicyIdSubmitRoute =
+  AuthedTripPolicyIdSubmitRouteImport.update({
+    id: '/trip/$policyId/submit',
+    path: '/trip/$policyId/submit',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthedIndexRoute
@@ -256,6 +275,7 @@ export interface FileRoutesByFullPath {
   '/dev/chat/$conversationId': typeof DevChatConversationIdRoute
   '/compare/': typeof AuthedCompareIndexRoute
   '/incident/': typeof AuthedIncidentIndexRoute
+  '/trip/': typeof AuthedTripIndexRoute
   '/dev/chat/': typeof DevChatIndexRoute
   '/compare/$id/background': typeof AuthedCompareIdBackgroundRoute
   '/compare/$id/concerns': typeof AuthedCompareIdConcernsRoute
@@ -264,8 +284,10 @@ export interface FileRoutesByFullPath {
   '/incident/$id/documents': typeof AuthedIncidentIdDocumentsRoute
   '/incident/$id/submit': typeof AuthedIncidentIdSubmitRoute
   '/incident/new/$policyId': typeof AuthedIncidentNewPolicyIdRoute
+  '/trip/$policyId/submit': typeof AuthedTripPolicyIdSubmitRoute
   '/incident/$id/': typeof AuthedIncidentIdIndexRoute
   '/incident/new/': typeof AuthedIncidentNewIndexRoute
+  '/trip/$policyId/': typeof AuthedTripPolicyIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -290,6 +312,7 @@ export interface FileRoutesByTo {
   '/dev/chat/$conversationId': typeof DevChatConversationIdRoute
   '/compare': typeof AuthedCompareIndexRoute
   '/incident': typeof AuthedIncidentIndexRoute
+  '/trip': typeof AuthedTripIndexRoute
   '/dev/chat': typeof DevChatIndexRoute
   '/compare/$id/background': typeof AuthedCompareIdBackgroundRoute
   '/compare/$id/concerns': typeof AuthedCompareIdConcernsRoute
@@ -298,8 +321,10 @@ export interface FileRoutesByTo {
   '/incident/$id/documents': typeof AuthedIncidentIdDocumentsRoute
   '/incident/$id/submit': typeof AuthedIncidentIdSubmitRoute
   '/incident/new/$policyId': typeof AuthedIncidentNewPolicyIdRoute
+  '/trip/$policyId/submit': typeof AuthedTripPolicyIdSubmitRoute
   '/incident/$id': typeof AuthedIncidentIdIndexRoute
   '/incident/new': typeof AuthedIncidentNewIndexRoute
+  '/trip/$policyId': typeof AuthedTripPolicyIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -329,6 +354,7 @@ export interface FileRoutesById {
   '/dev/chat/$conversationId': typeof DevChatConversationIdRoute
   '/_authed/compare/': typeof AuthedCompareIndexRoute
   '/_authed/incident/': typeof AuthedIncidentIndexRoute
+  '/_authed/trip/': typeof AuthedTripIndexRoute
   '/dev/chat/': typeof DevChatIndexRoute
   '/_authed/compare/$id/background': typeof AuthedCompareIdBackgroundRoute
   '/_authed/compare/$id/concerns': typeof AuthedCompareIdConcernsRoute
@@ -337,8 +363,10 @@ export interface FileRoutesById {
   '/_authed/incident/$id/documents': typeof AuthedIncidentIdDocumentsRoute
   '/_authed/incident/$id/submit': typeof AuthedIncidentIdSubmitRoute
   '/_authed/incident/new/$policyId': typeof AuthedIncidentNewPolicyIdRoute
+  '/_authed/trip/$policyId/submit': typeof AuthedTripPolicyIdSubmitRoute
   '/_authed/incident/$id/': typeof AuthedIncidentIdIndexRoute
   '/_authed/incident/new/': typeof AuthedIncidentNewIndexRoute
+  '/_authed/trip/$policyId/': typeof AuthedTripPolicyIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -368,6 +396,7 @@ export interface FileRouteTypes {
     | '/dev/chat/$conversationId'
     | '/compare/'
     | '/incident/'
+    | '/trip/'
     | '/dev/chat/'
     | '/compare/$id/background'
     | '/compare/$id/concerns'
@@ -376,8 +405,10 @@ export interface FileRouteTypes {
     | '/incident/$id/documents'
     | '/incident/$id/submit'
     | '/incident/new/$policyId'
+    | '/trip/$policyId/submit'
     | '/incident/$id/'
     | '/incident/new/'
+    | '/trip/$policyId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -402,6 +433,7 @@ export interface FileRouteTypes {
     | '/dev/chat/$conversationId'
     | '/compare'
     | '/incident'
+    | '/trip'
     | '/dev/chat'
     | '/compare/$id/background'
     | '/compare/$id/concerns'
@@ -410,8 +442,10 @@ export interface FileRouteTypes {
     | '/incident/$id/documents'
     | '/incident/$id/submit'
     | '/incident/new/$policyId'
+    | '/trip/$policyId/submit'
     | '/incident/$id'
     | '/incident/new'
+    | '/trip/$policyId'
   id:
     | '__root__'
     | '/_authed'
@@ -440,6 +474,7 @@ export interface FileRouteTypes {
     | '/dev/chat/$conversationId'
     | '/_authed/compare/'
     | '/_authed/incident/'
+    | '/_authed/trip/'
     | '/dev/chat/'
     | '/_authed/compare/$id/background'
     | '/_authed/compare/$id/concerns'
@@ -448,8 +483,10 @@ export interface FileRouteTypes {
     | '/_authed/incident/$id/documents'
     | '/_authed/incident/$id/submit'
     | '/_authed/incident/new/$policyId'
+    | '/_authed/trip/$policyId/submit'
     | '/_authed/incident/$id/'
     | '/_authed/incident/new/'
+    | '/_authed/trip/$policyId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -635,6 +672,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIncidentNewRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/trip/': {
+      id: '/_authed/trip/'
+      path: '/trip'
+      fullPath: '/trip/'
+      preLoaderRoute: typeof AuthedTripIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/dev/chat/': {
       id: '/dev/chat/'
       path: '/chat'
@@ -712,6 +756,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedIncidentNewPolicyIdRouteImport
       parentRoute: typeof AuthedIncidentNewRoute
     }
+    '/_authed/trip/$policyId/': {
+      id: '/_authed/trip/$policyId/'
+      path: '/trip/$policyId'
+      fullPath: '/trip/$policyId/'
+      preLoaderRoute: typeof AuthedTripPolicyIdIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/trip/$policyId/submit': {
+      id: '/_authed/trip/$policyId/submit'
+      path: '/trip/$policyId/submit'
+      fullPath: '/trip/$policyId/submit'
+      preLoaderRoute: typeof AuthedTripPolicyIdSubmitRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -771,10 +829,13 @@ interface AuthedRouteChildren {
   AuthedIncidentNewRoute: typeof AuthedIncidentNewRouteWithChildren
   AuthedCompareIndexRoute: typeof AuthedCompareIndexRoute
   AuthedIncidentIndexRoute: typeof AuthedIncidentIndexRoute
+  AuthedTripIndexRoute: typeof AuthedTripIndexRoute
   AuthedCompareIdBackgroundRoute: typeof AuthedCompareIdBackgroundRoute
   AuthedCompareIdConcernsRoute: typeof AuthedCompareIdConcernsRoute
   AuthedCompareIdResultRoute: typeof AuthedCompareIdResultRoute
   AuthedCompareIdScenariosRoute: typeof AuthedCompareIdScenariosRoute
+  AuthedTripPolicyIdSubmitRoute: typeof AuthedTripPolicyIdSubmitRoute
+  AuthedTripPolicyIdIndexRoute: typeof AuthedTripPolicyIdIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -787,10 +848,13 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedIncidentNewRoute: AuthedIncidentNewRouteWithChildren,
   AuthedCompareIndexRoute: AuthedCompareIndexRoute,
   AuthedIncidentIndexRoute: AuthedIncidentIndexRoute,
+  AuthedTripIndexRoute: AuthedTripIndexRoute,
   AuthedCompareIdBackgroundRoute: AuthedCompareIdBackgroundRoute,
   AuthedCompareIdConcernsRoute: AuthedCompareIdConcernsRoute,
   AuthedCompareIdResultRoute: AuthedCompareIdResultRoute,
   AuthedCompareIdScenariosRoute: AuthedCompareIdScenariosRoute,
+  AuthedTripPolicyIdSubmitRoute: AuthedTripPolicyIdSubmitRoute,
+  AuthedTripPolicyIdIndexRoute: AuthedTripPolicyIdIndexRoute,
 }
 
 const AuthedRouteWithChildren =

@@ -9,10 +9,7 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from app.api.deps import current_user
-from app.contracts.fakes import seed_sample_catalog
 from app.core.config import settings
-from app.core.llm import embedding_model_name, get_embeddings
-from app.ingest.catalog import import_catalog
 from app.main import app
 from app.models import Policy, User
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -39,12 +36,8 @@ async def user(session: AsyncSession) -> AsyncGenerator[User]:
 
 
 @pytest.fixture
-async def catalog_loaded(session: AsyncSession, catalog) -> None:
-    specs, rules = catalog
-    await import_catalog(
-        session, specs, rules, embeddings=get_embeddings(), model=embedding_model_name()
-    )
-    await seed_sample_catalog(session)
+async def catalog_loaded(insurances_loaded: None, incident_catalog: None) -> None:
+    """險種資料列與事故類型、待辦範本；要讀條文內容的測試另外要求 `full_catalog`。"""
 
 
 @pytest.fixture
