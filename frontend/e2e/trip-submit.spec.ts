@@ -83,10 +83,15 @@ test("行程頁的「送件」連到送件頁；備齊後預覽、寄出、結�
   await page.getByTestId("submit").click();
   await page.getByTestId("send-confirm").click();
 
-  await expect(page.getByTestId("closed")).toContainText("已用你的 Gmail 寄給保險公司", {
-    timeout: SLOW,
-  });
-  await expect(page.getByTestId("closed")).toContainText("此行程已結案");
+  await expect(page.getByTestId("closed")).toContainText(
+    "已替你送件並於你的 Gmail 寄件備份留存紀錄",
+    {
+      timeout: SLOW,
+    },
+  );
+  await expect(page.getByTestId("closed-banner")).toHaveText(
+    "此行程已結案，只能查看，不能再新增狀況或修改。",
+  );
   // 寄出後跳出說明視窗（信在 Gmail 的寄件備份），關掉後才看得到頁面
   const gmail = page.getByTestId("gmail-result-dialog");
   await expect(gmail).toContainText("寄件備份");
@@ -105,7 +110,9 @@ test("自己處理就好：不建草稿，直接結案", async ({ page }) => {
   await page.goto(`/trip/${policyId}/submit`);
   await page.getByTestId("choose-self").click();
   await page.getByRole("button", { name: "取消" }).click(); // 草稿詢問：取消＝不建草稿
-  await expect(page.getByTestId("closed")).toContainText("沒有建立草稿", { timeout: SLOW });
+  await expect(page.getByTestId("closed")).toContainText("未在你的 Gmail 建立草稿", {
+    timeout: SLOW,
+  });
   await expect(page.getByTestId("closed-banner")).toBeVisible();
 });
 

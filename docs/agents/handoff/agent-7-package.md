@@ -116,6 +116,8 @@ class ClaimPackager(Protocol):
 
 一個行程送一次件：`build_trip`、`send_trip`（`app/contracts/package_agent.py` 的 `TripClaimPackager`），收 `TripContext`。一封信涵蓋全部符合保障的事件、不拆信；空格用事故名稱（「請填寫班機延誤時間」，同類型第二次加「（2）」）；不寫適用保障與 `amount_note`；`missing_todo_ids` 含共同文件。沒實作時平台逐事件預覽、寄出回 409。假實作可當範例。完整說明見 contract-changelog 的 2.13.0。
 
+**正式版已實作**（2026-11-15）：`GmailClaimPackager.build_trip`、`send_trip`，信的格式見規格書 `docs/specs/agent-7-package.md` 最後的「後續變更」。
+
 
 ## 契約 v2.14：送件前小助理提醒（選配）
 
