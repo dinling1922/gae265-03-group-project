@@ -4794,6 +4794,36 @@ export type CreatePolicyManualResponses = {
 
 export type CreatePolicyManualResponse = CreatePolicyManualResponses[keyof CreatePolicyManualResponses];
 
+export type DeletePolicyData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}';
+};
+
+export type DeletePolicyErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeletePolicyError = DeletePolicyErrors[keyof DeletePolicyErrors];
+
+export type DeletePolicyResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeletePolicyResponse = DeletePolicyResponses[keyof DeletePolicyResponses];
+
 export type GetPolicyData = {
     body?: never;
     path: {
@@ -4883,6 +4913,22 @@ export type CreatePolicyConversationResponses = {
 };
 
 export type CreatePolicyConversationResponse = CreatePolicyConversationResponses[keyof CreatePolicyConversationResponses];
+
+export type DeleteMyDataData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/data';
+};
+
+export type DeleteMyDataResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteMyDataResponse = DeleteMyDataResponses[keyof DeleteMyDataResponses];
 
 export type ListComparisonsData = {
     body?: never;

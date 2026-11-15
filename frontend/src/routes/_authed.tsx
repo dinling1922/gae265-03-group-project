@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authed")({
   component: AuthedLayout,
 });
 
-/** 共用 header：網站名稱連回首頁，右邊是目前使用者與登出。 */
+/** 共用 header：網站名稱連回首頁，右邊是目前使用者（連到我的帳號）與登出。 */
 function AuthedLayout() {
   const { user } = Route.useRouteContext();
   const logout = useMutation({
@@ -73,12 +73,17 @@ function AuthedLayout() {
                 後台
               </Link>
             )}
-            <span className="flex items-center gap-1.5 md:gap-3">
+            <Link
+              to="/account"
+              title="我的帳號"
+              data-testid="header-account-link"
+              className="flex items-center gap-1.5 hover:text-brand md:gap-3"
+            >
               <UserIcon className="hidden size-10 flex-none text-leaf md:block" />
               <span data-testid="header-user" className="max-w-[12rem] truncate">
                 {user.name ?? user.email}
               </span>
-            </span>
+            </Link>
             <Button
               onClick={() => logout.mutate({})}
               disabled={logout.isPending}
