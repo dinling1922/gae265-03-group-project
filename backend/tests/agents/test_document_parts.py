@@ -112,6 +112,75 @@ def test_account_rule_does_not_eat_phones_dates_or_document_numbers() -> None:
     assert "2026-07-10" in out and "ZZ198" in out
 
 
+def test_account_rule_keeps_date_times() -> None:
+    # 「2026-07-10 20:15」去掉冒號是 4-2-2-2 共 10 碼，不能被當成帳號：延誤時數要用
+    text = (
+        "申報時間:2026-07-10 20:15 桃園機場\n"
+        "送達時間:2026-07-12 14:30(送至旅客住處)\n"
+        "2026-07-10 11:42:08\n"
+        "開立 2026/07/10 09:05\n"
+        "期間 2026-07-10 2026-07-12"
+    )
+    out = deidentify_document_text(text)
+    assert "〔帳號〕" not in out
+    for kept in (
+        "2026-07-10 20:15",
+        "2026-07-12 14:30",
+        "2026-07-10 11:42:08",
+        "2026/07/10 09:05",
+        "2026-07-10 2026-07-12",
+    ):
+        assert kept in out, kept
+
+
+def test_account_next_to_a_date_time_is_still_masked() -> None:
+    out = deidentify_document_text(
+        "申請日 2026-07-10 20:15\n匯款帳號 1234-5678-9012\n帳號 2023-1234-5678"
+    )
+    assert "2026-07-10 20:15" in out
+    assert "1234-5678-9012" not in out and "2023-1234-5678" not in out
+    assert out.count("〔帳號〕") == 2
+
+
+@pytest.mark.parametrize(
+    "file_name",
+    [
+        "baggage_delay.pdf",
+        "chubb_policy_blank.pdf",
+        "fubon_claim_form_blank.pdf",
+        "med_policy.pdf",
+        "Chubb_Policy.pdf",
+        "富邦_理賠申請書.pdf",
+    ],
+)
+def test_ordinary_words_in_file_name_do_not_mask_content(file_name: str) -> None:
+    text = (
+        "certify that the checked baggage of the passenger\n"
+        "https://www.chubb.com/tw 富邦產險官網(www.fubon.com)\n"
+        "郵寄方式：TravelForm:Epolicy Policy"
+    )
+    assert deidentify_document_text(text, file_name) == text
+
+
+@pytest.mark.parametrize(
+    ("file_name", "secrets"),
+    [
+        ("WANG_XIAOMING_boarding_pass.jpg", ("WANG", "XIAOMING")),
+        ("Chen Yichun 登機證.pdf", ("Chen", "Yichun")),
+        ("CHEN_YI-CHUN_passport.pdf", ("CHEN", "YI-CHUN")),
+        ("陳大文_baggage_delay.pdf", ("陳大文",)),
+    ],
+)
+def test_real_name_in_file_name_is_still_masked(
+    file_name: str, secrets: tuple[str, ...]
+) -> None:
+    text = "旅客 WANG XIAOMING / Chen Yichun / CHEN YI-CHUN / 陳大文\nchecked baggage"
+    out = deidentify_document_text(text, file_name)
+    for secret in secrets:
+        assert secret not in out, secret
+    assert "baggage" in out
+
+
 def test_birth_date_is_masked() -> None:
     out = deidentify_document_text(
         "出生79年 3月12日*身分證號\n出生日期：1990/03/12\n事故發生 115年7月10日"
