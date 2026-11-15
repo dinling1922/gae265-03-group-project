@@ -19,6 +19,7 @@ import { FieldError } from "../../components/ui/Field";
 import { Tabs } from "../../components/ui/Tabs";
 import { useToast } from "../../components/ui/Toast";
 import { ActivityDialog, type ActivityForm, type ActivityTarget } from "./ActivityDialog";
+import { BANNER_PHOTOS, creditHref, photoSrc } from "./bannerPhotos";
 import { DayTabs, Timeline } from "./DayTimeline";
 import { MapPanel } from "./MapPanel";
 import { mapStops, useMapView } from "./mapView";
@@ -298,20 +299,62 @@ function TripBanner({ comparison }: { comparison: ComparisonOut }) {
   const place = comparison.city
     ? `${comparison.city}，${comparison.destination}`
     : comparison.destination;
+  const photo = BANNER_PHOTOS[comparison.destination];
   return (
     <section
       data-testid="trip-banner"
-      className="rounded-panel bg-[linear-gradient(135deg,#183b20_0%,#285442_60%,#55790f_100%)] px-6 py-6 text-white md:px-8 md:py-7"
+      className="relative overflow-hidden rounded-panel bg-[linear-gradient(135deg,#183b20_0%,#285442_60%,#55790f_100%)] px-6 py-6 text-white md:px-8 md:py-7"
     >
-      <p className="m-0 t-caption-bold tracking-widest opacity-80">你的旅遊日程</p>
-      <h2 className="m-0 mt-1 text-[30px] leading-10 font-bold md:text-[40px] md:leading-[52px]">
-        {place}
-      </h2>
-      <p className="m-0 mt-2 inline-flex items-center gap-1.5 t-body opacity-90">
-        <CalendarIcon className="size-4" />
-        {formatDay(comparison.depart_date)} — {formatDay(comparison.return_date)}・
-        {tripDays(comparison.depart_date, comparison.return_date)} 天
-      </p>
+      {photo && (
+        <>
+          <img
+            data-testid="trip-banner-photo"
+            src={photoSrc(photo.url, 1200, 400)}
+            srcSet={`${photoSrc(photo.url, 640, 400)} 640w, ${photoSrc(photo.url, 1200, 400)} 1200w`}
+            sizes="(min-width: 768px) 1200px, 640px"
+            alt=""
+            className="absolute inset-0 size-full object-cover"
+          />
+          {/* 中性的淡黑遮罩，白字才讀得清楚 */}
+          <div className="absolute inset-0 bg-black/20" />
+        </>
+      )}
+      <div className="relative">
+        <p className="m-0 t-caption-bold tracking-widest opacity-80">你的旅遊日程</p>
+        <h2 className="m-0 mt-1 text-[30px] leading-10 font-bold md:text-[40px] md:leading-[52px]">
+          {place}
+        </h2>
+        <p className="m-0 mt-2 inline-flex items-center gap-1.5 t-body opacity-90">
+          <CalendarIcon className="size-4" />
+          {formatDay(comparison.depart_date)} — {formatDay(comparison.return_date)}・
+          {tripDays(comparison.depart_date, comparison.return_date)} 天
+        </p>
+      </div>
+      {photo?.credit && (
+        <p
+          data-testid="trip-banner-credit"
+          className="absolute right-3 bottom-2 m-0 text-xs opacity-80"
+        >
+          Photo by{" "}
+          <a
+            href={creditHref(photo.credit.username)}
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            {photo.credit.name}
+          </a>{" "}
+          on{" "}
+          <a
+            href="https://unsplash.com/?utm_source=gae265_travel_insurance&utm_medium=referral"
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            Unsplash
+          </a>
+        </p>
+      )}
     </section>
   );
 }
