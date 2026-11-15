@@ -5,10 +5,8 @@ from collections.abc import AsyncGenerator
 
 import pytest
 from app.api.deps import current_user
-from app.core.llm import embedding_model_name, get_embeddings
 from app.domain.plans import get_plan, load_plans
 from app.domain.rag.hybrid import search_rules
-from app.ingest.catalog import import_catalog
 from app.ingest.plan_matrix import read_plan_data
 from app.main import app
 from app.models import (
@@ -36,11 +34,8 @@ UPLOAD_ONLY_ID = "fubon_official_c_addon"  # 保單專用方案：只由保單�
 
 
 @pytest.fixture
-async def catalog_loaded(session: AsyncSession, catalog) -> None:
-    specs, rules = catalog
-    await import_catalog(
-        session, specs, rules, embeddings=get_embeddings(), model=embedding_model_name()
-    )
+async def catalog_loaded(insurances_loaded: None) -> None:
+    """真實的險種資料列（方案對應的險種要存在）。"""
 
 
 @pytest.fixture

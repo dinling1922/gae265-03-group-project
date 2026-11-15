@@ -9,7 +9,7 @@ import re
 import time
 import uuid
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel, Field, model_validator
@@ -32,12 +32,17 @@ from app.contracts import (
     DocumentRenamer,
     IncidentContext,
     IncidentReply,
+    SendResult,
     UploadedFile,
     UserContext,
 )
 from app.contracts.incident_agent import InputMode
 from app.contracts.package_agent import SendMode
 from app.domain.incident import service
+from app.domain.incident import trip as trip_domain
+from app.domain.incident.drive_folder import trip_folder_url
+from app.domain.incident.fill_rules import fill_problems
+from app.domain.incident.gmail_link import gmail_url, is_gmail_url
 from app.domain.incident.letter import blank_items, fill_blanks
 from app.models import (
     Conversation,
@@ -60,6 +65,10 @@ class CreateIncidentIn(BaseModel):
     description: str = Field(min_length=1, description="使用者對事故的第一句描述")
     destination: str | None = None
     title: str | None = Field(default=None, max_length=50)
+    require_confirmation: bool = Field(
+        default=False,
+        description="2-2 描述頁帶 true：事件要等使用者在確認彈窗按確認才進行程（#345）；行程頁新增狀況不帶",
+    )
 
 
 class MessageIn(BaseModel):
@@ -69,6 +78,9 @@ class MessageIn(BaseModel):
 
 class IncidentSummaryOut(BaseModel):
     id: uuid.UUID
+    policy_id: uuid.UUID = Field(
+        description="所屬保單；行程 ＝ 保單，畫面連到 /trip/{policy_id}"
+    )
     title: str
     status: str
     incident_type_name: str | None
@@ -76,11 +88,29 @@ class IncidentSummaryOut(BaseModel):
     last_activity_at: datetime = Field(
         description="最後操作時間：事件本身、待辦、文件、對話訊息裡最新的一筆時間；清單依它由新到舊"
     )
+    confirmation: str = Field(
+        description="confirmed 已確認／clarifying 還在問／awaiting 等使用者確認（2-2 現況確認，#345）"
+    )
 
 
 class IncidentReplyOut(BaseModel):
     reply: IncidentReply
     incident: IncidentContext
+    confirmation: str = Field(
+        description="事件目前的確認狀態：confirmed／clarifying／awaiting（#345）"
+    )
+    show_confirm: bool = Field(
+        default=False,
+        description="要跳「確認目前的狀況」彈窗：5 號問完而且這輪有改到事實或結論（#345）",
+    )
+    changed: bool = Field(
+        default=False, description="這輪回覆讓事實或條款結論跟之前不一樣"
+    )
+
+
+class ConfirmOut(BaseModel):
+    policy_id: uuid.UUID = Field(description="確認後進這個行程頁 /trip/{policy_id}")
+    confirmation: str
 
 
 class TodoPatchIn(BaseModel):
@@ -169,6 +199,10 @@ class SubmitIn(BaseModel):
         if recipient is not None and not _EMAIL.match(recipient):
             raise ValueError("收件者不是有效的信箱")
         self.recipient = recipient
+        # 被保險人姓名、聯絡電話的格式（前端輸入時也檢查）；不對回 422
+        problems = fill_problems(self.fills)
+        if problems:
+            raise ValueError("；".join(problems))
         return self
 
 
@@ -177,6 +211,9 @@ class SubmissionOut(BaseModel):
     status: str
     external_ref: str | None
     reason: str | None
+    # 寄出或建立草稿成功時給畫面：信的主旨（使用者認得是哪封）與 Gmail 網頁上這封信的連結
+    subject: str | None = None
+    gmail_url: str | None = None
 
 
 async def _own_incident(
@@ -217,25 +254,35 @@ async def create_incident(
     policy = await session.get(Policy, policy_id)
     if policy is None or policy.user_id != user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "找不到這份保單")
+    if await trip_domain.trip_locked(session, policy_id):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "這個行程已送件結案，不能再新增事件；請重新建立行程",
+        )
     incident = await service.create_incident(
         session,
         policy,
         description=body.description,
         destination=body.destination,
         title=body.title,
+        require_confirmation=body.require_confirmation,
     )
     await service.add_user_message(session, incident, body.description, "text")
     ctx = await service.build_context(session, incident)
     agent = get_incident_agent()
     try:
         reply = await agent.start(ctx, service.make_services(session))
-        await service.apply_reply(session, incident, ctx, reply)
+        applied = await service.apply_reply(session, incident, ctx, reply)
     except ContractViolation as e:
         await session.rollback()
         raise _violation("事件釐清（5）", e) from e
     await session.commit()
     return IncidentReplyOut(
-        reply=reply, incident=await service.build_context(session, incident)
+        reply=reply,
+        incident=await service.build_context(session, incident),
+        confirmation=incident.confirmation,
+        show_confirm=applied.show_confirm,
+        changed=applied.changed,
     )
 
 
@@ -306,14 +353,34 @@ async def list_incidents(
     return [
         IncidentSummaryOut(
             id=i.id,
+            policy_id=i.policy_id,
             title=i.title,
             status=i.status,
             incident_type_name=name,
             created_at=i.created_at,
             last_activity_at=last,
+            confirmation=i.confirmation,
         )
         for i, name, last in rows
     ]
+
+
+@router.post("/incidents/{incident_id}/confirm")
+async def confirm_incident(
+    session: SessionDep, user: CurrentUser, incident_id: uuid.UUID
+) -> ConfirmOut:
+    """使用者在「確認目前的狀況」彈窗按確認（#345）：事件進行程，共同待辦這時才建立。
+
+    只有「等確認」的事件能確認；已經確認的回 409，還在問的也回 409。
+    """
+    incident = await _own_open_incident(session, user, incident_id)
+    if incident.confirmation != "awaiting":
+        raise HTTPException(status.HTTP_409_CONFLICT, "這個事件現在不是等確認的狀態")
+    incident.confirmation = "confirmed"
+    session.add(incident)
+    await service.refresh_shared_todos(session, incident.policy_id)
+    await session.commit()
+    return ConfirmOut(policy_id=incident.policy_id, confirmation=incident.confirmation)
 
 
 @router.get("/incidents/{incident_id}")
@@ -337,13 +404,17 @@ async def send_incident_message(
         reply = await agent.reply(
             ctx, body.content, body.input_mode, service.make_services(session)
         )
-        await service.apply_reply(session, incident, ctx, reply)
+        applied = await service.apply_reply(session, incident, ctx, reply)
     except ContractViolation as e:
         await session.rollback()
         raise _violation("事件釐清（5）", e) from e
     await session.commit()
     return IncidentReplyOut(
-        reply=reply, incident=await service.build_context(session, incident)
+        reply=reply,
+        incident=await service.build_context(session, incident),
+        confirmation=incident.confirmation,
+        show_confirm=applied.show_confirm,
+        changed=applied.changed,
     )
 
 
@@ -616,6 +687,32 @@ async def reject_incident_document(
     return await service.build_context(session, incident)
 
 
+@router.delete("/incidents/{incident_id}/documents/{document_id}")
+async def delete_incident_document(
+    session: SessionDep,
+    user: CurrentUser,
+    incident_id: uuid.UUID,
+    document_id: uuid.UUID,
+) -> IncidentContext:
+    """使用者刪掉一份已上傳的文件（上傳錯檔、多傳了；契約 v2.17）：雲端的檔案與資料庫的紀錄都拿掉。
+
+    任何辨識結果的文件都能刪。靠這份文件完成、又沒有別份附件的待辦退回「待上傳」。
+    事件結案後不能刪（409）；刪整個事件不在這裡。
+    """
+    incident = await _own_open_incident(session, user, incident_id)
+    try:
+        document = await service.owned_document(session, incident, document_id)
+    except service.DocumentActionError as e:
+        raise HTTPException(e.status, e.message) from e
+    todo_id, attachable = document.incident_todo_id, service.is_attachable(document)
+    await _discard_documents(session, incident, [document], user)
+    await service.release_todo_after_removal(
+        session, todo_id, was_attachable=attachable
+    )
+    await session.commit()
+    return await service.build_context(session, incident)
+
+
 @router.post("/incidents/{incident_id}/documents/discard-pending")
 async def discard_pending_incident_documents(
     session: SessionDep,
@@ -707,6 +804,22 @@ async def get_incident_package(
     return await _build_package(get_claim_packager(), ctx.for_agents_6_7(), user)
 
 
+class DriveFolderOut(BaseModel):
+    # 行程資料夾的 Google Drive 網址；沒有 Drive 授權時是 None（畫面維持反灰）
+    url: str | None = None
+
+
+@router.get("/incidents/{incident_id}/drive-folder")
+async def get_incident_drive_folder(
+    session: SessionDep, user: CurrentUser, incident_id: uuid.UUID
+) -> DriveFolderOut:
+    """結案畫面「下載全部文件」：這個事件的文件在使用者 Drive 上的行程資料夾。結案後也能看。"""
+    incident = await _own_incident(session, user, incident_id)
+    ctx = await service.build_context(session, incident)
+    url = await trip_folder_url(ctx.for_agents_6_7(), _user(user), get_google_access())
+    return DriveFolderOut(url=url)
+
+
 @router.post("/incidents/{incident_id}/submission", status_code=status.HTTP_201_CREATED)
 async def submit_incident(
     session: SessionDep, user: CurrentUser, incident_id: uuid.UUID, body: SubmitIn
@@ -723,7 +836,9 @@ async def submit_incident(
 
     if body.mode == "self":
         submission = PolicySubmission(
-            policy_id=incident.policy_id, status="self_submitted"
+            policy_id=incident.policy_id,
+            incident_id=incident.id,
+            status="self_submitted",
         )
         session.add(submission)
         incident.status = "completed"
@@ -762,16 +877,12 @@ async def submit_incident(
         get_google_access(),
         **extra,
     )
-    ref_key = "draft_id" if result.status == "drafted" else "message_id"
     submission = PolicySubmission(
         policy_id=incident.policy_id,
+        incident_id=incident.id,
         status=result.status if result.status in ("sent", "drafted") else "pending",
         recipient=body.recipient,
-        gmail_refs=(
-            [{"index": 0, ref_key: result.external_ref}]
-            if result.external_ref
-            else None
-        ),
+        gmail_refs=_gmail_refs(result),
         detail={"reason": result.reason} if result.reason else None,
     )
     session.add(submission)
@@ -779,9 +890,73 @@ async def submit_incident(
         incident.status = "completed"
         session.add(incident)
     await session.commit()
+    done = result.status in ("sent", "drafted")
     return SubmissionOut(
         id=submission.id,
         status=result.status,
         external_ref=result.external_ref,
         reason=result.reason,
+        subject=package.subject if done else None,
+        gmail_url=result.gmail_url if done and is_gmail_url(result.gmail_url) else None,
     )
+
+
+def _gmail_refs(result: SendResult) -> list[dict[str, Any]] | None:
+    """只存編號：寄出存信件編號；草稿存草稿編號，和草稿裡那封信的編號（之後組 Gmail 連結用）。"""
+    if not result.external_ref:
+        return None
+    if result.status == "drafted":
+        ref: dict[str, Any] = {"index": 0, "draft_id": result.external_ref}
+        if result.message_id:
+            ref["message_id"] = result.message_id
+        return [ref]
+    return [{"index": 0, "message_id": result.message_id or result.external_ref}]
+
+
+class SubmissionStatusOut(BaseModel):
+    # 這個事件結案時選的送件方式；結案前、或加上紀錄之前結案的事件是 None
+    status: Literal["sent", "drafted", "self_submitted"] | None = None
+    # Gmail 網頁上那封信（寄出）或那份草稿的連結；自己處理、或沒有信件編號時是 None
+    gmail_url: str | None = None
+
+
+@router.get("/incidents/{incident_id}/submission")
+async def get_incident_submission(
+    session: SessionDep, user: CurrentUser, incident_id: uuid.UUID
+) -> SubmissionStatusOut:
+    """理賠頁與送件結果頁用：這個事件怎麼結案的，以及到 Gmail 查看的連結（不回信件內容）。"""
+    await _own_incident(session, user, incident_id)
+    submission = (
+        await session.exec(
+            select(PolicySubmission)
+            .where(
+                PolicySubmission.incident_id == incident_id,
+                col(PolicySubmission.status).in_(["sent", "drafted", "self_submitted"]),
+            )
+            .order_by(col(PolicySubmission.created_at).desc())
+            .limit(1)
+        )
+    ).first()
+    return submission_status(user.email, submission)
+
+
+def submission_status(
+    email: str, submission: PolicySubmission | None
+) -> SubmissionStatusOut:
+    """送件紀錄 → 結案方式與 Gmail 連結（事件與行程共用）。沒有紀錄回空的。"""
+    if submission is None:
+        return SubmissionStatusOut()
+    status_ = cast(Literal["sent", "drafted", "self_submitted"], submission.status)
+    message_id = next(
+        (
+            str(ref["message_id"])
+            for ref in submission.gmail_refs or []
+            if isinstance(ref, dict) and ref.get("message_id")
+        ),
+        None,
+    )
+    url = None
+    if message_id and status_ in ("sent", "drafted"):
+        kind: Literal["sent", "draft"] = "sent" if status_ == "sent" else "draft"
+        url = gmail_url(email, kind, message_id)
+    return SubmissionStatusOut(status=status_, gmail_url=url)

@@ -1,9 +1,14 @@
-"""7 號 agent 的 ClaimPackager 實作。"""
+"""7 號 agent 的 ClaimPackager 實作。
+
+事件版（`build`、`send`）與行程版（`build_trip`、`send_trip`，契約 v2.13、ADR-0029）用同一套信件段落、
+附件規則與寄送流程；行程版一封信涵蓋全部符合保障的事件，事故相關的空格用事故名稱區分。
+"""
 
 import html
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import date
 from email import policy
 from email.message import EmailMessage
@@ -26,9 +31,12 @@ from app.contracts import (
     PolicySummary,
     SendMode,
     SendResult,
+    TodoView,
+    TripContext,
     UnavailableAttachment,
     UserContext,
 )
+from app.domain.incident.gmail_link import gmail_url
 
 
 def _to_fill(item: str) -> str:
@@ -125,20 +133,22 @@ _DATE = re.compile(
 DATE_TO_FILL = _to_fill("日期")
 
 
-def _occurred_date(ctx: IncidentContext) -> str:
+def _occurred_date(ctx: IncidentContext, label: str = "") -> str:
     """發生日期：能換算成真實日期就寫成 2026/08/10，其他一律留「（請填寫日期）」（7 號決定）。
 
     例如 5 號問不到時存的「不知道」、不存在的「2026/13/45」、沒有年份的「8月10日」。
+    行程版的空格前面加事故名稱（`label`），例如「（請填寫班機延誤日期）」。
     """
+    to_fill = _to_fill(f"{label}日期")
     raw = next((f.value for f in ctx.facts if f.fact_key == OCCURRED_DATE_KEY), None)
     m = _DATE.match(raw or "")
     if m is None:
-        return DATE_TO_FILL
+        return to_fill
     month, day = (m[2], m[3]) if m[2] else (m[4], m[5])
     try:
         return f"{date(int(m[1]), int(month), int(day)):%Y/%m/%d}"
     except ValueError:  # 格式像日期但不存在，例如 2026/13/45
-        return DATE_TO_FILL
+        return to_fill
 
 
 # 5 號記下的發生地點：代號是事故設定檔共用欄位的 place
@@ -147,27 +157,52 @@ OCCURRED_PLACE_KEY = "place"
 _UNKNOWN_FACT = "不知道"
 
 
-def _place(ctx: IncidentContext) -> str:
+def _place(ctx: IncidentContext, label: str = "") -> str:
     """地點：先用建立事件時填的目的地，沒有才用 5 號記下的發生地點（#165）。
 
-    兩個都沒有、或發生地點是「不知道」時留「（請填寫地點）」。
+    兩個都沒有、或發生地點是「不知道」時留「（請填寫地點）」；行程版前面加事故名稱。
     """
     if ctx.destination and ctx.destination.strip():
         return ctx.destination.strip()
     raw = next((f.value for f in ctx.facts if f.fact_key == OCCURRED_PLACE_KEY), "")
     place = raw.strip()
     if not place or place.startswith(_UNKNOWN_FACT):
-        return _to_fill("地點")
+        return _to_fill(f"{label}地點")
     return place
 
 
+def _summary_line(ctx: IncidentContext, label: str = "") -> str:
+    """事故摘要的一行：各項分開、不組句子，使用者原話照原樣放（7 號決定）。
+
+    行程版開頭寫事故名稱（`label`，同類型第二次起是「班機延誤(2)」），和空格、未附文件的寫法對得上。
+    """
+    if ctx.incident_type_name:
+        incident_type = label or ctx.incident_type_name
+    else:
+        incident_type = _to_fill(f"{label}事故類型")
+    place = _place(ctx, label)
+    narrative = ctx.description if ctx.description.strip() else _to_fill(f"{label}經過")
+    return f"・{incident_type} · {_occurred_date(ctx, label)} · {place}：{narrative}"
+
+
 def _summary_section(ctx: IncidentContext) -> str:
-    """事故摘要：各項分開、不組句子，使用者原話照原樣放（7 號決定）。"""
-    incident_type = ctx.incident_type_name or _to_fill("事故類型")
-    place = _place(ctx)
-    narrative = ctx.description if ctx.description.strip() else _to_fill("經過")
-    line = f"・{incident_type} · {_occurred_date(ctx)} · {place}：{narrative}"
-    return "\n".join(["事故摘要", line])
+    return "\n".join(["事故摘要", _summary_line(ctx)])
+
+
+def _incident_labels(incidents: list[IncidentContext]) -> dict[uuid.UUID, str]:
+    """行程版信裡區分事故的名稱：事故類型名稱，同類型第二次起加「(2)」「(3)」（契約 v2.13）。
+
+    用半形括號：空格的寫法是「（請填寫…）」，全形「）」會讓前端與平台找錯空格的範圍。
+    沒有事故類型名稱的叫「事故」，一樣依序編號。
+    """
+    counts: dict[str, int] = {}
+    labels: dict[uuid.UUID, str] = {}
+    for incident in incidents:
+        name = incident.incident_type_name or "事故"
+        counts[name] = counts.get(name, 0) + 1
+        n = counts[name]
+        labels[incident.incident_id] = name if n == 1 else f"{name}({n})"
+    return labels
 
 
 def _greeting(has_attachments: bool) -> str:
@@ -188,9 +223,9 @@ CLOSING = f"聯絡電話：{_to_fill('聯絡電話')}\n如需補件，請直接�
 DISCLAIMER = "實際能否理賠請以保險公司審核為準"
 
 
-def _subject(ctx: IncidentContext) -> str:
-    """主旨只放方案名稱與保險期間（方案名稱已含公司簡稱）。"""
-    return f"旅遊保險理賠申請－{ctx.policy.plan_name}－{_period(ctx.policy)}"
+def _subject(policy: PolicySummary) -> str:
+    """主旨只放方案名稱與保險期間（方案名稱已含公司簡稱）；事件版與行程版相同。"""
+    return f"旅遊保險理賠申請－{policy.plan_name}－{_period(policy)}"
 
 
 def _attachment_documents(ctx: IncidentContext) -> list[DocumentView]:
@@ -231,6 +266,58 @@ def _without_document_section(
     if not todos:
         return None
     return "\n".join(["未隨信附上的文件", *(f"・{t.title}（另行提供）" for t in todos)])
+
+
+def _trip_todo_order(
+    trip: TripContext,
+) -> dict[uuid.UUID, tuple[int, int, int]]:
+    """行程版的待辦順序：先各事件的待辦（事件依發生時間），再共同文件（D02、D10 等），各自依待辦順序。"""
+    order: dict[uuid.UUID, tuple[int, int, int]] = {}
+    for n, incident in enumerate(trip.incidents):
+        for t in incident.todos:
+            order[t.id] = (0, n, t.sort_order)
+    for t in trip.shared_todos:
+        order[t.id] = (1, 0, t.sort_order)
+    return order
+
+
+def _trip_attachment_documents(trip: TripContext) -> list[DocumentView]:
+    """行程版可以當附件的文件：規則同事件版（只寄對得到待辦的），順序照 `_trip_todo_order`。"""
+    order = _trip_todo_order(trip)
+    documents = [
+        d
+        for d in trip.documents
+        if d.todo_id is not None and d.todo_id in order and _can_attach(d)
+    ]
+    # sorted 是穩定排序：同一項待辦的多份文件維持上傳順序
+    return sorted(documents, key=lambda d: order[d.todo_id] if d.todo_id else (2, 0, 0))
+
+
+def _trip_without_document_section(
+    trip: TripContext,
+    labels: dict[uuid.UUID, str],
+    unattached: frozenset[uuid.UUID] = frozenset(),
+) -> str | None:
+    """行程版「未隨信附上的文件」：規則同事件版。事件的待辦前面加事故名稱，分得出是哪個事故的；
+    共同文件只寫待辦名稱。"""
+    order = _trip_todo_order(trip)
+    todos = sorted(
+        (
+            t
+            for t in trip.todos
+            if t.status == "done" and (t.without_document or t.id in unattached)
+        ),
+        key=lambda t: order[t.id],
+    )
+    if not todos:
+        return None
+
+    def line(t: TodoView) -> str:
+        label = labels.get(t.incident_id) if t.incident_id else None
+        title = f"{label}：{t.title}" if label else t.title
+        return f"・{title}（另行提供）"
+
+    return "\n".join(["未隨信附上的文件", *(line(t) for t in todos)])
 
 
 def _attachment_section(attachments: list[AttachmentRef]) -> str:
@@ -345,6 +432,31 @@ def _message(
     return message.as_bytes(policy=policy.SMTP)
 
 
+@dataclass(frozen=True)
+class _Attachments:
+    """附件檢查的結果：要附的、取不到又一定要附的（擋寄出）、取不到但信上寫另行提供的。"""
+
+    attachments: list[AttachmentRef]
+    blocking: frozenset[uuid.UUID]
+    unattached: frozenset[uuid.UUID]
+    unavailable: list[UnavailableAttachment]
+
+    def package(
+        self, subject: str, sections: list[str | None], todos: list[TodoView]
+    ) -> ClaimPackage:
+        return ClaimPackage(
+            subject=subject,
+            body="\n\n".join(s for s in sections if s),
+            attachments=self.attachments,
+            # 還沒做的待辦；「不適用」不算缺漏，使用者自行勾選、未附文件的算完成。
+            # 需上傳、文件卻在 Drive 上取不到的也算還缺（契約 v2.8）
+            missing_todo_ids=[
+                t.id for t in todos if t.status == "pending" or t.id in self.blocking
+            ],
+            unavailable_attachments=self.unavailable,
+        )
+
+
 class GmailClaimPackager:
     def __init__(self, google_api: GoogleApi | None = None) -> None:
         # 平台用 factory 建立時一定會給（正式版或離線版）；只做送件包預覽時可以不給，
@@ -357,8 +469,56 @@ class GmailClaimPackager:
         google: GoogleAccess | None = None,
         user: UserContext | None = None,
     ) -> ClaimPackage:
-        documents = _attachment_documents(ctx)
-        # 契約 v2.8：有 Drive 授權時先確認附件還在不在；取不到的不附在信裡（#155 驗收 7-2）
+        found = await self._check_attachments(
+            _attachment_documents(ctx), ctx.todos, google, user
+        )
+        sections = [
+            _greeting(bool(found.attachments)),
+            _policy_section(ctx.policy),
+            _summary_section(ctx),
+            _without_document_section(ctx, found.unattached),
+            _attachment_section(found.attachments),
+            CLOSING,
+            DISCLAIMER,
+        ]
+        return found.package(_subject(ctx.policy), sections, ctx.todos)
+
+    async def build_trip(
+        self,
+        trip: TripContext,
+        google: GoogleAccess | None = None,
+        user: UserContext | None = None,
+    ) -> ClaimPackage:
+        """行程版（契約 v2.13、ADR-0029）：一封信涵蓋全部符合保障的事件，不拆信。
+
+        平台給的 `trip` 已經拿掉不符保障的事件與不適用的待辦；這裡照樣只看收到的。
+        事故摘要一個事故一行，空格用事故名稱區分；不寫適用保障與額度說明。
+        保單資訊、問候、聯絡電話與免責聲明整封信只寫一次；理賠申請書等共同文件只附一次。
+        """
+        labels = _incident_labels(trip.incidents)
+        found = await self._check_attachments(
+            _trip_attachment_documents(trip), trip.todos, google, user
+        )
+        summary = [_summary_line(i, labels[i.incident_id]) for i in trip.incidents]
+        sections = [
+            _greeting(bool(found.attachments)),
+            _policy_section(trip.policy),
+            "\n".join(["事故摘要", *summary]) if summary else None,
+            _trip_without_document_section(trip, labels, found.unattached),
+            _attachment_section(found.attachments),
+            CLOSING,
+            DISCLAIMER,
+        ]
+        return found.package(_subject(trip.policy), sections, trip.todos)
+
+    async def _check_attachments(
+        self,
+        documents: list[DocumentView],
+        todos: list[TodoView],
+        google: GoogleAccess | None,
+        user: UserContext | None,
+    ) -> _Attachments:
+        """契約 v2.8：有 Drive 授權時先確認附件還在不在；取不到的不附在信裡（#155 驗收 7-2）。"""
         unavailable = await self._unavailable(documents, google, user)
         available = [d for d in documents if d.id not in unavailable]
         attached_todos = {d.todo_id for d in available}
@@ -369,41 +529,28 @@ class GmailClaimPackager:
             for d in documents
             if d.id in unavailable and d.todo_id not in attached_todos
         ]
-        todos = {t.id: t for t in ctx.todos}
-        lost_todo_ids = {d.todo_id for d in lost if d.todo_id in todos}
+        by_id = {t.id: t for t in todos}
+        lost_todo_ids = {d.todo_id for d in lost if d.todo_id in by_id}
         # 需上傳的一定要處理，不能寄出：列為還缺的待辦，平台就會擋下（2026-11-08 決定）；
         # 不需上傳的，信上寫另行提供
-        blocking = {
-            i for i in lost_todo_ids if i is not None and todos[i].requires_upload
-        }
+        blocking = frozenset(
+            i for i in lost_todo_ids if i is not None and by_id[i].requires_upload
+        )
         unattached = frozenset(
             i for i in lost_todo_ids if i is not None and i not in blocking
         )
-        attachments = [
-            AttachmentRef(
-                document_id=d.id, file_name=d.file_name, storage_path=d.storage_path
-            )
-            for d in available
-        ]
-        sections = [
-            _greeting(bool(attachments)),
-            _policy_section(ctx.policy),
-            _summary_section(ctx),
-            _without_document_section(ctx, unattached),
-            _attachment_section(attachments),
-            CLOSING,
-            DISCLAIMER,
-        ]
-        return ClaimPackage(
-            subject=_subject(ctx),
-            body="\n\n".join(s for s in sections if s),
-            attachments=attachments,
-            # 還沒做的待辦；「不適用」不算缺漏，使用者自行勾選、未附文件的算完成。
-            # 需上傳、文件卻在 Drive 上取不到的也算還缺（契約 v2.8）
-            missing_todo_ids=[
-                t.id for t in ctx.todos if t.status == "pending" or t.id in blocking
+        return _Attachments(
+            attachments=[
+                AttachmentRef(
+                    document_id=d.id,
+                    file_name=d.file_name,
+                    storage_path=d.storage_path,
+                )
+                for d in available
             ],
-            unavailable_attachments=[
+            blocking=blocking,
+            unattached=unattached,
+            unavailable=[
                 UnavailableAttachment(
                     document_id=d.id, file_name=d.file_name, reason=unavailable[d.id]
                 )
@@ -449,15 +596,40 @@ class GmailClaimPackager:
         google: GoogleAccess,
         mode: SendMode = "send",
     ) -> SendResult:
+        return await self._deliver(package, recipient, user, google, mode)
+
+    async def send_trip(
+        self,
+        trip: TripContext,
+        package: ClaimPackage,
+        recipient: str | None,
+        user: UserContext,
+        google: GoogleAccess,
+        mode: SendMode = "send",
+    ) -> SendResult:
+        """行程版：寄出與建立草稿的規則同事件版（信的內容已在 `build_trip` 整理好、平台填好空格）。"""
+        return await self._deliver(package, recipient, user, google, mode)
+
+    async def _deliver(
+        self,
+        package: ClaimPackage,
+        recipient: str | None,
+        user: UserContext,
+        google: GoogleAccess,
+        mode: SendMode,
+    ) -> SendResult:
         # 契約 v2.1 的 mode："send" 寄出、"draft" 在使用者的 Gmail 建立草稿（#154）。
         # 兩者用同一份信件內容與附件，差別只在：寄出要有收件者、不能有空格；
         # 草稿可以沒有收件者、可以有空格（空格在帶顏色的版本標出來）
         if mode == "send" and not recipient:
             return SendResult(status="failed", reason="要有收件者才能寄出")
-        # 寄信用 Gmail、附件從使用者的 Drive 取，兩個授權都要有（ADR-0020），草稿也一樣。
+        # 寄信用 Gmail、附件從使用者的 Drive 取（ADR-0020），草稿也一樣。沒有附件就不用 Drive 授權：
+        # 使用者可能沒上傳文件、也沒授權 Drive。
         # 沒有授權時回 failed 說明要授權哪個，不丟例外、不寄出也不建草稿（交接說明規則 3）
         gmail_token = await google.access_token(user, GMAIL_SCOPE)
-        drive_token = await google.access_token(user, DRIVE_SCOPE)
+        drive_token = (
+            await google.access_token(user, DRIVE_SCOPE) if package.attachments else ""
+        )
         if gmail_token is None or drive_token is None:
             missing = [
                 name
@@ -507,14 +679,24 @@ class GmailClaimPackager:
         )
         try:
             if mode == "draft":
-                draft_id = await api.create_draft(gmail_token, message)
-                return SendResult(status="drafted", external_ref=draft_id)
+                draft = await api.create_draft(gmail_token, message)
+                return SendResult(
+                    status="drafted",
+                    external_ref=draft.id,
+                    message_id=draft.message_id,
+                    gmail_url=gmail_url(user.email, "draft", draft.message_id),
+                )
             message_id = await api.send_message(gmail_token, message)
         except GoogleApiError as error:
             return SendResult(
                 status="failed", reason=_reason(error, _GMAIL_ERRORS, mode)
             )
-        return SendResult(status="sent", external_ref=message_id)
+        return SendResult(
+            status="sent",
+            external_ref=message_id,
+            message_id=message_id,
+            gmail_url=gmail_url(user.email, "sent", message_id),
+        )
 
 
 def _reason(

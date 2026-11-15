@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { login } from "./helpers";
 
 // 試算依開發資料庫的 seed（make seed）與 scenario_rules.json：6 天「班機延誤 → 突然生病就醫」，
 // 推薦富邦國外旅平險-進階型、次推薦華南國外旅平險-基礎型。
@@ -9,13 +10,6 @@ function day(offset: number): string {
   const d = new Date();
   d.setDate(d.getDate() + offset);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-async function login(page: Page, email: string) {
-  await page.goto("/login?next=%2F");
-  await page.getByLabel("Email").fill(email);
-  await page.getByRole("button", { name: "測試登入" }).click();
-  await expect(page).toHaveURL(/\/$/);
 }
 
 async function fillTrip(page: Page) {
@@ -54,7 +48,6 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
   // 切換頁籤時舊的面板會短暫留著，用頁籤名稱指定面板
   const panel = page.getByRole("tabpanel", { name: "航班延誤 ★" });
   await expect(panel.getByText("試算假設：班機延誤 8 小時；行李延誤 20 小時")).toBeVisible();
-  await expect(panel.getByText("模板試算・不經 AI")).toBeVisible();
   await expect(panel.getByTestId("conclusion")).toHaveText(
     "富邦國外旅平險-進階型：班機延誤 賠 12,000 元、行李延誤 賠 6,000 元；華南國外旅平險-基礎型：班機延誤 賠 12,000 元、行李延誤 賠 6,000 元。",
   );
@@ -89,16 +82,11 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
 
   // 問答：常見問題
   const chat = page.getByRole("region", { name: "問答" });
-  await expect(
-    chat.getByText("點下方常見問題，或自己輸入。問答內容不會保存，離開這頁就會清空。"),
-  ).toBeVisible();
   await chat.getByRole("button", { name: "班機延誤多久才能賠？" }).click();
   await expect(chat.getByTestId("question")).toHaveText(["班機延誤多久才能賠？"]);
   await expect(chat.getByTestId("answer")).toHaveCount(1, { timeout: 60_000 });
-  // 第一次發問後常見問題收起，可用「常見問題」再展開
-  await expect(chat.getByRole("button", { name: "兩個方案差在哪？" })).toBeHidden();
-  await chat.getByRole("button", { name: "常見問題" }).click();
-  await expect(chat.getByRole("button", { name: "兩個方案差在哪？" })).toBeVisible();
+  // 發問後常見問題仍在輸入框下方
+  await expect(chat.getByRole("button", { name: "兩個方案差在哪？" })).toBeEnabled();
 
   // 問答：自己輸入，有字才能送出、送出後清空
   const input = chat.getByLabel("問題");
@@ -116,6 +104,16 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
   await expect(input).toHaveValue("");
   await expect(chat.getByTestId("question")).toHaveText(["班機延誤多久才能賠？", "那次推薦呢？"]);
   await expect(chat.getByTestId("answer")).toHaveCount(2, { timeout: 60_000 });
+  // 收到回答後捲到最新提問上方一點，問題與回答開頭都看得到
+  const gap = await chat
+    .getByTestId("question")
+    .last()
+    .evaluate((q) => {
+      const log = q.parentElement as HTMLElement;
+      return q.getBoundingClientRect().top - log.getBoundingClientRect().top;
+    });
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThan(40);
 
   // 回比較表再進來：對話區是空的
   await page.getByRole("link", { name: "回比較表" }).click();

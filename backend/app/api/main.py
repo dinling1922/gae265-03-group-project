@@ -15,12 +15,15 @@ from app.api.routes import (
     incidents,
     ingest,
     insurances,
+    me,
     plan_premiums,
     plans,
     policies,
     questions,
     quote,
     scenarios,
+    trip,
+    trip_documents,
 )
 from app.core.config import settings
 
@@ -34,11 +37,14 @@ def build_api_router(environment: str, dev_login: bool = False) -> APIRouter:
     router.include_router(plans.router)
     router.include_router(plan_premiums.router)
     router.include_router(policies.router)
+    router.include_router(me.router)
     router.include_router(comparisons.router)
     router.include_router(scenarios.router)
     router.include_router(questions.router)
     router.include_router(conversations.router)
     router.include_router(incidents.router)
+    router.include_router(trip.router)
+    router.include_router(trip_documents.router)
     router.include_router(quote.router)
     # 條款上傳整組都要登入，所以所有環境都註冊（ADR-0023）
     router.include_router(ingest.router)

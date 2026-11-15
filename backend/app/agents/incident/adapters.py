@@ -69,9 +69,9 @@ async def no_gate(_text: str) -> str:
 
 EXTRACT_PROMPT = """你負責從旅遊保險理賠助手收到的訊息裡，取出下列欄位的答案。
 只回一個 JSON 物件，不要其他文字：
-{{"event_type": "flight_delay" 或 "baggage_loss" 或 null, "answers": {{欄位代號: 答案}}}}
+{{"event_type": "flight_delay" 或 "baggage_loss" 或 "medical" 或 null, "answers": {{欄位代號: 答案}}}}
 規則：
-- 事故是班機延誤就填 "flight_delay"；行李遺失、被偷、被搶或損壞就填 "baggage_loss"（行李只是晚到不算）；其他或看不出來就填 null。
+- 事故是班機延誤就填 "flight_delay"；行李遺失、被偷、被搶或損壞就填 "baggage_loss"（行李只是晚到不算）；生病或受傷就醫（看醫生、住院）就填 "medical"；其他或看不出來就填 null。
 - 只填訊息裡明確說到的欄位，沒說到的不要填，不要猜。
 - 第一個欄位是剛剛問旅客的題目；訊息若只是一個答案（例如「下午兩點」），就填到第一個欄位。
 - 日期寫成 YYYY/MM/DD；時間寫成 24 小時制 HH:MM；選擇題只能用列出的選項。
@@ -242,9 +242,12 @@ def agent_answerer(model: BaseChatModel):
             *background.sources,
         ]
         if not text or unsupported_numbers(text, sources):
-            return QAResult(
-                _original(found), found
-            )  # 數字不在原文裡：退回原文（ADR-0004）
+            # 沒有文字、或數字不在原文裡：退回原文（ADR-0004）。log 只記是哪一種原因，不記內容
+            # （ADR-0009），才看得出多常發生
+            logger.info(
+                "問答退回貼條款原文：%s", "沒有產生文字" if not text else "數字不在原文"
+            )
+            return QAResult(_original(found), found)
         return QAResult(text, found)
 
     return answer

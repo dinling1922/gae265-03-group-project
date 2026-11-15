@@ -1,12 +1,10 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
-import { recheckIncidentDocument, rejectIncidentDocument } from "../../client";
-import type { IncidentContext } from "../../client/types.gen";
+import type { DocumentView, TodoView } from "../../client/types.gen";
 import { btnSm, lnk } from "../../components/ui/buttons";
 import { FilePickButton } from "../../components/ui/FileDrop";
-import { dateOf } from "./IncidentCard";
 import { errorText } from "./shared";
 import { type FilePreview, makePreview, ZoomDialog } from "./UploadPreview";
-import { STOP, UploadProcessingRow, WorkingNote } from "./UploadProcessingRow";
+import { STOP, StepNote, UploadProcessingRow } from "./UploadProcessingRow";
 import {
   describeRecognition,
   findLandedDocument,
@@ -17,37 +15,66 @@ import {
   RECHECK_GAP_MS,
   RECHECK_TRIES,
   type ProcessingRow as Row,
+  type Steps,
   summarizeKinds,
   type UploadedDocument as Uploaded,
 } from "./uploadRecognition";
 
+type Call = Promise<{ data?: unknown; error?: unknown; response?: Response }>;
+
+/**
+ * 上傳框面對的對象：一個事件，或一個行程（ADR-0029）。行程版的待辦與文件分散在各事件與「整個行程」，
+ * 對應結果可能落到別的事件，所以處理列的說明與選單都要帶事故名稱。
+ */
+export type UploadSource = {
+  /** POST 上傳的網址 */
+  uploadUrl: string;
+  /** GET 重新讀取的網址（連線中斷後確認有沒有進去、處理完刷新） */
+  readUrl: string;
+  /** 目前的待辦與文件 */
+  todos: TodoView[];
+  documents: DocumentView[];
+  /** 從重新讀取的內容取出待辦與文件 */
+  snapshot: (json: unknown) => { todos: TodoView[]; documents: DocumentView[] };
+  /** 處理列說明裡「對應：」後面的群組（事故名稱或「整個行程」） */
+  groupOf: (todo: TodoView) => string;
+  /** 「需要你確認」選單裡這項待辦的文字 */
+  optionLabel: (todo: TodoView) => string;
+  recheck: (documentId: string, todoId: string) => Call;
+  reject: (documentId: string) => Call;
+};
+
 /** 「都不是」在選單裡的值 */
 const NONE = "__none__";
 
+/** 每一步顯示多久（毫秒）：三步合計最短 2 秒（設計者 11/13）；系統設定減少動態時縮短 */
+const STEP_MS = 667;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const stepMs = () =>
+  STEP_MS * (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0.15 : 1);
+
 /**
  * 2-3i 上傳理賠文件（規格 v3.7、ADR-0027）：可一次選多份，依序處理。
- * 處理中只有「小助理正在處理這份文件…」（不確定進度），排在後面的標「等待中」；
- * 6 號一份處理完才回結果，回來後才顯示結果。全部處理完收成摘要，預設只列沒通過的文件，
- * 合格的收在「看全部明細」；四個處理階段是各列的輔助資訊。
+ * 處理中逐份顯示「讀取內容 → 對應待辦 → 檢查規則」（1113 討論、ADR-0028），排在後面的標「等待中」。
+ * 6 號一份處理完才回結果：回來之前停在「讀取內容」，回來後把三步演完（合計最短 2 秒）再顯示結果。
+ * 全部處理完收成摘要，預設只列沒通過的文件，合格的收在「看全部明細」。
  *
  * 一次只送一份：同一項待辦的第二份（例如先機票再登機證）要看得到前一份的結果，檔名序號也才不會撞。
  */
 export function UploadBox({
-  id,
-  ctx,
+  source,
   missingCount,
   disabled,
   action,
   onUploaded,
   onStart,
 }: {
-  id: string;
-  ctx: IncidentContext;
+  source: UploadSource;
   missingCount: number;
   disabled: boolean;
   /** 不能直接選檔時要顯示的按鈕（例如先授權 Google Drive）；有給就取代「上傳理賠文件」 */
   action?: ReactNode;
-  onUploaded: (fresh: IncidentContext | null) => void;
+  onUploaded: (fresh: unknown | null) => void;
   /** 開始處理一批檔案時呼叫（例如清掉頁面上前一次的錯誤訊息） */
   onStart?: () => void;
 }) {
@@ -70,15 +97,13 @@ export function UploadBox({
     [],
   );
 
-  const todos = ctx.todos ?? [];
+  const todos = source.todos;
   // 一批文件處理要很久，期間待辦可能被改（使用者手動勾、6 號勾選）：判斷依據每份處理完時讀最新的，不讀批次開始時的快照
   const todosRef = useRef(todos);
   todosRef.current = todos;
   /** 事件裡目前已有的文件編號：連線中斷時用來判斷「這次上傳」有沒有進去 */
   const docIdsRef = useRef<string[]>([]);
-  docIdsRef.current = (ctx.documents ?? []).map((d) => d.id);
-  const date = dateOf(ctx);
-  const incidentLabel = `${ctx.incident_type_name ?? "這次事故"}${date ? ` · ${date}` : ""}`;
+  docIdsRef.current = source.documents.map((d) => d.id);
   const listId = useId();
   /** 給讀屏的狀態：整批處理完才念一次摘要（含被折疊的合格列與上傳失敗），避免連續完成時前一份被後一份蓋掉 */
   const [announce, setAnnounce] = useState("");
@@ -87,7 +112,7 @@ export function UploadBox({
   function basisOf(doc: Uploaded, kind: Kind): string | undefined {
     const todo = todosRef.current.find((t) => t.id === doc.todo_id);
     if (!todo) return undefined;
-    const group = todo.scope === "policy" ? "整個行程" : incidentLabel;
+    const group = source.groupOf(todo);
     const kindName = doc.document_kind?.replace(/^D\d+\s*/, "");
     const seen = doc.found_fields?.length ? doc.found_fields.join("、") : kindName;
     const base = `對應：${group}｜${todo.title}${seen ? `｜辨識到：${seen}` : ""}`;
@@ -106,7 +131,7 @@ export function UploadBox({
     const body = new FormData();
     body.append("file", file);
     try {
-      const response = await fetch(`/api/v1/incidents/${id}/documents`, { method: "POST", body });
+      const response = await fetch(source.uploadUrl, { method: "POST", body });
       const data = await response.json().catch(() => null);
       if (!response.ok) return { error: errorText(data, response.status) };
       return data as Uploaded;
@@ -120,9 +145,9 @@ export function UploadBox({
     for (let i = 0; i < RECHECK_TRIES; i++) {
       if (i > 0) await new Promise((resolve) => setTimeout(resolve, RECHECK_GAP_MS));
       try {
-        const res = await fetch(`/api/v1/incidents/${id}`);
+        const res = await fetch(source.readUrl);
         if (!res.ok) continue;
-        const landed = findLandedDocument((await res.json()) as IncidentContext, known);
+        const landed = findLandedDocument(source.snapshot(await res.json()), known);
         if (landed) return landed;
       } catch {
         // 還連不上：下一輪再試
@@ -137,6 +162,7 @@ export function UploadBox({
     update(key, {
       basis: basisOf(result, outcome.kind),
       phase: "done",
+      steps: undefined,
       kind: outcome.kind,
       outcome,
       error: undefined,
@@ -147,6 +173,19 @@ export function UploadBox({
       busy: false,
     });
     return outcome;
+  }
+
+  /**
+   * 第 `from` 步已經在畫面上跑了 `ms`；接著把後面的步驟逐步亮完，最後一步也顯示 `ms`，再套上結果。
+   * 不管結果是通過、不合格或失敗都把三步演完，不停在 6 號結果停下的那一步（設計者 11/13）。
+   */
+  async function play(key: string, result: Uploaded, from: number, ms: number) {
+    for (let s = from + 1; s < 3; s++) {
+      const steps = [0, 1, 2].map((i) => (i < s ? "ok" : i === s ? "run" : "wait")) as Steps;
+      update(key, { steps });
+      await sleep(ms);
+    }
+    return finish(key, result);
   }
 
   async function run(files: File[]) {
@@ -176,24 +215,25 @@ export function UploadBox({
         kinds.push({ kind: "error" });
         continue;
       }
-      update(key, { phase: "run" });
-      let result = await sendOne(file);
+      const ms = stepMs();
+      update(key, { phase: "run", steps: ["run", "wait", "wait"] });
+      let [result] = await Promise.all([sendOne(file), sleep(ms)]);
       if ("interrupted" in result) {
         // 重新讀取期間仍是「處理中」；處理好了就照常顯示結果，沒有才是「連線中斷，上傳失敗」
         const landed = await recheckAfterInterrupt(known);
         if (!landed) result = { error: INTERRUPTED_LOST };
         else {
           known.add(landed.id ?? "");
-          kinds.push(finish(key, landed));
+          kinds.push(await play(key, landed, 0, ms));
           continue;
         }
       }
       if ("error" in result) {
-        update(key, { phase: "done", kind: "error", error: result.error });
+        update(key, { phase: "done", steps: undefined, kind: "error", error: result.error });
         kinds.push({ kind: "error" });
       } else {
         if (result.id) known.add(result.id);
-        kinds.push(finish(key, result));
+        kinds.push(await play(key, result, 0, ms));
       }
     }
     setRunning(false);
@@ -204,8 +244,8 @@ export function UploadBox({
   /** 重新讀事件：6 號可能勾選了待辦 */
   async function refresh() {
     try {
-      const fresh = await fetch(`/api/v1/incidents/${id}`);
-      onUploaded(fresh.ok ? ((await fresh.json()) as IncidentContext) : null);
+      const fresh = await fetch(source.readUrl);
+      onUploaded(fresh.ok ? await fresh.json() : null);
     } catch {
       onUploaded(null);
     }
@@ -216,9 +256,7 @@ export function UploadBox({
     if (!row.docId || !row.choice) return;
     update(row.key, { busy: true });
     if (row.choice === NONE) {
-      const res = await rejectIncidentDocument({
-        path: { incident_id: id, document_id: row.docId },
-      });
+      const res = await source.reject(row.docId);
       if (!res.data) {
         update(row.key, { busy: false, error: errorText(res.error, res.response?.status) });
         return;
@@ -234,21 +272,22 @@ export function UploadBox({
       onUploaded(res.data);
       return;
     }
+    // 已選好待辦：從「檢查規則」那一步重新檢查
+    const ms = stepMs();
     update(row.key, {
       phase: "run",
+      steps: ["ok", "ok", "run"],
       kind: undefined,
       outcome: undefined,
       basis: undefined,
       error: undefined,
     });
-    const res = await recheckIncidentDocument({
-      path: { incident_id: id, document_id: row.docId },
-      body: { todo_id: row.choice },
-    });
+    const [res] = await Promise.all([source.recheck(row.docId, row.choice), sleep(ms)]);
     if (!res.data) {
       // 沒檢查成：回到「需要你確認」，使用者可以再試
       update(row.key, {
         phase: "done",
+        steps: undefined,
         kind: row.kind,
         outcome: row.outcome,
         basis: row.basis,
@@ -257,7 +296,7 @@ export function UploadBox({
       });
       return;
     }
-    const outcome = finish(row.key, res.data as Uploaded);
+    const outcome = await play(row.key, res.data as Uploaded, 2, ms);
     setAnnounce(`${row.name} ${outcome.badge.text}`);
     await refresh();
   }
@@ -393,7 +432,7 @@ export function UploadBox({
                 preview={previews[r.key]}
                 onZoom={() => setZoomKey(r.key)}
               >
-                {r.phase === "run" && <WorkingNote />}
+                {r.phase === "run" && <StepNote steps={r.steps ?? ["run", "wait", "wait"]} />}
                 {r.error && (
                   <span className="whitespace-pre-line border-l-[3px] border-line pl-2.5 text-[13px] leading-5 text-danger-ink">
                     {r.error}
@@ -401,7 +440,7 @@ export function UploadBox({
                 )}
                 {r.outcome?.note && (
                   <span
-                    className={`border-l-[3px] border-line pl-2.5 text-[13px] leading-5 ${
+                    className={`whitespace-pre-line border-l-[3px] border-line pl-2.5 text-[13px] leading-5 ${
                       r.outcome.badge.tone === "bad" || r.outcome.badge.tone === "warn"
                         ? STOP[r.outcome.badge.tone].text
                         : "text-muted"
@@ -420,6 +459,7 @@ export function UploadBox({
                   <Chooser
                     row={r}
                     options={choices(r)}
+                    label={source.optionLabel}
                     onChange={(patch) => update(r.key, patch)}
                     onSubmit={() => void decide(r)}
                   />
@@ -451,11 +491,13 @@ export function UploadBox({
 function Chooser({
   row,
   options,
+  label,
   onChange,
   onSubmit,
 }: {
   row: Row;
-  options: { list: { id: string; title: string }[]; canExpand: boolean };
+  label: (todo: TodoView) => string;
+  options: { list: TodoView[]; canExpand: boolean };
   onChange: (patch: Partial<Row>) => void;
   onSubmit: () => void;
 }) {
@@ -471,7 +513,7 @@ function Chooser({
         <option value="">選擇對應的待辦</option>
         {options.list.map((t) => (
           <option key={t.id} value={t.id}>
-            {t.title}
+            {label(t)}
           </option>
         ))}
         <option value={NONE}>都不是</option>

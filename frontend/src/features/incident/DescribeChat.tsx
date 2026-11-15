@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { AskBar, ChatLog, ChatMessage } from "../../components/ui/Chat";
+import { AskBar, ChatLog, ChatMessage, TypingBubble } from "../../components/ui/Chat";
 import { Chip, ChipGroup } from "../../components/ui/Chip";
 import { box } from "./shared";
 
@@ -15,7 +15,8 @@ export type ChatLine = {
 
 /**
  * 2-2 描述事故的對話卡（DESIGN.md 7.9）：對話區（最小高 320）、AI 追問的選項 Chip、提問列（500 字）。
- * 建立前（還沒有事件）與追問中共用。送出中時輸入框保留內容並停用，下方顯示「正在整理…」。
+ * 建立前（還沒有事件）與追問中共用。送出中時輸入框與選項停用（輸入框保留內容），對話區最下面顯示
+ * AI「輸入中」的泡泡（建立事件那頁與追問頁一樣，不蓋全頁遮罩）。
  */
 export function DescribeChat({
   lines,
@@ -30,7 +31,8 @@ export function DescribeChat({
   tall = false,
   fill = false,
   logFooter,
-  busyOverlay,
+  typing,
+  typingLabel,
 }: {
   lines: ChatLine[];
   quickReplies: string[];
@@ -49,9 +51,12 @@ export function DescribeChat({
   fill?: boolean;
   /** 放在對話區最下方左側的東西（理賠頁的「＋ 有新狀況」）。 */
   logFooter?: ReactNode;
-  /** 有值時，送出中改用全頁半透明遮罩＋轉圈顯示這段文字（2-2「正在整理理賠項目…」）。 */
-  busyOverlay?: string;
+  /** 是否顯示 AI「輸入中」泡泡；預設在送出中（`busy`）時顯示。 */
+  typing?: boolean;
+  /** 輸入中泡泡旁邊寫正在做的事（例如「正在確認狀況」）；沒給就只有三個點。 */
+  typingLabel?: string;
 }) {
+  const showTyping = typing ?? busy;
   return (
     <section
       className={fill ? `${box} max-lg:flex max-lg:min-h-0 max-lg:flex-1 max-lg:flex-col` : box}
@@ -76,30 +81,13 @@ export function DescribeChat({
             )}
           </ChatMessage>
         ))}
+        {showTyping && <TypingBubble label={typingLabel} />}
         {logFooter && (
           <li className="mt-auto list-none pt-2" data-testid="log-footer">
             {logFooter}
           </li>
         )}
       </ChatLog>
-      {busy && busyOverlay && (
-        <div
-          role="status"
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-paper/80"
-          data-testid="busy"
-        >
-          <span
-            aria-hidden="true"
-            className="size-10 animate-spin rounded-full border-4 border-line border-t-leaf"
-          />
-          <span className="t-label-lg text-heading">{busyOverlay}</span>
-        </div>
-      )}
-      {busy && !busyOverlay && (
-        <p role="status" className="m-0 t-caption text-muted" data-testid="busy">
-          正在整理…
-        </p>
-      )}
       {quickReplies.length > 0 && (
         <ChipGroup data-testid="quick-replies">
           {quickReplies.map((q) => (

@@ -15,6 +15,8 @@ from app.models.base import BaseTable
 
 PHASES = ("on_site", "after_return")  # 事故當下／回家後
 INCIDENT_STATUSES = ("open", "completed")
+# 2-2 現況確認（#345）：confirmed 一般事件／clarifying 5 號還在問／awaiting 問完、等使用者按確認
+CONFIRMATIONS = ("confirmed", "clarifying", "awaiting")
 DONE_BY = ("user", "agent")
 TODO_STATUSES = ("pending", "done", "not_applicable")
 RECOGNITION_STATUSES = ("pending", "recognized", "needs_review", "incomplete", "failed")
@@ -73,6 +75,11 @@ class TodoTemplate(BaseTable, table=True):
     wait_note: str | None = Field(default=None, description="等待時間")
     requires_upload: bool = False
     is_claim_form: bool = Field(default=False, description="理賠申請書（整個行程一項）")
+    shared: bool = Field(
+        default=False,
+        sa_column_kwargs={"server_default": text("false")},
+        description="共同文件（ADR-0029：D02、D10、D11、D24）：整個行程只有一項待辦，掛在保單上、不屬於任何事件",
+    )
     major_text: str | None = Field(default=None, description="重大注意事項的文字")
     major_priority: int | None = Field(
         default=None, description="重大注意事項的優先序，小的先；整個行程最多列 4 條"
@@ -102,6 +109,10 @@ class Incident(BaseTable, table=True):
             f"status IN ({', '.join(repr(s) for s in INCIDENT_STATUSES)})",
             name="status_valid",
         ),
+        CheckConstraint(
+            f"confirmation IN ({', '.join(repr(s) for s in CONFIRMATIONS)})",
+            name="confirmation_valid",
+        ),
     )
 
     policy_id: uuid.UUID = Field(
@@ -116,6 +127,12 @@ class Incident(BaseTable, table=True):
     title: str
     description: str = Field(description="使用者的第一句描述（可能含個資）")
     status: str = Field(default="open", description="open／completed")
+    confirmation: str = Field(
+        default="confirmed",
+        sa_column_kwargs={"server_default": "confirmed"},
+        description="2-2 現況確認（#345）：confirmed 已確認（一般事件、既有事件）／clarifying 還在問／awaiting 等使用者確認；"
+        "非 confirmed 的事件不進行程資料，共同待辦也要等確認才建立",
+    )
     occurred_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
@@ -272,6 +289,7 @@ class IncidentDocument(BaseTable, table=True):
     """使用者上傳的文件（2-8）與辨識結果。6 寫入。
 
     incident_todo_id 指到的待辦必須屬於同一個事件（應用層驗證）。
+    屬於一個事件（incident_id），或是共同文件（policy_id，ADR-0029）：二選一。
     """
 
     __tablename__ = "incident_document"  # pyright: ignore[reportAssignmentType]
@@ -280,10 +298,20 @@ class IncidentDocument(BaseTable, table=True):
             f"recognition_status IN ({', '.join(repr(s) for s in RECOGNITION_STATUSES)})",
             name="recognition_status_valid",
         ),
+        CheckConstraint(
+            "(incident_id IS NOT NULL) <> (policy_id IS NOT NULL)", name="one_owner"
+        ),
     )
 
-    incident_id: uuid.UUID = Field(
-        foreign_key="incident.id", ondelete="CASCADE", index=True
+    incident_id: uuid.UUID | None = Field(
+        default=None, foreign_key="incident.id", ondelete="CASCADE", index=True
+    )
+    policy_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="policy.id",
+        ondelete="CASCADE",
+        index=True,
+        description="共同文件才填（ADR-0029）；事件的文件為空",
     )
     incident_todo_id: uuid.UUID | None = Field(
         default=None,
@@ -332,6 +360,13 @@ class PolicySubmission(BaseTable, table=True):
     policy_id: uuid.UUID = Field(
         foreign_key="policy.id", ondelete="CASCADE", index=True
     )
+    incident_id: uuid.UUID | None = Field(
+        default=None,
+        foreign_key="incident.id",
+        ondelete="CASCADE",
+        index=True,
+        description="這次送件是哪個事件；理賠頁依它顯示送件結果與 Gmail 連結。加這欄之前的紀錄是空的",
+    )
     status: str = Field(
         default="pending",
         description="pending（寄出或建立草稿失敗，不結案）／drafted（建了 Gmail 草稿，結案）／sent（寄出，結案）／self_submitted（使用者表示自己處理，結案）",
@@ -346,7 +381,8 @@ class PolicySubmission(BaseTable, table=True):
     gmail_refs: list[dict[str, Any]] | None = Field(
         default=None,
         sa_column=Column(JSON(none_as_null=True), nullable=True),
-        description="每封信一筆 {index, draft_id, message_id}，依第幾封排序；只存 id",
+        description="每封信一筆 {index, draft_id, message_id}，依第幾封排序；只存 id。"
+        "草稿的 message_id 是草稿裡那封信的編號（Gmail 網頁打開草稿要用它）",
     )
     detail: dict[str, Any] | None = Field(
         default=None,

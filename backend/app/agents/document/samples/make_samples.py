@@ -1,6 +1,7 @@
 """產生 /dev 文件辨識測試台的範例文件（只在開發者的 Mac 上跑，產出的 PDF 一起 commit）。
 
     cd backend && uv run python -m app.agents.document.samples.make_samples
+    cd backend && uv run python -m app.agents.document.samples.make_samples --medical  # 只重做醫療那幾份
 
 版面參考真實的航空公司文件與電子機票收據，資料全部是虛構的：旅客「陳怡君」、
 航空公司「福爾摩沙天空航空」都不存在，每頁底部都印「測試範例（資料虛構）」。
@@ -24,6 +25,8 @@ from fontTools.pens.cu2quPen import Cu2QuPen
 from fontTools.pens.ttGlyphPen import TTGlyphPen
 from fontTools.ttLib import TTFont, newTable
 from PIL import Image, ImageFilter
+
+from app.agents.document.samples.claim_medical import chubb_claim_form
 
 logger = logging.getLogger(__name__)
 
@@ -73,14 +76,14 @@ def _cff_to_truetype(tt: TTFont) -> None:
 
 
 @cache
-def font(path: str | Path) -> bytes:
+def font(path: str | Path, number: int = 0) -> bytes:
     """先裁成這支程式裡出現過的字（印出的字全寫在這裡），PDF 才不會超過 500 KB。
 
     存檔前再用 subset_fonts 裁成每份實際用到的字。手寫字型是 CFF，pymupdf 裁 CFF 會留下
     3 萬多個空字位、裁過再嵌入又會印成亂碼，所以先轉成 TrueType。
     """
     used = set(Path(__file__).read_text()) | {chr(c) for c in range(0x20, 0x7F)}
-    tt = TTFont(str(path), fontNumber=0)
+    tt = TTFont(str(path), fontNumber=number)
     sub = subset.Subsetter(subset.Options())
     sub.populate(text="".join(used))
     sub.subset(tt)
@@ -624,6 +627,400 @@ def ticket_locked(doc: pymupdf.Document) -> None:
     e_ticket(doc)
 
 
+# 日本行程 demo：旅客在東京吃壞肚子，到診所看門診（#233）。診所是虛構的。
+# 日本給外國旅客的單據多半是日英並列；日期用西曆（2026年7月8日），金額用円。
+# 字型用 macOS 內建的日文字型（凸版文久ゴシック）：同一個漢字，中文字型的字形一看就像中文。
+FONT_JA = next(
+    Path("/System/Library/AssetsV2").glob("**/ToppanBunkyuGothicPr6N.ttc"),
+    Path("ToppanBunkyuGothicPr6N.ttc"),
+)
+JA_BOLD, JA_REGULAR = 0, 1  # Demibold、Regular
+TEAL = (0.0, 0.42, 0.45)
+CLINIC_CORP = "医療法人社団 デモ会"
+CLINIC_JA = "東京デモ国際クリニック"
+CLINIC_EN = "TOKYO DEMO INTERNATIONAL CLINIC"
+CLINIC_LINES = (
+    "〒100-0000 東京都千代田区デモ町1-2-3",
+    "1-2-3 Demo-cho, Chiyoda-ku, Tokyo 100-0000, Japan",
+    "TEL 03-0000-0000　内科・小児科　Internal Medicine / Pediatrics",
+)
+
+
+class JaSheet(Sheet):
+    """日文單據：一般與粗體換成日文字型（欄位、印章、頁尾都跟著用）。"""
+
+    def __init__(self, doc: pymupdf.Document, width: float = 595, height: float = 842):
+        self.page = doc.new_page(width=width, height=height)
+        self.page.insert_font(fontname="L", fontbuffer=font(FONT_JA, JA_REGULAR))
+        self.page.insert_font(fontname="B", fontbuffer=font(FONT_JA, JA_BOLD))
+
+
+def clinic_header(s: Sheet, title_ja: str, title_en: str) -> None:
+    w = s.page.rect.width
+    s.box((0, 0, w, 6), fill=TEAL, color=None)
+    # 虛構診所的標誌：圓形裡一個十字
+    s.page.draw_circle((40, 44), 16, color=None, fill=TEAL)
+    s.page.draw_rect(pymupdf.Rect(37, 34, 43, 54), color=None, fill=(1, 1, 1))
+    s.page.draw_rect(pymupdf.Rect(30, 41, 50, 47), color=None, fill=(1, 1, 1))
+    s.text(64, 26, CLINIC_CORP, size=7.5, color=GRAY)
+    s.text(64, 42, CLINIC_JA, size=14, bold=True, color=TEAL)
+    s.text(64, 55, CLINIC_EN, size=8.5, bold=True, color=TEAL)
+    for i, line in enumerate(CLINIC_LINES):
+        s.text(64, 68 + i * 10, line, size=7, color=GRAY)
+    s.line(24, 106, w - 24, 106)
+    tw = len(title_ja) * 20 + (len(title_ja) - 1) * 10
+    # 日本的單據標題常把字距拉開（「診　断　書」）
+    s.text((w - tw) / 2, 136, "　".join(title_ja), size=20, bold=True)
+    ew = pymupdf.get_text_length(title_en, fontsize=10)
+    s.text((w - ew) / 2, 152, title_en, size=10, color=GRAY)
+
+
+def medical_certificate(doc: pymupdf.Document, with_diagnosis: bool) -> None:
+    """診断書（D13）：日英並列。with_diagnosis=False 拿掉病名那一列（不合格範例）。"""
+    s = JaSheet(doc)
+    clinic_header(s, "診断書", "MEDICAL CERTIFICATE")
+    s.text(40, 178, "No. MC-20260708-0153", size=8.5, color=GRAY)
+    items = [
+        ("氏名 / Name", "Patient name: CHEN YICHUN 様"),
+        ("生年月日 / Date of birth", "1992年3月14日生（34歳）"),
+        ("国籍 / Nationality", "台湾 Taiwan（旅行者）"),
+        ("受診日 / Date of visit", "受診日：2026年7月8日（水）"),
+    ]
+    if with_diagnosis:
+        items.append(("病名 / Diagnosis", "病名：急性胃腸炎（Acute gastroenteritis）"))
+    items += [
+        ("症状 / Symptoms", "嘔吐と下痢があり、軽い脱水がみられました"),
+        ("治療 / Treatment", "外来にて点滴を行い、内服薬を処方しました"),
+        ("備考 / Remarks", "約2日間の自宅安静を要するものと認めます"),
+    ]
+    y = rows(s, 40, 190, items)
+    s.text(40, y + 30, "上記のとおり診断いたします。", size=10.5)
+    s.text(
+        40,
+        y + 46,
+        "I hereby certify that the above is true and correct.",
+        size=8,
+        color=GRAY,
+    )
+    s.text(300, y + 84, "発行日：2026年7月8日", size=9.5)
+    s.text(300, y + 100, f"{CLINIC_CORP}　{CLINIC_JA}", size=9)
+    s.text(300, y + 120, "医師　Physician：", size=10)
+    s.page.insert_font(fontname="H", fontbuffer=font(FONT_HAND))
+    s.page.insert_text(
+        (400, y + 122), "デモ 太郎", fontname="H", fontsize=14, color=INK
+    )
+    s.stamp(500, y + 165, "DEMO", "東京", "2026.07.08")
+    s.footer()
+
+
+def medical_receipt(doc: pymupdf.Document, with_amount: bool) -> None:
+    """領収書（D14）：日英並列的自費診療收據。with_amount=False 拿掉所有金額（不合格範例）。"""
+    s = JaSheet(doc, 420, 595)
+    clinic_header(s, "領収書", "RECEIPT")
+    y = rows(
+        s,
+        20,
+        170,
+        [
+            ("Receipt No.", "領収書番号：R-20260708-0153"),
+            ("Patient", "Patient name: CHEN YICHUN 様"),
+            ("Date", "診療日：2026年7月8日（水）"),
+            ("Department", "診療科：内科（外来）"),
+            ("Payment", "区分：自費（保険外診療）"),
+        ],
+        w=380,
+    )
+    y += 26
+    s.text(24, y, "項目 Description", size=9, bold=True)
+    if with_amount:
+        s.text(320, y, "金額（円）", size=9, bold=True)
+    y += 8
+    s.line(20, y, 400, y)
+    y += 18
+    lines = (
+        ("初診料 First visit fee", "2,880"),
+        ("処置料（点滴）Treatment / IV", "3,200"),
+        ("投薬料 Medicine", "1,560"),
+        ("文書料（診断書）Medical certificate fee", "3,000"),
+    )
+    for item, price in lines:
+        s.text(24, y, item, size=9.5)
+        if with_amount:
+            s.text(340, y, price, size=9.5)
+        y += 20
+    s.line(20, y - 8, 400, y - 8)
+    if with_amount:
+        s.text(24, y + 10, "合計 Total：¥10,640", size=12, bold=True)
+        s.text(24, y + 28, "お支払い方法：クレジットカード（Credit card）", size=8.5)
+    s.text(24, y + 48, "上記の金額を正に領収いたしました。", size=9)
+    s.text(24, y + 62, "お大事になさってください。Get well soon.", size=8, color=GRAY)
+    s.stamp(340, y + 100, "DEMO", "領収", "2026.07.08")
+    s.footer()
+
+
+# 證件影本（D24）：欄位、用語與排列照台灣護照資料頁、國民身分證，做成黑白影本的樣子。
+# 刻意不畫國徽、底紋、照片等防偽設計（不做成可以拿去偽造的模板）；資料全部虛構，
+# 機讀碼的檢查碼也沒有照規則算。
+COPY_GRAY = (0.93, 0.93, 0.93)
+CLAIM_ONLY = "僅供申請旅遊保險理賠使用"
+
+
+def _photo_placeholder(s: Sheet, x: float, y: float, w: float, h: float) -> None:
+    s.box((x, y, x + w, y + h), fill=(0.82, 0.82, 0.82), color=GRAY)
+    s.text(x + w / 2 - 14, y + h / 2 + 4, "（照片）", size=9, color=GRAY)
+
+
+def _field(s: Sheet, x: float, y: float, label: str, value: str) -> None:
+    """證件上的欄位：小字欄名在上、值在下（整行寫入，去識別化才認得到標籤）。"""
+    s.text(x, y, label, size=6.5, color=GRAY)
+    s.text(x, y + 13, value, size=10, bold=True)
+
+
+def _claim_only_stamp(s: Sheet, x: float, y: float) -> None:
+    """影本上手寫的「僅供理賠使用」，斜斜地壓在證件上（台灣常見的影本註記）。"""
+    s.page.insert_font(fontname="H", fontbuffer=font(FONT_HAND))
+    s.page.insert_text(
+        (x, y),
+        CLAIM_ONLY,
+        fontname="H",
+        fontsize=20,
+        color=INK,
+        morph=(pymupdf.Point(x, y), pymupdf.Matrix(-12)),
+    )
+
+
+def passport_copy(doc: pymupdf.Document) -> None:
+    """台灣護照資料頁的影本。"""
+    s = Sheet(doc)
+    s.text(40, 50, "護照資料頁影本", size=12, bold=True)
+    x0, y0, w, h = 40, 64, 515, 330
+    s.box((x0, y0, x0 + w, y0 + h), fill=COPY_GRAY, color=GRAY)
+    s.text(x0 + 16, y0 + 24, "中華民國", size=13, bold=True)
+    s.text(x0 + 82, y0 + 24, "REPUBLIC OF CHINA", size=10, bold=True)
+    s.text(x0 + 340, y0 + 24, "護照　PASSPORT", size=12, bold=True)
+    _photo_placeholder(s, x0 + 16, y0 + 44, 110, 140)
+    fx, fy = x0 + 146, y0 + 50
+    _field(s, fx, fy, "型式 / Type", "P")
+    _field(s, fx + 90, fy, "國碼 / Code", "TWN")
+    _field(s, fx + 190, fy, "護照號碼 / Passport No.", "X00000000")
+    _field(s, fx, fy + 36, "姓名 / Name", "Name: CHEN, YI-CHUN")
+    s.text(fx + 190, fy + 49, "中文姓名：陳怡君", size=10, bold=True)
+    _field(s, fx, fy + 72, "國籍 / Nationality", "REPUBLIC OF CHINA")
+    _field(s, fx, fy + 108, "出生日期 / Date of birth", "14 MAR 1992")
+    _field(s, fx + 190, fy + 108, "身分證統一編號 / Personal Id. No.", "A223456789")
+    _field(s, fx, fy + 144, "性別 / Sex", "F")
+    _field(s, fx + 90, fy + 144, "出生地 / Place of birth", "TAIWAN")
+    _field(s, fx, fy + 180, "發照日期 / Date of issue", "01 JAN 2021")
+    _field(s, fx + 190, fy + 180, "效期截止日期 / Date of expiry", "01 JAN 2031")
+    _field(s, x0 + 16, fy + 180, "發照機關 / Authority", "外交部")
+    for i, mrz in enumerate(
+        (
+            "P<TWNCHEN<<YI<CHUN<<<<<<<<<<<<<<<<<<<<<<<<<<",
+            "X000000000TWN9203140F3101011A223456789<<<<00",
+        )
+    ):
+        s.page.insert_text(
+            (x0 + 22, y0 + h - 34 + i * 18),
+            mrz,
+            fontname="cour",
+            fontsize=11,
+            color=(0, 0, 0),
+        )
+    _claim_only_stamp(s, x0 + 150, y0 + 200)
+    s.footer()
+
+
+POLICY_BLANK = HERE / "chubb_policy_blank.pdf"
+# 真實保單的投保須知、個資告知與附的條款 6 頁（原第 2、5～11 頁，沒有個人資料），原樣放在承保內容後面；
+# 字型是嵌好的，不要再裁（會變亂碼），所以這兩個檔案超過 500KB，pre-commit 與測試都已放行
+POLICY_ATTACHMENTS = HERE / "chubb_policy_attachments.pdf"
+
+
+def travel_policy(doc: pymupdf.Document) -> None:
+    """保險單（D25）：安達網路投保的「旅行平安綜合保險保險單」進階型，填上 demo 的虛構資料（日本）。
+
+    底稿是組員提供的真實保單第 3 頁，產生 chubb_policy_blank.pdf 時已把原本的姓名、
+    保單號碼、保險期間、旅遊地區、保費與列印時間整段移除（不是蓋上白色方塊），
+    出生日期與身分證字號原本就塗黑；這裡只把虛構資料寫回同樣的位置。
+    """
+    # 自己畫的頁面先放在 own 裁字型；附件頁的字型原本就是裁好嵌進去的，再裁一次會變亂碼，
+    # 所以最後才照順序接在一起（main 對這份不再呼叫 subset_fonts）
+    own = pymupdf.open()
+    _policy_cover_page(own)
+    own.insert_pdf(pymupdf.open(POLICY_BLANK))
+    page = own[-1]
+    page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
+    for x, y, text in (
+        (57.7, 87.5, "保單號碼：ECITWAA0000153"),
+        (57.7, 99.5, "要保人： 陳怡君"),
+        (
+            57.7,
+            111.6,
+            "保險期間：自05-Jul-2026 00時00分至11-Jul-2026 24時00分止， 共7天",
+        ),
+        (57.7, 123.6, "被保險人： 陳怡君 等1人"),
+        (57.7, 135.8, "旅遊地區：日本"),
+        (468.3, 135.8, "總保險費：NT$658"),
+        (57.7, 319.8, "陳怡君 等1 人"),
+    ):
+        page.insert_text((x, y), text, fontname="L", fontsize=10)
+    page.insert_text(
+        (407.9, 508.0),
+        "列印時間: 01/07/2026 21:12:05(第1次列印)",
+        fontname="L",
+        fontsize=7,
+    )
+    page.insert_text(
+        (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
+    )
+    _policy_advanced_page(own)
+    _policy_receipt_page(own)
+    own.subset_fonts()
+    attachments = pymupdf.open(POLICY_ATTACHMENTS)
+    doc.insert_pdf(own, from_page=0, to_page=0)  # 封面
+    doc.insert_pdf(attachments, from_page=0, to_page=0)  # 旅遊保險網路投保投保人須知
+    doc.insert_pdf(own, from_page=1)  # 承保內容、進階型續頁、保險費收據
+    doc.insert_pdf(attachments, from_page=1)  # 個資告知與附的條款 6 頁
+
+
+# 進階型多出來的商品（CHUBB05～08）與保障內容，金額同方案資料（保額 200 萬）
+ADVANCED_ROWS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    (
+        "安達產物個人海外旅行不便保險(C)",
+        (
+            ("旅程取消保險(實支實付)", "80,000元"),
+            ("旅程更改保險(實支實付)", "80,000元"),
+            ("班機延誤保險(定額給付-累進式)", "6,000元"),
+            ("行李延誤保險(定額給付)", "6,000元"),
+            ("行李損失保險(定額給付)", "6,000元"),
+            ("旅行文件損失保險(定額給付)", "3,000元"),
+        ),
+    ),
+    (
+        "安達產物個人海外旅行綜合保險",
+        (
+            ("班機改降補償保險", "5,000元"),
+            ("劫機補償保險", "5,000元"),
+            ("第三人責任保險(無自負額)", "5,000,000元"),
+            ("旅行期間居家竊盜保險", "60,000元"),
+            ("現金竊盜損失保險", "3,000元"),
+            ("信用卡盜用損失保險", "30,000元"),
+            ("等待返國住宿費用保險", "5,000元"),
+            ("旅行期間居家火災臨時住宿補償保險", "10,000元"),
+            ("行動電話被竊損失保險", "2,000元"),
+        ),
+    ),
+    (
+        "安達產物個人海外旅行不便保險旅程取消費用傳染病及檢疫給付附加條款",
+        (("旅程取消保險(法定傳染病)", "80,000元"),),
+    ),
+    (
+        "安達產物個人海外旅行不便保險旅程更改費用傳染病及檢疫給付附加條款",
+        (("旅程更改保險(法定傳染病)", "80,000元"),),
+    ),
+)
+
+
+def _policy_advanced_page(doc: pymupdf.Document) -> None:
+    """保險單第 2 頁：進階型加上的不便險與綜合險商品。商品名稱逐字用條款庫的全名，方案才比對得到進階型。"""
+    page = doc.new_page()
+    page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
+    page.insert_text(
+        (57.7, 60), "旅行平安綜合保險保險單（續）", fontname="L", fontsize=12
+    )
+    page.insert_text((57.7, 78), "保單號碼：ECITWAA0000153", fontname="L", fontsize=10)
+    y = 104.0
+    for product, rows in ADVANCED_ROWS:
+        page.insert_text((57.7, y), product, fontname="L", fontsize=9.5)
+        y += 14
+        for name, amount in rows:
+            page.insert_text((72, y), name, fontname="L", fontsize=9)
+            page.insert_text((440, y), amount, fontname="L", fontsize=9)
+            y += 13
+        y += 8
+    page.insert_text((57.7, y + 4), "(以下空白)", fontname="L", fontsize=9)
+    page.insert_text(
+        (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
+    )
+
+
+def _policy_cover_page(doc: pymupdf.Document) -> None:
+    """保險單封面：收件地址、保單號碼與標題（真實保單的第 1 頁版面，資料虛構）。"""
+    page = doc.new_page()
+    page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
+    for y, text in (
+        (96, "100"),
+        (108, "臺北市示範區"),
+        (120, "陳怡君"),
+        (132, "保單號碼：ECITWAA0000153"),
+        (144, "郵寄方式：TravelForm:Epolicy"),
+    ):
+        page.insert_text((228, y), text, fontname="L", fontsize=8.5)
+    page.insert_text((24, 170), "-" * 150, fontname="L", fontsize=5, color=GRAY)
+    page.insert_text(
+        (75, 205), "安達產物保險旅行平安綜合保險保險單", fontname="L", fontsize=20
+    )
+    page.insert_text(
+        (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
+    )
+
+
+def _policy_receipt_page(doc: pymupdf.Document) -> None:
+    """保險費收據正本（真實保單的第 4 頁）：保單號碼、被保險人、期間與總保費，沒有印章。"""
+    page = doc.new_page()
+    page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
+    page.insert_text((300, 52), "Series No : ECITWAA0000153", fontname="L", fontsize=8)
+    page.insert_text((300, 64), "Date : 01 Jul 2026", fontname="L", fontsize=8)
+    page.insert_text((57.7, 52), "CHUBB　保險費收據正本", fontname="L", fontsize=11)
+    for y, label, value in (
+        (92, "保單號碼", "ECITWAA0000153"),
+        (112, "被保險人", "陳怡君 等1 人"),
+        (132, "保險期間", "05-Jul-2026 00時00分至11-Jul-2026 24時00分止，共7天"),
+        (152, "繳款人", "陳怡君"),
+        (172, "總保費", "NT$658.-"),
+    ):
+        page.insert_text((57.7, y), label, fontname="L", fontsize=9)
+        page.insert_text((150, y), value, fontname="L", fontsize=9)
+    page.insert_text(
+        (57.7, 210),
+        "茲收到上開保險費無誤，並經本公司或代收機構於收款人處蓋章為憑。",
+        fontname="L",
+        fontsize=8,
+    )
+    page.insert_text(
+        (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
+    )
+
+
+def id_card_copy(doc: pymupdf.Document) -> None:
+    """國民身分證正反面影本（同一頁，上正下反）。"""
+    s = Sheet(doc)
+    s.text(40, 50, "國民身分證正反面影本", size=12, bold=True)
+    # 正面
+    x0, y0, w, h = 110, 66, 375, 236
+    s.box((x0, y0, x0 + w, y0 + h), fill=COPY_GRAY, color=GRAY)
+    s.text(x0 + 70, y0 + 28, "中華民國國民身分證", size=15, bold=True)
+    s.text(x0 + 18, y0 + 66, "姓名 陳怡君", size=13, bold=True)
+    s.text(x0 + 18, y0 + 100, "出生 民國 81 年 3 月 14 日", size=10)
+    s.text(x0 + 18, y0 + 126, "性別 女", size=10)
+    s.text(x0 + 18, y0 + 152, "發證日期 民國 110 年 7 月 1 日（北市）換發", size=9)
+    s.text(x0 + 18, y0 + 196, "統一編號 A223456789", size=12, bold=True)
+    _photo_placeholder(s, x0 + 262, y0 + 46, 94, 120)
+    _claim_only_stamp(s, x0 + 40, y0 + 150)
+    # 反面
+    y1 = y0 + h + 30
+    s.box((x0, y1, x0 + w, y1 + h), fill=COPY_GRAY, color=GRAY)
+    s.text(x0 + 18, y1 + 34, "父 陳○○　　母 林○○", size=10)
+    s.text(x0 + 18, y1 + 62, "配偶", size=10)
+    s.text(x0 + 18, y1 + 90, "役別", size=10)
+    s.text(x0 + 18, y1 + 118, "出生地 臺灣省臺北市", size=10)
+    s.text(x0 + 18, y1 + 146, "住址 臺北市示範區示範路一段 1 號 5 樓", size=10)
+    s.barcode(x0 + 18, y1 + 176, 220, 30, seed=81)
+    s.text(x0 + 250, y1 + 200, "0000000000", size=8, color=GRAY)
+    _claim_only_stamp(s, x0 + 40, y1 + 130)
+    s.footer()
+
+
 SAMPLE_FILES = {
     "delay": lambda d: delay_certificate(d, with_times=True),
     "delay_missing": lambda d: delay_certificate(d, with_times=False),
@@ -635,8 +1032,20 @@ SAMPLE_FILES = {
     "baggage_delay": baggage_delay,
     "ticket_boarding": ticket_boarding,
     "ticket_locked": ticket_locked,
+    "med_certificate": lambda d: medical_certificate(d, with_diagnosis=True),
+    "med_certificate_no_diagnosis": lambda d: medical_certificate(
+        d, with_diagnosis=False
+    ),
+    "med_receipt": lambda d: medical_receipt(d, with_amount=True),
+    "med_receipt_no_amount": lambda d: medical_receipt(d, with_amount=False),
+    "med_passport_copy": passport_copy,
+    "med_claim_form": chubb_claim_form,
+    "med_id_card_copy": id_card_copy,
+    "med_policy": travel_policy,
 }
 LOCKED = {"ticket_locked"}
+NO_SUBSET = {"med_policy"}  # 附件頁的字型已經裁好，travel_policy 自己處理
+MEDICAL = [name for name in SAMPLE_FILES if name.startswith("med_")]
 
 
 # 從 delay.pdf 刪掉幾行做出的延誤證明（不用字型，任何電腦都能重做）：檔名 → 要刪掉的文字
@@ -766,22 +1175,33 @@ PHOTO_FILES = {
     "photo_claim_form": lambda: noisy(
         shadow(on_table(_page_image("claim_form", dpi=200), tilt=0.04), 0.3), 24
     ),
+    # 手機拍診所收據：斜拍＋陰影，字還清楚（東京診所，醫療 demo）
+    "photo_med_receipt": lambda: noisy(
+        shadow(on_table(_page_image("med_receipt"), tilt=0.05), 0.35), 25
+    ),
 }
+PHOTO_MEDICAL = ["photo_med_receipt"]
 
 
-def make_photos() -> None:
+def make_photos(names: list[str] | None = None) -> None:
     for name, build in PHOTO_FILES.items():
+        if names is not None and name not in names:
+            continue
         out = HERE / f"{name}.jpg"
         save_jpg(build(), out)
         logger.info("%s：%d KB", out.name, out.stat().st_size // 1024)
 
 
-def main() -> None:
+def main(only_medical: bool = False) -> None:
+    """產生全部範例；only_medical 只重做醫療那幾份，其他已 commit 的檔案不動。"""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     for name, build in SAMPLE_FILES.items():
+        if only_medical and name not in MEDICAL:
+            continue
         doc = pymupdf.open()
         build(doc)
-        doc.subset_fonts()  # 再裁成這一份實際用到的字
+        if name not in NO_SUBSET:
+            doc.subset_fonts()  # 再裁成這一份實際用到的字
         out = HERE / f"{name}.pdf"
         if name in LOCKED:
             doc.save(
@@ -795,9 +1215,14 @@ def main() -> None:
         else:
             doc.save(out, garbage=4, deflate=True)
         logger.info("%s：%d KB", out.name, out.stat().st_size // 1024)
+    if only_medical:
+        make_photos(PHOTO_MEDICAL)
+        return
     make_redacted()
     make_photos()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+
+    main(only_medical="--medical" in sys.argv)

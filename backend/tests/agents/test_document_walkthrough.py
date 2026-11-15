@@ -52,7 +52,7 @@ async def test_delay_certificate_walks_through_every_step(client: AsyncClient) -
     ]
     assert set(_states(body).values()) == {"ok"}
     assert body["saved_path"] == (
-        "好險有你 理賠文件/日本 2026-07-05～07-10/班機延誤 2026-07-10/"
+        "好險有你 理賠文件/日本 2026-07-05～07-11/班機延誤 2026-07-10/"
         "班機延誤_航空公司開立班機延誤／取消證明_1.pdf"
     )
     assert "小明" not in res.text  # 只回傳遮過的文字
@@ -143,6 +143,16 @@ async def test_every_sample_can_be_downloaded_and_walked(
         "photo_delay_glare": "needs_review",
         "photo_ticket_blurry": "needs_review",
         "photo_claim_form": "needs_review",
+        # 泰國醫療 demo：事件換成「生病或受傷就醫」（scenario=medical）
+        "med_certificate": "recognized",
+        "med_receipt": "recognized",
+        "med_certificate_no_diagnosis": "incomplete",  # 沒寫病名：不合格
+        "med_receipt_no_amount": "incomplete",  # 沒寫金額：不合格
+        "photo_med_receipt": "needs_review",
+        "med_passport_copy": "recognized",  # 受益人身分證明（D24）
+        "med_id_card_copy": "recognized",  # 受益人身分證明（D24）
+        "med_policy": "recognized",  # 保險單（D25）
+        "med_claim_form": "recognized",  # 安達申請書，醫療版（D10）
     }
     assert {s["name"] for s in samples} == set(expected)
     for s in samples:
@@ -150,10 +160,18 @@ async def test_every_sample_can_be_downloaded_and_walked(
         photo = s["name"].startswith("photo_")
         kind = "image/jpeg" if photo else "application/pdf"
         assert got.headers["content-type"] == kind
-        assert len(got.content) < 500 * 1024  # pre-commit 擋大檔
+        if (
+            s["name"] != "med_policy"
+        ):  # 假保單附真實條款，字型不能再裁，放行（.pre-commit-config.yaml）
+            assert len(got.content) < 500 * 1024  # pre-commit 擋大檔
         name = f"{s['name']}.{'jpg' if photo else 'pdf'}"
+        scenario = "medical" if "med_" in s["name"] else "flight_delay"
         body = (
-            await client.post(URL, files={"file": (name, got.content, kind)})
+            await client.post(
+                URL,
+                files={"file": (name, got.content, kind)},
+                data={"scenario": scenario},
+            )
         ).json()
         if photo:
             assert {st["key"]: st["state"] for st in body["steps"]}["read"] == "warn"
@@ -277,7 +295,7 @@ async def test_real_drive_saves_to_the_users_drive(
     assert body["drive_file_url"] == "https://drive.google.com/file/d/drive-file-1/view"
     # 平台的理賠資料夾底下建「行程（測試台）→ 事故」兩層
     assert body["saved_path"] == (
-        "好險有你 理賠文件/日本（測試台） 2026-07-05～07-10/班機延誤 2026-07-10/"
+        "好險有你 理賠文件/日本（測試台） 2026-07-05～07-11/班機延誤 2026-07-10/"
         "班機延誤_航空公司開立班機延誤／取消證明_1.pdf"
     )
     created = [

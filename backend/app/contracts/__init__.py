@@ -21,6 +21,7 @@ from app.contracts.common import (
     PolicySummary,
     RuleRef,
     TodoView,
+    TripContext,
     UserContext,
 )
 from app.contracts.document_agent import (
@@ -29,6 +30,10 @@ from app.contracts.document_agent import (
     DocumentRecognizer,
     DocumentRenamer,
     Recognition,
+    TripDocumentDiscarder,
+    TripDocumentRechecker,
+    TripDocumentRecognizer,
+    TripDocumentRenamer,
     UploadedFile,
 )
 from app.contracts.incident_agent import (
@@ -44,8 +49,15 @@ from app.contracts.package_agent import (
     AttachmentRef,
     ClaimPackage,
     ClaimPackager,
+    PackageAction,
+    PackageActionResult,
+    PackagePreparation,
+    PackageReminder,
     SendMode,
     SendResult,
+    TripClaimPackager,
+    TripClaimPreparer,
+    TripPackageFixer,
     UnavailableAttachment,
 )
 
@@ -82,6 +94,18 @@ __all__ = [
     "TodoProposal",
     "UnavailableAttachment",
     "TodoView",
+    "TripClaimPackager",
+    "TripClaimPreparer",
+    "TripPackageFixer",
+    "PackageAction",
+    "PackageActionResult",
+    "PackagePreparation",
+    "PackageReminder",
+    "TripContext",
+    "TripDocumentDiscarder",
+    "TripDocumentRechecker",
+    "TripDocumentRecognizer",
+    "TripDocumentRenamer",
     "UploadedFile",
     "UserContext",
 ]

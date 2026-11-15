@@ -26,6 +26,7 @@
 import logging
 import statistics
 from collections.abc import Awaitable, Callable
+from datetime import date
 from enum import Enum
 from typing import Literal
 
@@ -77,7 +78,7 @@ OCR_DOWN = "文件辨識服務暫時無法使用，請稍後再上傳"
 NO_TEXT = "讀不到文件上的文字，請拍清楚整份文件再上傳"
 BLURRY = "照片看不清楚，請在光線充足處把整份文件拍清楚再上傳"
 UNKNOWN_KIND = "無法判斷文件種類，請選擇這份文件對應的待辦"
-AMBIGUOUS_KIND = "這份文件看起來像好幾種文件，請選擇對應的待辦"
+AMBIGUOUS_KIND = "無法辨識文件種類，請選擇對應的待辦"
 NOT_A_CLAIM_DOCUMENT = "看不出這是哪一種理賠文件，不屬於這個行程的任何待辦；如果是理賠文件，請拍清楚整份文件再上傳"
 NOT_IN_TODOS = "這份文件不屬於這個行程的任何待辦，不需要上傳"
 MANY_TODOS = "這份文件對到好幾項待辦，請選擇是哪一項"
@@ -202,7 +203,7 @@ class DocumentAgent:
             )
         todo = todos[0]
 
-        problem = check(kind.code, read, self.rules, self.threshold)
+        problem = check(kind.code, read, self.rules, self.threshold, policy_period(ctx))
         reminder = None
         if problem is not None and problem.severity == "remind":
             reminder, problem = problem.reason, None
@@ -491,7 +492,9 @@ class DocumentAgent:
         found: list[str] = []
         reminder = None
         if read is not None and kind is not None:
-            problem = check(kind.code, read, self.rules, self.threshold)
+            problem = check(
+                kind.code, read, self.rules, self.threshold, policy_period(ctx)
+            )
             if problem is not None and problem.severity == "remind":
                 reminder, problem = problem.reason, None
             if problem is not None and problem.severity in ("incomplete", "failed"):
@@ -658,3 +661,11 @@ def create_document_agent(
         threshold=settings.DOCUMENT_FIELD_CONFIDENCE,
         dev_token=dev_token,
     )
+
+
+def policy_period(ctx: IncidentContext) -> tuple[date, date] | None:
+    """保單的保險期間（合格規範判斷日期用）；沒有保單資料時不判斷。"""
+    start, end = ctx.policy.start_date, ctx.policy.end_date
+    if start is None or end is None:
+        return None
+    return start, end

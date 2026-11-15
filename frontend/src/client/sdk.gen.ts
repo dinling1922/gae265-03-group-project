@@ -2,7 +2,7 @@
 
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client';
 import { client } from './client.gen';
-import type { ApproveIngestJobData, ApproveIngestJobErrors, ApproveIngestJobResponses, AskComparisonQuestionData, AskComparisonQuestionErrors, AskComparisonQuestionResponses, AuthConfigData, AuthConfigResponses, AuthLogoutData, AuthLogoutResponses, AuthMeData, AuthMeResponses, CheckBundleData, CheckBundleErrors, CheckBundleResponses, ConfirmBundleData, ConfirmBundleErrors, ConfirmBundleResponses, ConfirmIncidentDocumentData, ConfirmIncidentDocumentErrors, ConfirmIncidentDocumentResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateIncidentData, CreateIncidentErrors, CreateIncidentResponses, CreateIngestJobData, CreateIngestJobErrors, CreateIngestJobResponses, CreatePlanConversationData, CreatePlanConversationErrors, CreatePlanConversationResponses, CreatePolicyConversationData, CreatePolicyConversationErrors, CreatePolicyConversationResponses, CreatePolicyData, CreatePolicyErrors, CreatePolicyManualData, CreatePolicyManualErrors, CreatePolicyManualResponses, CreatePolicyResponses, CreateSamplePolicyData, CreateSamplePolicyResponses, DeleteAdminInsuranceData, DeleteAdminInsuranceErrors, DeleteAdminInsuranceResponses, DeleteAdminRuleData, DeleteAdminRuleErrors, DeleteAdminRuleResponses, DeleteExcludedData, DeleteExcludedErrors, DeleteExcludedResponses, DeletePendingArticleData, DeletePendingArticleErrors, DeletePendingArticleResponses, DevLoginData, DevLoginErrors, DevLoginResponses, DiscardPendingIncidentDocumentsData, DiscardPendingIncidentDocumentsErrors, DiscardPendingIncidentDocumentsResponses, EditAdminRuleData, EditAdminRuleErrors, EditAdminRuleResponses, EditPendingArticleData, EditPendingArticleErrors, EditPendingArticleResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetComparisonScenariosData, GetComparisonScenariosErrors, GetComparisonScenariosResponses, GetConversationMessagesData, GetConversationMessagesErrors, GetConversationMessagesResponses, GetDocumentDriveChoiceData, GetDocumentDriveChoiceResponses, GetDocumentSampleData, GetDocumentSampleErrors, GetDocumentSampleResponses, GetIncidentData, GetIncidentErrors, GetIncidentPackageData, GetIncidentPackageErrors, GetIncidentPackageResponses, GetIncidentResponses, GetIngestJobData, GetIngestJobErrors, GetIngestJobResponses, GetInsuranceRuleData, GetInsuranceRuleErrors, GetInsuranceRuleResponses, GetPlanPremiumOptionsData, GetPlanPremiumOptionsResponses, GetPolicyData, GetPolicyErrors, GetPolicyResponses, GoogleAuthorizeData, GoogleAuthorizeErrors, GoogleCallbackData, GoogleCallbackErrors, GoogleGrantStatusData, GoogleGrantStatusResponses, GoogleLoginData, GoogleLoginErrors, GoogleRevokeData, GoogleRevokeResponses, HealthData, HealthResponses, IngestBundleData, IngestBundleErrors, IngestBundleResponses, ListAdminRulesData, ListAdminRulesErrors, ListAdminRulesResponses, ListAllRulesData, ListAllRulesErrors, ListAllRulesResponses, ListBundlesData, ListBundlesResponses, ListClaimPackageSamplesData, ListClaimPackageSamplesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListConversationsData, ListConversationsResponses, ListDocumentSamplesData, ListDocumentSamplesResponses, ListExcludedData, ListExcludedErrors, ListExcludedResponses, ListIncidentsData, ListIncidentsErrors, ListIncidentsResponses, ListIngestJobsData, ListIngestJobsResponses, ListInsuranceRulesData, ListInsuranceRulesErrors, ListInsuranceRulesResponses, ListInsurancesData, ListInsurancesResponses, ListPlanBenefitsData, ListPlanBenefitsErrors, ListPlanBenefitsResponses, ListPlanPremiumsData, ListPlanPremiumsErrors, ListPlanPremiumsResponses, ListPlansData, ListPlansResponses, ListPlanSumInsuredOptionsData, ListPlanSumInsuredOptionsErrors, ListPlanSumInsuredOptionsResponses, ListPoliciesData, ListPoliciesResponses, ListRecentComparisonsData, ListRecentComparisonsErrors, ListRecentComparisonsResponses, PatchIncidentTodoData, PatchIncidentTodoErrors, PatchIncidentTodoResponses, QuotePlansData, QuotePlansErrors, QuotePlansResponses, RecheckIncidentDocumentData, RecheckIncidentDocumentErrors, RecheckIncidentDocumentResponses, RejectIncidentDocumentData, RejectIncidentDocumentErrors, RejectIncidentDocumentResponses, ReleasePendingArticleData, ReleasePendingArticleErrors, ReleasePendingArticleResponses, RestoreExcludedData, RestoreExcludedErrors, RestoreExcludedResponses, SearchInsuranceRulesData, SearchInsuranceRulesErrors, SearchInsuranceRulesResponses, SendConversationMessageData, SendConversationMessageErrors, SendConversationMessageResponses, SendIncidentMessageData, SendIncidentMessageErrors, SendIncidentMessageResponses, StreamIngestEventsData, StreamIngestEventsErrors, StreamIngestEventsResponses, SubmitIncidentData, SubmitIncidentErrors, SubmitIncidentResponses, UpdateBundleData, UpdateBundleErrors, UpdateBundleResponses, UpdateComparisonData, UpdateComparisonErrors, UpdateComparisonResponses, UpdatePolicyData, UpdatePolicyErrors, UpdatePolicyResponses, UploadIncidentDocumentData, UploadIncidentDocumentErrors, UploadIncidentDocumentResponses, WalkDocumentRecognitionData, WalkDocumentRecognitionErrors, WalkDocumentRecognitionResponses } from './types.gen';
+import type { ApplyPackageActionData, ApplyPackageActionErrors, ApplyPackageActionResponses, ApproveIngestJobData, ApproveIngestJobErrors, ApproveIngestJobResponses, AskComparisonQuestionData, AskComparisonQuestionErrors, AskComparisonQuestionResponses, AuthConfigData, AuthConfigResponses, AuthLogoutData, AuthLogoutResponses, AuthMeData, AuthMeResponses, CheckBundleData, CheckBundleErrors, CheckBundleResponses, CloseTripData, CloseTripErrors, CloseTripResponses, ConfirmBundleData, ConfirmBundleErrors, ConfirmBundleResponses, ConfirmIncidentData, ConfirmIncidentDocumentData, ConfirmIncidentDocumentErrors, ConfirmIncidentDocumentResponses, ConfirmIncidentErrors, ConfirmIncidentResponses, ConfirmTripDocumentData, ConfirmTripDocumentErrors, ConfirmTripDocumentResponses, CreateBundleData, CreateBundleErrors, CreateBundleResponses, CreateComparisonData, CreateComparisonErrors, CreateComparisonResponses, CreateIncidentData, CreateIncidentErrors, CreateIncidentResponses, CreateIngestJobData, CreateIngestJobErrors, CreateIngestJobResponses, CreatePlanConversationData, CreatePlanConversationErrors, CreatePlanConversationResponses, CreatePolicyConversationData, CreatePolicyConversationErrors, CreatePolicyConversationResponses, CreatePolicyData, CreatePolicyErrors, CreatePolicyManualData, CreatePolicyManualErrors, CreatePolicyManualResponses, CreatePolicyResponses, CreateSamplePolicyData, CreateSamplePolicyResponses, DeleteAdminInsuranceData, DeleteAdminInsuranceErrors, DeleteAdminInsuranceResponses, DeleteAdminRuleData, DeleteAdminRuleErrors, DeleteAdminRuleResponses, DeleteExcludedData, DeleteExcludedErrors, DeleteExcludedResponses, DeleteIncidentDocumentData, DeleteIncidentDocumentErrors, DeleteIncidentDocumentResponses, DeleteMyDataData, DeleteMyDataResponses, DeletePendingArticleData, DeletePendingArticleErrors, DeletePendingArticleResponses, DeletePolicyData, DeletePolicyErrors, DeletePolicyResponses, DeleteTripDocumentData, DeleteTripDocumentErrors, DeleteTripDocumentResponses, DevLoginData, DevLoginErrors, DevLoginResponses, DiscardPendingIncidentDocumentsData, DiscardPendingIncidentDocumentsErrors, DiscardPendingIncidentDocumentsResponses, DiscardPendingTripDocumentsData, DiscardPendingTripDocumentsErrors, DiscardPendingTripDocumentsResponses, EditAdminRuleData, EditAdminRuleErrors, EditAdminRuleResponses, EditPendingArticleData, EditPendingArticleErrors, EditPendingArticleResponses, GetBundleData, GetBundleErrors, GetBundleResponses, GetComparisonData, GetComparisonErrors, GetComparisonResponses, GetComparisonScenariosData, GetComparisonScenariosErrors, GetComparisonScenariosResponses, GetConversationMessagesData, GetConversationMessagesErrors, GetConversationMessagesResponses, GetDocumentDriveChoiceData, GetDocumentDriveChoiceResponses, GetDocumentSampleData, GetDocumentSampleErrors, GetDocumentSampleResponses, GetIncidentData, GetIncidentDriveFolderData, GetIncidentDriveFolderErrors, GetIncidentDriveFolderResponses, GetIncidentErrors, GetIncidentPackageData, GetIncidentPackageErrors, GetIncidentPackageResponses, GetIncidentResponses, GetIncidentSubmissionData, GetIncidentSubmissionErrors, GetIncidentSubmissionResponses, GetIngestJobData, GetIngestJobErrors, GetIngestJobResponses, GetInsuranceRuleData, GetInsuranceRuleErrors, GetInsuranceRuleResponses, GetPlanPremiumOptionsData, GetPlanPremiumOptionsResponses, GetPolicyData, GetPolicyErrors, GetPolicyResponses, GetTripData, GetTripDriveFolderData, GetTripDriveFolderErrors, GetTripDriveFolderResponses, GetTripErrors, GetTripPackageData, GetTripPackageErrors, GetTripPackageResponses, GetTripResponses, GetTripSubmissionData, GetTripSubmissionErrors, GetTripSubmissionResponses, GoogleAuthorizeData, GoogleAuthorizeErrors, GoogleCallbackData, GoogleCallbackErrors, GoogleGrantStatusData, GoogleGrantStatusResponses, GoogleLoginData, GoogleLoginErrors, GoogleRevokeData, GoogleRevokeResponses, HealthData, HealthResponses, IngestBundleData, IngestBundleErrors, IngestBundleResponses, ListAdminRulesData, ListAdminRulesErrors, ListAdminRulesResponses, ListAllRulesData, ListAllRulesErrors, ListAllRulesResponses, ListBundlesData, ListBundlesResponses, ListClaimPackageSamplesData, ListClaimPackageSamplesResponses, ListComparisonsData, ListComparisonsErrors, ListComparisonsResponses, ListConversationsData, ListConversationsResponses, ListDocumentSamplesData, ListDocumentSamplesResponses, ListExcludedData, ListExcludedErrors, ListExcludedResponses, ListIncidentsData, ListIncidentsErrors, ListIncidentsResponses, ListIngestJobsData, ListIngestJobsResponses, ListInsuranceRulesData, ListInsuranceRulesErrors, ListInsuranceRulesResponses, ListInsurancesData, ListInsurancesResponses, ListPlanBenefitsData, ListPlanBenefitsErrors, ListPlanBenefitsResponses, ListPlanPremiumsData, ListPlanPremiumsErrors, ListPlanPremiumsResponses, ListPlansData, ListPlansResponses, ListPlanSumInsuredOptionsData, ListPlanSumInsuredOptionsErrors, ListPlanSumInsuredOptionsResponses, ListPoliciesData, ListPoliciesResponses, ListRecentComparisonsData, ListRecentComparisonsErrors, ListRecentComparisonsResponses, ListTripsData, ListTripsErrors, ListTripsResponses, PatchIncidentTodoData, PatchIncidentTodoErrors, PatchIncidentTodoResponses, PatchTripTodoData, PatchTripTodoErrors, PatchTripTodoResponses, PrepareTripPackageData, PrepareTripPackageErrors, PrepareTripPackageResponses, QuotePlansData, QuotePlansErrors, QuotePlansResponses, RecheckIncidentDocumentData, RecheckIncidentDocumentErrors, RecheckIncidentDocumentResponses, RecheckTripDocumentData, RecheckTripDocumentErrors, RecheckTripDocumentResponses, RejectIncidentDocumentData, RejectIncidentDocumentErrors, RejectIncidentDocumentResponses, RejectTripDocumentData, RejectTripDocumentErrors, RejectTripDocumentResponses, ReleasePendingArticleData, ReleasePendingArticleErrors, ReleasePendingArticleResponses, RestoreExcludedData, RestoreExcludedErrors, RestoreExcludedResponses, SearchInsuranceRulesData, SearchInsuranceRulesErrors, SearchInsuranceRulesResponses, SendConversationMessageData, SendConversationMessageErrors, SendConversationMessageResponses, SendIncidentMessageData, SendIncidentMessageErrors, SendIncidentMessageResponses, StreamIngestEventsData, StreamIngestEventsErrors, StreamIngestEventsResponses, SubmitIncidentData, SubmitIncidentErrors, SubmitIncidentResponses, SubmitTripData, SubmitTripErrors, SubmitTripResponses, UpdateBundleData, UpdateBundleErrors, UpdateBundleResponses, UpdateComparisonData, UpdateComparisonErrors, UpdateComparisonResponses, UpdatePolicyData, UpdatePolicyErrors, UpdatePolicyResponses, UploadIncidentDocumentData, UploadIncidentDocumentErrors, UploadIncidentDocumentResponses, UploadTripDocumentData, UploadTripDocumentErrors, UploadTripDocumentResponses, WalkDocumentRecognitionData, WalkDocumentRecognitionErrors, WalkDocumentRecognitionResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -185,6 +185,16 @@ export const createPolicyManual = <ThrowOnError extends boolean = false>(options
 });
 
 /**
+ * Delete Policy
+ *
+ * 刪除單份保單，連帶它的對話、事件、待辦、文件紀錄與送件紀錄（資料庫外鍵 CASCADE，ADR-0009）。
+ *
+ * 已存進使用者自己 Google Drive 的文件與已建立的 Gmail 草稿不動（ADR-0021），那些在使用者的帳號裡。
+ * 別人的保單跟不存在一樣回 404。
+ */
+export const deletePolicy = <ThrowOnError extends boolean = false>(options: Options<DeletePolicyData, ThrowOnError>): RequestResult<DeletePolicyResponses, DeletePolicyErrors, ThrowOnError> => (options.client ?? client).delete<DeletePolicyResponses, DeletePolicyErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}', ...options });
+
+/**
  * Get Policy
  */
 export const getPolicy = <ThrowOnError extends boolean = false>(options: Options<GetPolicyData, ThrowOnError>): RequestResult<GetPolicyResponses, GetPolicyErrors, ThrowOnError> => (options.client ?? client).get<GetPolicyResponses, GetPolicyErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}', ...options });
@@ -213,6 +223,19 @@ export const updatePolicy = <ThrowOnError extends boolean = false>(options: Opti
  * 選這份保單發問：建立對話，險種是方案的險種加上加購的。理賠待辦清單也綁在這個對話上。
  */
 export const createPolicyConversation = <ThrowOnError extends boolean = false>(options: Options<CreatePolicyConversationData, ThrowOnError>): RequestResult<CreatePolicyConversationResponses, CreatePolicyConversationErrors, ThrowOnError> => (options.client ?? client).post<CreatePolicyConversationResponses, CreatePolicyConversationErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/conversations', ...options });
+
+/**
+ * Delete My Data
+ *
+ * 刪除這位使用者的所有資料：保單（連帶對話、訊息、事件、待辦、文件紀錄、送件紀錄）、
+ * 方案比較與 Google 授權。
+ *
+ * 保留 `user` 與登入身分 `identity`：使用者仍可登入，只是回到沒有資料的狀態；
+ * 要連帳號都不留，是另一個決定（目前沒有需求）。
+ * Google 授權先請 Google 撤銷 refresh token 再刪紀錄；已存進使用者自己 Drive 的文件與
+ * Gmail 草稿不動（ADR-0021），使用者可以自己在 Drive 與 Gmail 刪除。
+ */
+export const deleteMyData = <ThrowOnError extends boolean = false>(options?: Options<DeleteMyDataData, ThrowOnError>): RequestResult<DeleteMyDataResponses, unknown, ThrowOnError> => (options?.client ?? client).delete<DeleteMyDataResponses, unknown, ThrowOnError>({ url: '/api/v1/me/data', ...options });
 
 /**
  * List Comparisons
@@ -337,6 +360,15 @@ export const createIncident = <ThrowOnError extends boolean = false>(options: Op
 export const listIncidents = <ThrowOnError extends boolean = false>(options?: Options<ListIncidentsData, ThrowOnError>): RequestResult<ListIncidentsResponses, ListIncidentsErrors, ThrowOnError> => (options?.client ?? client).get<ListIncidentsResponses, ListIncidentsErrors, ThrowOnError>({ url: '/api/v1/incidents', ...options });
 
 /**
+ * Confirm Incident
+ *
+ * 使用者在「確認目前的狀況」彈窗按確認（#345）：事件進行程，共同待辦這時才建立。
+ *
+ * 只有「等確認」的事件能確認；已經確認的回 409，還在問的也回 409。
+ */
+export const confirmIncident = <ThrowOnError extends boolean = false>(options: Options<ConfirmIncidentData, ThrowOnError>): RequestResult<ConfirmIncidentResponses, ConfirmIncidentErrors, ThrowOnError> => (options.client ?? client).post<ConfirmIncidentResponses, ConfirmIncidentErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}/confirm', ...options });
+
+/**
  * Get Incident
  */
 export const getIncident = <ThrowOnError extends boolean = false>(options: Options<GetIncidentData, ThrowOnError>): RequestResult<GetIncidentResponses, GetIncidentErrors, ThrowOnError> => (options.client ?? client).get<GetIncidentResponses, GetIncidentErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}', ...options });
@@ -430,6 +462,16 @@ export const recheckIncidentDocument = <ThrowOnError extends boolean = false>(op
 export const rejectIncidentDocument = <ThrowOnError extends boolean = false>(options: Options<RejectIncidentDocumentData, ThrowOnError>): RequestResult<RejectIncidentDocumentResponses, RejectIncidentDocumentErrors, ThrowOnError> => (options.client ?? client).post<RejectIncidentDocumentResponses, RejectIncidentDocumentErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}/documents/{document_id}/reject', ...options });
 
 /**
+ * Delete Incident Document
+ *
+ * 使用者刪掉一份已上傳的文件（上傳錯檔、多傳了；契約 v2.17）：雲端的檔案與資料庫的紀錄都拿掉。
+ *
+ * 任何辨識結果的文件都能刪。靠這份文件完成、又沒有別份附件的待辦退回「待上傳」。
+ * 事件結案後不能刪（409）；刪整個事件不在這裡。
+ */
+export const deleteIncidentDocument = <ThrowOnError extends boolean = false>(options: Options<DeleteIncidentDocumentData, ThrowOnError>): RequestResult<DeleteIncidentDocumentResponses, DeleteIncidentDocumentErrors, ThrowOnError> => (options.client ?? client).delete<DeleteIncidentDocumentResponses, DeleteIncidentDocumentErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}/documents/{document_id}', ...options });
+
+/**
  * Discard Pending Incident Documents
  *
  * 打開行程時清掉上次沒選就離開的「需要你確認」文件（規格 v3.7 第 3 點：沒選就離開，檔案不保存）。
@@ -453,6 +495,20 @@ export const discardPendingIncidentDocuments = <ThrowOnError extends boolean = f
 export const getIncidentPackage = <ThrowOnError extends boolean = false>(options: Options<GetIncidentPackageData, ThrowOnError>): RequestResult<GetIncidentPackageResponses, GetIncidentPackageErrors, ThrowOnError> => (options.client ?? client).get<GetIncidentPackageResponses, GetIncidentPackageErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}/package', ...options });
 
 /**
+ * Get Incident Drive Folder
+ *
+ * 結案畫面「下載全部文件」：這個事件的文件在使用者 Drive 上的行程資料夾。結案後也能看。
+ */
+export const getIncidentDriveFolder = <ThrowOnError extends boolean = false>(options: Options<GetIncidentDriveFolderData, ThrowOnError>): RequestResult<GetIncidentDriveFolderResponses, GetIncidentDriveFolderErrors, ThrowOnError> => (options.client ?? client).get<GetIncidentDriveFolderResponses, GetIncidentDriveFolderErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}/drive-folder', ...options });
+
+/**
+ * Get Incident Submission
+ *
+ * 理賠頁與送件結果頁用：這個事件怎麼結案的，以及到 Gmail 查看的連結（不回信件內容）。
+ */
+export const getIncidentSubmission = <ThrowOnError extends boolean = false>(options: Options<GetIncidentSubmissionData, ThrowOnError>): RequestResult<GetIncidentSubmissionResponses, GetIncidentSubmissionErrors, ThrowOnError> => (options.client ?? client).get<GetIncidentSubmissionResponses, GetIncidentSubmissionErrors, ThrowOnError>({ url: '/api/v1/incidents/{incident_id}/submission', ...options });
+
+/**
  * Submit Incident
  *
  * 所有待辦都完成後送件（ADR-0025）：寄出、建立 Gmail 草稿，或使用者自己處理。
@@ -462,6 +518,181 @@ export const getIncidentPackage = <ThrowOnError extends boolean = false>(options
  */
 export const submitIncident = <ThrowOnError extends boolean = false>(options: Options<SubmitIncidentData, ThrowOnError>): RequestResult<SubmitIncidentResponses, SubmitIncidentErrors, ThrowOnError> => (options.client ?? client).post<SubmitIncidentResponses, SubmitIncidentErrors, ThrowOnError>({
     url: '/api/v1/incidents/{incident_id}/submission',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List Trips
+ *
+ * 我的行程：至少有一個事件的保單，依最後操作時間由新到舊。
+ */
+export const listTrips = <ThrowOnError extends boolean = false>(options?: Options<ListTripsData, ThrowOnError>): RequestResult<ListTripsResponses, ListTripsErrors, ThrowOnError> => (options?.client ?? client).get<ListTripsResponses, ListTripsErrors, ThrowOnError>({ url: '/api/v1/trips', ...options });
+
+/**
+ * Get Trip
+ *
+ * 行程頁：同一張保單的所有事件、共同文件、重大注意事項與結案方式。
+ */
+export const getTrip = <ThrowOnError extends boolean = false>(options: Options<GetTripData, ThrowOnError>): RequestResult<GetTripResponses, GetTripErrors, ThrowOnError> => (options.client ?? client).get<GetTripResponses, GetTripErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/trip', ...options });
+
+/**
+ * Get Trip Submission
+ *
+ * 行程怎麼結案的（寄出、建草稿、自己處理）與 Gmail 連結；結案前或直接結案（不寄信）是空的。
+ */
+export const getTripSubmission = <ThrowOnError extends boolean = false>(options: Options<GetTripSubmissionData, ThrowOnError>): RequestResult<GetTripSubmissionResponses, GetTripSubmissionErrors, ThrowOnError> => (options.client ?? client).get<GetTripSubmissionResponses, GetTripSubmissionErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/submission', ...options });
+
+/**
+ * Submit Trip
+ *
+ * 整個行程一次送件：所有涵蓋中事件的待辦與共同文件都完成才可以；成功後所有事件一起結案、行程鎖住。
+ *
+ * 寄出、建草稿、自己處理都算送件；7 號回 failed 不結案。7 號還沒有行程版時寄出與建草稿回 409，
+ * 只能自己處理。
+ */
+export const submitTrip = <ThrowOnError extends boolean = false>(options: Options<SubmitTripData, ThrowOnError>): RequestResult<SubmitTripResponses, SubmitTripErrors, ThrowOnError> => (options.client ?? client).post<SubmitTripResponses, SubmitTripErrors, ThrowOnError>({
+    url: '/api/v1/policies/{policy_id}/submission',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Get Trip Package
+ *
+ * 預覽整個行程的送件包（一封信涵蓋所有涵蓋中的事件）；附件超過約 18 MB 回 409。
+ */
+export const getTripPackage = <ThrowOnError extends boolean = false>(options: Options<GetTripPackageData, ThrowOnError>): RequestResult<GetTripPackageResponses, GetTripPackageErrors, ThrowOnError> => (options.client ?? client).get<GetTripPackageResponses, GetTripPackageErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/package', ...options });
+
+/**
+ * Prepare Trip Package
+ *
+ * 送件前的小助理提醒、總結與建議的修正（契約 v2.14、v2.15）：請 7 號看整個行程。
+ *
+ * 唯讀，可重複呼叫（畫面的「重新檢查」）。7 號沒有實作 `prepare_trip`、沒有符合保障的事件，或 7 號
+ * 出錯時回空的結果（這是加分功能，不擋送件）；提醒與修正指到不存在的事件、待辦或文件就丟掉。
+ * 行程鎖住後回 409。
+ */
+export const prepareTripPackage = <ThrowOnError extends boolean = false>(options: Options<PrepareTripPackageData, ThrowOnError>): RequestResult<PrepareTripPackageResponses, PrepareTripPackageErrors, ThrowOnError> => (options.client ?? client).post<PrepareTripPackageResponses, PrepareTripPackageErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/package/prepare', ...options });
+
+/**
+ * Apply Package Action
+ *
+ * 執行小助理建議的修正（契約 v2.15）：使用者按下按鈕才呼叫，平台不會自己執行。
+ *
+ * 7 號沒有實作 `apply_action` 回 409；失敗（含 7 號丟例外）回 200 與 `ok=false`，不擋畫面。
+ * 行程鎖住後回 409；別人的保單回 404。執行完畫面要重新呼叫 prepare。
+ */
+export const applyPackageAction = <ThrowOnError extends boolean = false>(options: Options<ApplyPackageActionData, ThrowOnError>): RequestResult<ApplyPackageActionResponses, ApplyPackageActionErrors, ThrowOnError> => (options.client ?? client).post<ApplyPackageActionResponses, ApplyPackageActionErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/package/actions/{action_id}', ...options });
+
+/**
+ * Close Trip
+ *
+ * 所有事件都不符保障時結案：不寄信、不寫送件紀錄，直接把所有事件設為已結案。
+ */
+export const closeTrip = <ThrowOnError extends boolean = false>(options: Options<CloseTripData, ThrowOnError>): RequestResult<CloseTripResponses, CloseTripErrors, ThrowOnError> => (options.client ?? client).post<CloseTripResponses, CloseTripErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/close', ...options });
+
+/**
+ * Get Trip Drive Folder
+ *
+ * 結案畫面「下載全部文件」：這個行程的文件在使用者 Drive 上的行程資料夾。結案後也能看。
+ */
+export const getTripDriveFolder = <ThrowOnError extends boolean = false>(options: Options<GetTripDriveFolderData, ThrowOnError>): RequestResult<GetTripDriveFolderResponses, GetTripDriveFolderErrors, ThrowOnError> => (options.client ?? client).get<GetTripDriveFolderResponses, GetTripDriveFolderErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/drive-folder', ...options });
+
+/**
+ * Upload Trip Document
+ *
+ * 行程頁的上傳框：交給 6 檢查並存到雲端，辨識通過就勾選對應的待辦。
+ *
+ * 同一個文件對到多個事件的待辦時，6 回「需要你確認」並列出候選，由使用者選。
+ */
+export const uploadTripDocument = <ThrowOnError extends boolean = false>(options: Options<UploadTripDocumentData, ThrowOnError>): RequestResult<UploadTripDocumentResponses, UploadTripDocumentErrors, ThrowOnError> => (options.client ?? client).post<UploadTripDocumentResponses, UploadTripDocumentErrors, ThrowOnError>({
+    ...formDataBodySerializer,
+    url: '/api/v1/policies/{policy_id}/documents',
+    ...options,
+    headers: {
+        'Content-Type': null,
+        ...options.headers
+    }
+});
+
+/**
+ * Confirm Trip Document
+ *
+ * 使用者確認一份「需人工確認」的文件：自己選行程裡哪一項待辦；待辦由使用者完成。
+ */
+export const confirmTripDocument = <ThrowOnError extends boolean = false>(options: Options<ConfirmTripDocumentData, ThrowOnError>): RequestResult<ConfirmTripDocumentResponses, ConfirmTripDocumentErrors, ThrowOnError> => (options.client ?? client).post<ConfirmTripDocumentResponses, ConfirmTripDocumentErrors, ThrowOnError>({
+    url: '/api/v1/policies/{policy_id}/documents/{document_id}/confirm',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Recheck Trip Document
+ *
+ * 替「需要你確認」的文件選了待辦：6 號依那項待辦再檢查一次，回應和上傳一樣。
+ *
+ * 合格才對上待辦；不合格或讀不出來 6 號刪掉雲端檔案、紀錄也拿掉。6 號沒有重新檢查時，照舊由使用者確認。
+ */
+export const recheckTripDocument = <ThrowOnError extends boolean = false>(options: Options<RecheckTripDocumentData, ThrowOnError>): RequestResult<RecheckTripDocumentResponses, RecheckTripDocumentErrors, ThrowOnError> => (options.client ?? client).post<RecheckTripDocumentResponses, RecheckTripDocumentErrors, ThrowOnError>({
+    url: '/api/v1/policies/{policy_id}/documents/{document_id}/recheck',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Reject Trip Document
+ *
+ * 對「需要你確認」的文件選「都不是」：當成辨識失敗，刪掉雲端的檔案與紀錄。
+ */
+export const rejectTripDocument = <ThrowOnError extends boolean = false>(options: Options<RejectTripDocumentData, ThrowOnError>): RequestResult<RejectTripDocumentResponses, RejectTripDocumentErrors, ThrowOnError> => (options.client ?? client).post<RejectTripDocumentResponses, RejectTripDocumentErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/documents/{document_id}/reject', ...options });
+
+/**
+ * Delete Trip Document
+ *
+ * 使用者刪掉行程裡一份已上傳的文件（含共同文件；契約 v2.17）：雲端的檔案與資料庫的紀錄都拿掉。
+ *
+ * 任何辨識結果的文件都能刪。靠這份文件完成、又沒有別份附件的待辦退回「待上傳」。
+ * 行程送件結案後不能刪（409）。
+ */
+export const deleteTripDocument = <ThrowOnError extends boolean = false>(options: Options<DeleteTripDocumentData, ThrowOnError>): RequestResult<DeleteTripDocumentResponses, DeleteTripDocumentErrors, ThrowOnError> => (options.client ?? client).delete<DeleteTripDocumentResponses, DeleteTripDocumentErrors, ThrowOnError>({ url: '/api/v1/policies/{policy_id}/documents/{document_id}', ...options });
+
+/**
+ * Discard Pending Trip Documents
+ *
+ * 打開行程時清掉上次沒選就離開的「需要你確認」文件；只清 `before` 以前上傳的。
+ */
+export const discardPendingTripDocuments = <ThrowOnError extends boolean = false>(options: Options<DiscardPendingTripDocumentsData, ThrowOnError>): RequestResult<DiscardPendingTripDocumentsResponses, DiscardPendingTripDocumentsErrors, ThrowOnError> => (options.client ?? client).post<DiscardPendingTripDocumentsResponses, DiscardPendingTripDocumentsErrors, ThrowOnError>({
+    url: '/api/v1/policies/{policy_id}/documents/discard-pending',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Patch Trip Todo
+ *
+ * 使用者手動勾選或取消勾選行程裡任一項待辦（共同文件或某個事件的）。
+ *
+ * 不符保障的事件，文件類待辦反灰不能勾；5 號自己加的待辦（沒有範本）照樣可以勾。
+ * 需上傳的待辦底下沒有文件時勾選會標「未附文件」，取消勾選就清掉。
+ */
+export const patchTripTodo = <ThrowOnError extends boolean = false>(options: Options<PatchTripTodoData, ThrowOnError>): RequestResult<PatchTripTodoResponses, PatchTripTodoErrors, ThrowOnError> => (options.client ?? client).patch<PatchTripTodoResponses, PatchTripTodoErrors, ThrowOnError>({
+    url: '/api/v1/policies/{policy_id}/todos/{todo_id}',
     ...options,
     headers: {
         'Content-Type': 'application/json',

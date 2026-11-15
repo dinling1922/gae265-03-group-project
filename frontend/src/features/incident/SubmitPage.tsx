@@ -1,14 +1,16 @@
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { getIncidentPackage, submitIncident } from "../../client";
 import type {
   ClaimPackage,
   IncidentContext,
+  PackagePreparation,
+  PackageReminder,
   SubmissionOut,
   UnavailableAttachment,
 } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
-import { btn, btnPri } from "../../components/ui/buttons";
+import { btn, btnPri, btnSm } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
 import { PageHead } from "../../components/ui/PageHead";
 import { PlaceholderButton } from "../../components/ui/PlaceholderButton";
@@ -19,6 +21,9 @@ import { useGoogleGrant } from "../google/useGoogleGrant";
 import { fillBlanks, missingItems } from "../package/blanks";
 import { ClaimLetter } from "../package/ClaimLetter";
 import { DraftQuestionDialog } from "../package/DraftQuestionDialog";
+import { fillProblems } from "../package/fillRules";
+import { GmailResultDialog, gmailHref } from "../package/GmailResultDialog";
+import { type ClosedAs, type ClosedLinks, closedText, useClosedLinks } from "./closedLinks";
 import { card, errorText, policyMeta, tripTitle, useIncident } from "./shared";
 
 /** ask：問要不要幫忙寄；preview：預覽信、填空格與收件者。結案後不看這個，看結果。 */
@@ -29,12 +34,6 @@ type Intent = "preview" | "send" | "draft";
 
 /** 收件者的 email 格式：有 @，@ 後面有點，中間沒有空白。 */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const RESULT_TEXT: Record<string, string> = {
-  sent: "已用你的 Gmail 寄給保險公司。",
-  drafted: "已在你的 Gmail 建立草稿，請到 Gmail 修改後自己寄出。",
-  self_submitted: "沒有建立草稿，請自己寄給保險公司。",
-};
 
 /**
  * 導向 Google 授權會整頁離開，回來時要接得上：已填的空格、收件者與走到哪一步
@@ -65,6 +64,52 @@ function writeSaved(id: string, data: Saved | null) {
 
 const notice = "m-0 rounded-btn px-4 py-2 t-caption";
 
+type Call<T> = Promise<{ data?: T; error?: unknown; response?: Response }>;
+
+/** 站內連結：事件版連到事件的理賠頁，行程版連到行程頁（`hash` 是頁面內的位置，例如上傳框）。 */
+export type BackLink = (opts: {
+  hash?: string;
+  className?: string;
+  testId?: string;
+  children: ReactNode;
+}) => ReactNode;
+
+/**
+ * 送件流程面對的對象：一個事件（2-5）或一個行程（ADR-0029）。流程與畫面相同，
+ * 差在資料從哪來、送到哪、連結回哪一頁。
+ */
+export type SubmitSource = {
+  /** 暫存空格與收件者用的 key */
+  key: string;
+  /** 授權 Google 後要回到的頁面 */
+  next: string;
+  /** 標題下的說明（目的地與保單） */
+  meta: string;
+  /** 「事件」或「行程」：結案說明裡的用字 */
+  noun: string;
+  closed: boolean;
+  /** 還沒完成的待辦數、其中還缺文件的數；備齊才能送件 */
+  remaining: number;
+  missingUploads: number;
+  ready: boolean;
+  /** 有沒有上傳過文件（決定要不要先問 Drive 授權） */
+  hasDocuments: boolean;
+  /** 7 號能不能寄出與建草稿；不能時只能預覽與「自己處理」 */
+  canSend: boolean;
+  loadPackage: () => Call<ClaimPackage>;
+  /** 7 號的小助理提醒（行程版才有，契約 v2.14）；沒給就不顯示提醒 */
+  loadReminders?: () => Call<PackagePreparation>;
+  submit: (body: {
+    mode: "send" | "draft" | "self";
+    fills: Record<string, string>;
+    recipient: string | null;
+  }) => Call<SubmissionOut>;
+  /** 送件後重新讀取畫面用的資料 */
+  refresh: () => Promise<void>;
+  links: ClosedLinks;
+  back: BackLink;
+};
+
 /**
  * 2-5 送件（DESIGN.md 7.12）：先問代寄或自己處理；代寄要在預覽把空格與收件者填完才能寄出，
  * 寄出前再確認一次；三種結果都結案（ADR-0025）。
@@ -81,6 +126,53 @@ export function SubmitPage({
   googleUser: boolean;
 }) {
   const { setIncident } = useIncident(id);
+  const closed = ctx.status === "completed";
+  const active = (ctx.todos ?? []).filter((t) => t.applicable !== false);
+  const links = useClosedLinks(id, closed);
+  const source: SubmitSource = {
+    key: id,
+    next: `/incident/${id}/submit`,
+    meta: `${tripTitle(ctx.destination, ctx.policy.start_date, ctx.policy.end_date)} · ${policyMeta(ctx.policy.plan_name, null)}`,
+    noun: "事件",
+    closed,
+    remaining: active.filter((t) => !t.is_done).length,
+    missingUploads: active.filter((t) => t.requires_upload && !t.is_done).length,
+    ready: (ctx.todos ?? []).length > 0 && active.every((t) => t.is_done),
+    hasDocuments: (ctx.documents ?? []).length > 0,
+    canSend: true,
+    loadPackage: () => getIncidentPackage({ path: { incident_id: id } }),
+    submit: (body) => submitIncident({ path: { incident_id: id }, body }),
+    refresh: async () => {
+      const fresh = await fetch(`/api/v1/incidents/${id}`);
+      if (fresh.ok) setIncident(await fresh.json());
+    },
+    links,
+    back: ({ hash, className, testId, children }) => (
+      <Link
+        to="/incident/$id"
+        params={{ id }}
+        hash={hash}
+        className={className}
+        data-testid={testId}
+      >
+        {children}
+      </Link>
+    ),
+  };
+  return <SubmitFlow source={source} email={email} googleUser={googleUser} />;
+}
+
+/** 2-5 送件的流程與畫面；事件與行程共用，差別由 `source` 提供。 */
+export function SubmitFlow({
+  source,
+  email,
+  googleUser,
+}: {
+  source: SubmitSource;
+  email: string;
+  googleUser: boolean;
+}) {
+  const id = source.key;
   const grant = useGoogleGrant(googleUser);
   const [saved] = useState(() => loadSaved(id));
   const [step, setStep] = useState<Step>(saved.step ?? "ask");
@@ -90,14 +182,22 @@ export function SubmitPage({
   const [consent, setConsent] = useState<GooglePurpose | null>(null);
   const [askingDraft, setAskingDraft] = useState(saved.intent === "draft");
   const [confirmingSend, setConfirmingSend] = useState(false);
+  // 7 號沒有整個行程的版本時沒有草稿的問題：自己處理直接確認後結案
+  const [confirmingSelf, setConfirmingSelf] = useState(false);
   const [pkg, setPkg] = useState<ClaimPackage | null>(null);
+  // 附件合計超過約 18 MB：一封信寄不出去，後端在預覽與送件時回 409（設計者 11/14：提示檔案大小超過）
+  const [tooLarge, setTooLarge] = useState(false);
+  const [reminders, setReminders] = useState<PackageReminder[]>([]);
+  const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<SubmissionOut | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 建立草稿時因為一定要附上的文件找不到被擋下：詢問頁顯示提示框，說明用「建立草稿」
   const [draftBlocked, setDraftBlocked] = useState(false);
+  // 寄出或建立草稿成功後的說明視窗：信在 Gmail 的哪裡、連結打開那封信
+  const [showGmail, setShowGmail] = useState(false);
 
-  const closed = ctx.status === "completed";
+  const closed = source.closed;
 
   // 授權回來：原本要看預覽就直接進預覽；要寄出或建立草稿的，讓使用者再按一次確認
   useEffect(() => {
@@ -112,21 +212,36 @@ export function SubmitPage({
     writeSaved(id, { step, values, recipient });
   }, [id, closed, step, values, recipient]);
 
+  /** 讀 7 號的小助理提醒；讀不到就當沒有（提醒不擋送件）。「重新檢查」就是再讀一次。 */
+  async function checkReminders() {
+    if (!source.loadReminders) return;
+    setChecking(true);
+    const res = await source.loadReminders();
+    setChecking(false);
+    setReminders(res.data?.reminders ?? []);
+  }
+  // 備齊、還沒結案時打開頁面就讀一次
+  // biome-ignore lint/correctness/useExhaustiveDependencies: source 每次 render 都是新物件，只在打開頁面與備齊時讀
+  useEffect(() => {
+    if (source.ready && !source.closed) void checkReminders();
+  }, [source.ready, source.closed]);
+
   // 進到預覽才讀信；收件者沒填時帶入 7 號的建議
+  // biome-ignore lint/correctness/useExhaustiveDependencies: source 每次 render 都是新物件，讀信只看步驟與有沒有信
   useEffect(() => {
     if (step !== "preview" || pkg || closed) return;
-    getIncidentPackage({ path: { incident_id: id } }).then((res) => {
-      if (!res.data) return setError(errorText(res.error, res.response?.status));
+    source.loadPackage().then((res) => {
+      if (!res.data) {
+        if (isTooLarge(res)) return setTooLarge(true);
+        return setError(errorText(res.error, res.response?.status));
+      }
+      setTooLarge(false);
       setPkg(res.data);
       setRecipient((current) => current || res.data?.recipient_hint || "");
     });
   }, [step, pkg, closed, id]);
 
-  const todos = ctx.todos ?? [];
-  const active = todos.filter((t) => t.applicable !== false);
-  const remainingTodos = active.filter((t) => !t.is_done).length;
-  const missingUploads = active.filter((t) => t.requires_upload && !t.is_done).length;
-  const ready = todos.length > 0 && remainingTodos === 0;
+  const { remaining: remainingTodos, missingUploads, ready, hasDocuments } = source;
 
   const filled = pkg && {
     ...pkg,
@@ -134,6 +249,8 @@ export function SubmitPage({
     body: fillBlanks(pkg.body, values),
   };
   const blanks = filled ? missingItems(filled.subject, filled.body) : [];
+  // 被保險人姓名、聯絡電話的格式（送件 API 也擋）
+  const formatProblems = Object.values(fillProblems(values));
   // 7 號在 Drive 上取不到需上傳的文件時，把那項待辦列為還缺（契約 v2.8）：處理好才能寄出
   const lostRequired = (pkg?.missing_todo_ids?.length ?? 0) > 0;
   const recipientProblem = !recipient.trim()
@@ -145,20 +262,18 @@ export function SubmitPage({
   async function submit(mode: "send" | "draft" | "self") {
     setBusy(true);
     setError(null);
-    const res = await submitIncident({
-      path: { incident_id: id },
-      body: {
-        mode,
-        fills: values,
-        recipient: mode === "self" ? null : recipient.trim() || null,
-      },
+    const res = await source.submit({
+      mode,
+      fills: values,
+      recipient: mode === "self" ? null : recipient.trim() || null,
     });
     setBusy(false);
     if (!res.data) {
+      if (isTooLarge(res)) return setTooLarge(true);
       // 送件包還缺待辦（409）時，重新讀一次送件包：如果是一定要附上的文件在 Drive 上找不到，
       // 顯示和預覽頁一樣的提示框，不顯示平台籠統的訊息（例如從「我自己處理就好」建立草稿時）
       if (res.response?.status === 409 && mode !== "self") {
-        const fresh = await getIncidentPackage({ path: { incident_id: id } });
+        const fresh = await source.loadPackage();
         if (fresh.data?.missing_todo_ids?.length && fresh.data.unavailable_attachments?.length) {
           setPkg(fresh.data);
           setDraftBlocked(mode === "draft");
@@ -169,24 +284,32 @@ export function SubmitPage({
     }
     setResult(res.data);
     if (res.data.status !== "failed") writeSaved(id, null);
-    const fresh = await fetch(`/api/v1/incidents/${id}`);
-    if (fresh.ok) setIncident(await fresh.json());
+    if (res.data.status === "sent" || res.data.status === "drafted") setShowGmail(true);
+    await source.refresh();
   }
 
   /** 重新讀送件包：使用者到垃圾桶還原或重新上傳之後按「重新檢查」。 */
   async function recheckPackage() {
     setError(null);
-    const res = await getIncidentPackage({ path: { incident_id: id } });
-    if (!res.data) return setError(errorText(res.error, res.response?.status));
+    const res = await source.loadPackage();
+    if (!res.data) {
+      if (isTooLarge(res)) return setTooLarge(true);
+      return setError(errorText(res.error, res.response?.status));
+    }
+    setTooLarge(false);
     setPkg(res.data);
   }
 
-  /** 要做某件事之前：寄信與建草稿都要從 Drive 讀附件再用 Gmail，缺哪個先說明（先 Drive 再 Gmail）。 */
+  /**
+   * 要做某件事之前：寄信與建草稿要用 Gmail；有上傳過文件時附件要從 Drive 讀，缺哪個先說明（先 Drive 再 Gmail）。
+   * 沒上傳文件的使用者可能從沒授權 Drive，這時只問 Gmail。
+   */
   function withGrants(next: Intent) {
     setIntent(next);
     if (googleUser) {
       if (!grant.data) return setError("正在確認 Google 授權，請稍候再按一次。");
-      const missing = (["drive", "gmail"] as const).find((p) => !grant.data?.[p]);
+      const needed = hasDocuments ? (["drive", "gmail"] as const) : (["gmail"] as const);
+      const missing = needed.find((p) => !grant.data?.[p]);
       if (missing) {
         writeSaved(id, { step, values, recipient, intent: next });
         return setConsent(missing);
@@ -204,8 +327,22 @@ export function SubmitPage({
     if (intent === "draft") setAskingDraft(true);
   }
 
-  const closedText = result ? RESULT_TEXT[result.status] : undefined;
-  const meta = `${tripTitle(ctx.destination, ctx.policy.start_date, ctx.policy.end_date)} · ${policyMeta(ctx.policy.plan_name, null)}`;
+  const gmailKind =
+    result?.status === "sent" || result?.status === "drafted" ? result.status : null;
+  // 結案後的連結：重新整理後 result 沒了，改用送件紀錄重新組的 Gmail 連結；Drive 是行程資料夾
+  const links = source.links;
+  const closedKind =
+    gmailKind ??
+    (links.closedAs === "sent" || links.closedAs === "drafted" ? links.closedAs : null);
+  const closedGmailUrl = result?.gmail_url ?? links.gmailUrl;
+  // 結案方式：這次送件的結果，重新整理後改用送件紀錄；行程直接結案（沒有送件）時是 null
+  const closedAs: ClosedAs | null =
+    result?.status === "sent" || result?.status === "drafted" || result?.status === "self_submitted"
+      ? result.status
+      : links.closedAs;
+  // 沒上傳文件就沒有要下載的資料夾，「下載全部文件」維持反灰（和理賠頁送件區一致）
+  const driveUrl = source.hasDocuments ? links.driveUrl : null;
+  const meta = source.meta;
   const preview = step === "preview" && !closed;
 
   return (
@@ -217,11 +354,12 @@ export function SubmitPage({
           preview ? "請填好收件者和標色的地方，全部填完才能寄出。寄件者是你自己的 Gmail。" : meta
         }
       />
-      <GoogleAuthResult />
+      <GoogleAuthResult grantedText="已完成 Google Gmail 授權。" />
       <GoogleConsentDialog
         purpose={consent}
-        next={`/incident/${id}/submit`}
+        next={source.next}
         onClose={declineGrant}
+        gmailUse={intent === "draft" ? "draft" : "send"}
       />
       <DraftQuestionDialog
         open={askingDraft && !closed}
@@ -238,11 +376,24 @@ export function SubmitPage({
         }}
         onDismiss={() => setAskingDraft(false)}
       />
+      <GmailResultDialog
+        kind={showGmail ? gmailKind : null}
+        subject={result?.subject}
+        url={result?.gmail_url}
+        onClose={() => setShowGmail(false)}
+      />
       <DialogShell
         open={confirmingSend && !closed}
         onOpenChange={(open) => !open && setConfirmingSend(false)}
         title="確定寄出？"
-        description={<p>選擇後這筆理賠即結案，之後無法再新增狀況或修改。</p>}
+        description={
+          <>
+            <p>
+              依你確認過的預覽信件內容，替你寄出給保險公司，並留存信件紀錄於你的 Gmail 寄件備份。
+            </p>
+            <p className="font-bold">寄出後這筆理賠即結案，之後無法再新增狀況或修改。</p>
+          </>
+        }
         testId="send-confirm-dialog"
         actions={
           <>
@@ -261,6 +412,34 @@ export function SubmitPage({
           </>
         }
       />
+      <DialogShell
+        open={confirmingSelf && !closed}
+        onOpenChange={(open) => !open && setConfirmingSelf(false)}
+        title="確定自己處理？"
+        description={
+          <>
+            <p>不會寄出信件，也不會在你的 Gmail 建立草稿，請自己把文件寄給保險公司。</p>
+            <p className="font-bold">確定後這個{source.noun}即結案，之後無法再新增狀況或修改。</p>
+          </>
+        }
+        testId="self-confirm-dialog"
+        actions={
+          <>
+            <Dialog.Close className={btn}>取消</Dialog.Close>
+            <button
+              type="button"
+              className={btnPri}
+              data-testid="self-confirm"
+              onClick={() => {
+                setConfirmingSelf(false);
+                void submit("self");
+              }}
+            >
+              確定自己處理
+            </button>
+          </>
+        }
+      />
       {error && (
         <p
           role="alert"
@@ -270,6 +449,11 @@ export function SubmitPage({
           {error}
         </p>
       )}
+      {!source.canSend && !closed && (
+        <p className={`${notice} bg-paper text-muted`} data-testid="cannot-send">
+          目前還不能一次寄出整個行程的信件，可以先預覽信件內容；送件請選「我自己處理就好」。
+        </p>
+      )}
       {!googleUser && !closed && (
         <p className={`${notice} bg-paper text-muted`}>
           你不是用 Google 登入，沒有 Gmail 可以寄信或建立草稿。可以先預覽信件，寄送請改用 Google
@@ -277,31 +461,56 @@ export function SubmitPage({
         </p>
       )}
       {result?.status === "failed" && step !== "preview" && (
-        <FailedNotice id={id} reason={result.reason} />
+        <FailedNotice back={source.back} reason={result.reason} />
       )}
 
       {closed ? (
         <>
           <section className={`${card} flex flex-col gap-3`} aria-label="送件結果">
             <p className="m-0 t-lead text-heading" data-testid="closed">
-              {closedText ?? "這個事件已結案。"}
-              此事件已結案，不能再新增狀況或修改。
+              {closedAs ? closedText(closedAs, source.hasDocuments) : `此${source.noun}已結案。`}
             </p>
             <p className="m-0 t-caption text-muted" data-testid="closed-banner">
-              這筆理賠已結案，只能查看。
+              此{source.noun}已結案，只能查看，不能再新增狀況或修改。
             </p>
             <div className="flex flex-wrap gap-3">
-              <PlaceholderButton kind="small">到 Gmail 查看</PlaceholderButton>
-              <PlaceholderButton kind="small">下載全部文件</PlaceholderButton>
+              {/* 寄出或建立草稿的才有 Gmail 連結；拿不到結案方式時維持反灰 */}
+              {closedKind ? (
+                <a
+                  href={gmailHref(closedKind, closedGmailUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={btnSm}
+                  data-testid="open-gmail"
+                >
+                  到 Gmail 查看
+                </a>
+              ) : (
+                <PlaceholderButton kind="small">到 Gmail 查看</PlaceholderButton>
+              )}
+              {driveUrl ? (
+                <a
+                  href={driveUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={btnSm}
+                  data-testid="open-drive-folder"
+                >
+                  下載全部文件
+                </a>
+              ) : (
+                <PlaceholderButton kind="small">下載全部文件</PlaceholderButton>
+              )}
             </div>
           </section>
           {result?.status === "sent" && filled && (
             <ClaimLetter pkg={filled} sender={email} recipient={recipient.trim()} />
           )}
           <ActionBar>
-            <Link to="/incident/$id" params={{ id }} className={btn}>
-              回理賠頁
-            </Link>
+            {source.back({
+              className: btn,
+              children: source.noun === "行程" ? "回行程頁" : "回理賠頁",
+            })}
           </ActionBar>
         </>
       ) : (
@@ -320,31 +529,41 @@ export function SubmitPage({
             ) : missingUploads > 0 ? (
               <>
                 需上傳的文件還沒備齊，還有 {remainingTodos} 項待辦沒完成，備齊後才能送件。
-                <Link
-                  to="/incident/$id"
-                  params={{ id }}
-                  hash="upload-box"
-                  className="ml-1 underline"
-                >
-                  上傳文件
-                </Link>
+                {source.back({
+                  hash: "upload-box",
+                  className: "ml-1 underline",
+                  children: "上傳文件",
+                })}
               </>
             ) : (
               <>
                 還有 {remainingTodos} 項待辦沒完成，完成後才能送件。
-                <Link to="/incident/$id" params={{ id }} className="ml-1 underline">
-                  回到待辦
-                </Link>
+                {source.back({ className: "ml-1 underline", children: "回到待辦" })}
               </>
             )}
           </p>
 
+          {tooLarge && (
+            <SizeNotice
+              back={source.back}
+              onRecheck={() => void recheckPackage()}
+              action={step === "preview" ? "寄出" : "送件"}
+            />
+          )}
+          {reminders.length > 0 && (
+            <ReminderNotice
+              items={reminders}
+              back={source.back}
+              checking={checking}
+              onRecheck={() => void checkReminders()}
+            />
+          )}
           {step === "ask" &&
             draftBlocked &&
             pkg?.unavailable_attachments &&
             pkg.unavailable_attachments.length > 0 && (
               <UnavailableNotice
-                id={id}
+                back={source.back}
                 items={pkg.unavailable_attachments}
                 blocking={lostRequired}
                 action="draft"
@@ -361,14 +580,15 @@ export function SubmitPage({
                 要由我們用你的 Gmail 幫你寄給保險公司嗎？
               </h2>
               <p className="m-0 t-caption text-muted">
-                寄件者是你自己的 Gmail；Gmail 權限只用來寄這封信。兩個選項都會讓這筆理賠結案。
+                寄件者是你的 Gmail，網站需要的 Gmail
+                權限用於協助建立草稿或者用於協助寄信，僅選擇一項服務提供，確定後就會讓這筆理賠結案。
               </p>
               {/* 兩個按鈕照順序、內容寬度，放不下才換行（設計稿 v3.7 手機版不撐滿、不調順序） */}
               <ActionBar>
                 <button
                   type="button"
                   disabled={busy || !ready}
-                  onClick={() => setAskingDraft(true)}
+                  onClick={() => (source.canSend ? setAskingDraft(true) : setConfirmingSelf(true))}
                   className={btn}
                   data-testid="choose-self"
                 >
@@ -388,9 +608,10 @@ export function SubmitPage({
           )}
           {step === "ask" && (
             <ActionBar>
-              <Link to="/incident/$id" params={{ id }} className={btn}>
-                回理賠頁
-              </Link>
+              {source.back({
+                className: btn,
+                children: source.noun === "行程" ? "回行程頁" : "回理賠頁",
+              })}
             </ActionBar>
           )}
 
@@ -398,7 +619,7 @@ export function SubmitPage({
             <section className="flex flex-col gap-4" aria-label="預覽與寄出" data-testid="preview">
               {pkg?.unavailable_attachments && pkg.unavailable_attachments.length > 0 && (
                 <UnavailableNotice
-                  id={id}
+                  back={source.back}
                   items={pkg.unavailable_attachments}
                   blocking={lostRequired}
                   action="send"
@@ -415,7 +636,7 @@ export function SubmitPage({
                   onRecipient={setRecipient}
                 />
               ) : (
-                <p className="m-0 t-body text-muted">讀取送件信中…</p>
+                !tooLarge && <p className="m-0 t-body text-muted">讀取送件信中…</p>
               )}
               {pkg && recipientProblem && (
                 <p data-testid="recipient-problem" className="m-0 t-caption-bold text-danger">
@@ -434,8 +655,20 @@ export function SubmitPage({
                   ）。
                 </p>
               )}
+              {formatProblems.map((problem) => (
+                <p
+                  key={problem}
+                  data-testid="format-problem"
+                  role="alert"
+                  className="m-0 t-caption-bold text-danger"
+                >
+                  {problem}
+                </p>
+              ))}
               {/* 寄出失敗的原因放在寄出按鈕旁，看得到是哪些附件、要怎麼處理（#155 驗收 7-2） */}
-              {result?.status === "failed" && <FailedNotice id={id} reason={result.reason} />}
+              {result?.status === "failed" && (
+                <FailedNotice back={source.back} reason={result.reason} />
+              )}
               {/* 取消在左、寄出在右，手機也同一列（設計稿 v3.7） */}
               <div className="flex items-center justify-between gap-3">
                 <button
@@ -454,10 +687,12 @@ export function SubmitPage({
                   type="button"
                   disabled={
                     busy ||
+                    !source.canSend ||
                     !ready ||
                     !pkg ||
                     lostRequired ||
                     blanks.length > 0 ||
+                    formatProblems.length > 0 ||
                     recipientProblem !== ""
                   }
                   onClick={() => setConfirmingSend(true)}
@@ -475,11 +710,101 @@ export function SubmitPage({
   );
 }
 
+/** 後端說附件合計超過上限（409）：和其他錯誤分開顯示。 */
+function isTooLarge(res: { error?: unknown; response?: Response }): boolean {
+  return res.response?.status === 409 && errorText(res.error, 409).includes("18 MB");
+}
+
+/**
+ * 附件合計超過約 18 MB（設計者 11/14）：一封信寄不出去，請使用者檢查檔案大小；
+ * 處理好之前不能寄出或建立草稿。「重新檢查」再讀一次送件信。
+ */
+function SizeNotice({
+  back,
+  onRecheck,
+  action,
+}: {
+  back: BackLink;
+  onRecheck: () => void;
+  action: string;
+}) {
+  return (
+    <div
+      role="alert"
+      className={`${notice} flex flex-col gap-1 bg-danger-soft text-danger-ink`}
+      data-testid="attachments-too-large"
+    >
+      <p className="m-0 t-caption-bold">附件合計超過 18 MB，一封信寄不出去。</p>
+      <p className="m-0">
+        請檢查檔案大小，壓縮或移除部分文件後再試。
+        {back({ className: "ml-1 underline", testId: "too-large-back", children: "回去處理" })}
+        ，處理完按
+        <button
+          type="button"
+          onClick={onRecheck}
+          className="mx-1 underline"
+          data-testid="too-large-recheck"
+        >
+          重新檢查
+        </button>
+        。處理好之前不能{action}。
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 小助理的提醒（契約 v2.14）：寄出前值得再看一眼的地方，不擋送件。處理完（例如補上文件）按「重新檢查」
+ * 再讀一次；全部處理好這個提示框就消失。
+ */
+function ReminderNotice({
+  items,
+  back,
+  checking,
+  onRecheck,
+}: {
+  items: PackageReminder[];
+  back: BackLink;
+  checking: boolean;
+  onRecheck: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      className={`${notice} flex flex-col gap-1.5 bg-warn-soft text-warn-ink`}
+      data-testid="reminders"
+    >
+      <p className="m-0 t-caption-bold">小助理提醒：寄出前請再看一下</p>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0">
+        {items.map((r) => (
+          <li key={`${r.incident_id ?? ""}-${r.todo_id ?? ""}-${r.text}`} data-testid="reminder">
+            ・{r.text}
+          </li>
+        ))}
+      </ul>
+      <p className="m-0">
+        {back({ className: "underline", testId: "reminders-back", children: "回去處理" })}
+        ，處理完按
+        <button
+          type="button"
+          onClick={onRecheck}
+          disabled={checking}
+          className="mx-1 underline"
+          data-testid="reminders-recheck"
+        >
+          {checking ? "檢查中…" : "重新檢查"}
+        </button>
+        。不處理也能送件。
+      </p>
+    </div>
+  );
+}
+
 /**
  * 寄出或建立草稿失敗的說明。7 號的 reason 已寫明原因，取不到附件時是一句說明加上一個檔案一行，照換行顯示；
  * 依 7 號的固定說法附上處理的入口：「垃圾桶」連到 Google Drive 的垃圾桶、「重新上傳」連到上傳文件頁。
  */
-function FailedNotice({ id, reason }: { id: string; reason?: string | null }) {
+function FailedNotice({ back, reason }: { back: BackLink; reason?: string | null }) {
   return (
     <div
       role="status"
@@ -508,15 +833,12 @@ function FailedNotice({ id, reason }: { id: string; reason?: string | null }) {
       )}
       {reason?.includes("重新上傳") && (
         <p className="m-0">
-          <Link
-            to="/incident/$id"
-            params={{ id }}
-            hash="upload-box"
-            className="underline"
-            data-testid="go-upload"
-          >
-            到「上傳文件」重新上傳
-          </Link>
+          {back({
+            hash: "upload-box",
+            className: "underline",
+            testId: "go-upload",
+            children: "到「上傳文件」重新上傳",
+          })}
           ，完成後回到這頁再按一次。
         </p>
       )}
@@ -535,13 +857,13 @@ const UNAVAILABLE_REASON: Record<UnavailableAttachment["reason"], string> = {
  * 信上寫「（另行提供）」。這些說明只在畫面上，不會出現在寄給保險公司的信裡。
  */
 function UnavailableNotice({
-  id,
+  back,
   items,
   blocking,
   action,
   onRecheck,
 }: {
-  id: string;
+  back: BackLink;
   items: UnavailableAttachment[];
   blocking: boolean;
   /** 使用者這次要做的事：寄出（預覽頁）或建立草稿（「我自己處理就好」） */
@@ -581,15 +903,12 @@ function UnavailableNotice({
             ，或
           </>
         )}
-        <Link
-          to="/incident/$id"
-          params={{ id }}
-          hash="upload-box"
-          className="underline"
-          data-testid="unavailable-go-upload"
-        >
-          到「上傳文件」重新上傳
-        </Link>
+        {back({
+          hash: "upload-box",
+          className: "underline",
+          testId: "unavailable-go-upload",
+          children: "到「上傳文件」重新上傳",
+        })}
         ，處理完按
         <button
           type="button"

@@ -1,21 +1,48 @@
-import { Link } from "@tanstack/react-router";
+import { Button } from "@base-ui/react/button";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { sendIncidentMessage } from "../../client";
+import { confirmIncident, sendIncidentMessage } from "../../client";
+import { listIncidentsQueryKey } from "../../client/@tanstack/react-query.gen";
 import type { IncidentContext } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn } from "../../components/ui/buttons";
 import { PageHead } from "../../components/ui/PageHead";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { type ChatLine, DescribeChat, FIRST_QUESTION } from "./DescribeChat";
 import { errorText, policyMeta, tripTitle, useIncident } from "./shared";
 
+/** 2-2g-3 按「還要補充或修改」後對話裡顯示的固定句（Leon 的模擬畫面）；前端顯示，不送給 5 號、不存。 */
+export const SUPPLEMENT_PROMPT = "好的，請說明要補充或修改的地方。";
+
 /**
- * 2-2 描述事故（追問中）：事件已建立、5 號還在追問（`incident_type_code` 還沒有值）時的畫面。
- * 問完（有事故類型）就換成 2-3 理賠頁。對話從 `ctx.messages` 來，重新整理後選項與出處都還在（#212）。
+ * 2-2 描述事故（追問中）：事件已建立、還沒確認時的畫面（5 號還在追問，或問完等使用者確認）。
+ * 5 號問完而且有變就跳 2-2g 現況確認彈窗；按「確認」才進行程頁（#345）。
+ * 對話從 `ctx.messages` 來，重新整理後選項與出處都還在（#212）。
+ * `confirmation` 是進來時事件的狀態：`awaiting`（上次問完沒確認就離開）一進來就再跳彈窗。
  */
-export function ClarifyingView({ id, ctx }: { id: string; ctx: IncidentContext }) {
+export function ClarifyingView({
+  id,
+  ctx,
+  confirmation: initialConfirmation = "clarifying",
+}: {
+  id: string;
+  ctx: IncidentContext;
+  confirmation?: string;
+}) {
   const { refresh } = useIncident(id);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [confirmation, setConfirmation] = useState(initialConfirmation);
+  const [dialogOpen, setDialogOpen] = useState(initialConfirmation === "awaiting");
+  const [confirming, setConfirming] = useState(false);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  // 按「還要補充或修改」後顯示的固定句；下一次送出就換成真正的對話
+  const [supplementPrompt, setSupplementPrompt] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  // 剛送出、回覆還沒回來的那句話：先顯示在對話最下面，回覆回來換成真正的訊息
+  const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const messages = ctx.messages ?? [];
@@ -29,24 +56,56 @@ export function ClarifyingView({ id, ctx }: { id: string; ctx: IncidentContext }
       text: m.content,
       citations: m.citations,
     })),
+    ...(pending && !(last?.role === "user" && last.content === pending)
+      ? [{ from: "me" as const, text: pending }]
+      : []),
+    ...(supplementPrompt && !busy ? [{ from: "ai" as const, text: SUPPLEMENT_PROMPT }] : []),
   ];
 
   async function send(content: string, mode: "text" | "quick_reply") {
     if (!content.trim() || busy) return;
     setBusy(true);
     setError(null);
+    setPending(content);
+    setSupplementPrompt(false);
     const res = await sendIncidentMessage({
       path: { incident_id: id },
       body: { content, input_mode: mode },
     });
     if (!res.data) {
+      setPending(null);
       setBusy(false);
       return setError(errorText(res.error, res.response?.status));
     }
     // 回應裡的事件是送出當下的快照，不能直接蓋掉快取，改成重新讀取（5 號回覆可能很慢）
     await refresh();
+    // 事件的確認狀態變了（例如問完、或補充後退回追問）：首頁行程列與進來時讀的狀態要跟著更新
+    await queryClient.invalidateQueries({ queryKey: listIncidentsQueryKey() });
+    setConfirmation(res.data.confirmation);
+    // 5 號問完而且這輪有改到狀況才跳；等確認時只是問問題不跳（對話裡有「回到確認」）
+    if (res.data.show_confirm) setDialogOpen(true);
     setText("");
+    setPending(null);
     setBusy(false);
+  }
+
+  async function confirm() {
+    if (confirming) return;
+    setConfirming(true);
+    setConfirmError(null);
+    const res = await confirmIncident({ path: { incident_id: id } });
+    if (!res.data) {
+      setConfirming(false);
+      return setConfirmError(errorText(res.error, res.response?.status));
+    }
+    // 事件進了行程：行程列表、行程頁、事件清單都要重新讀
+    await queryClient.invalidateQueries();
+    await navigate({
+      to: "/trip/$policyId",
+      params: { policyId: res.data.policy_id },
+      search: { incident: id },
+      replace: true,
+    });
   }
 
   return (
@@ -67,17 +126,34 @@ export function ClarifyingView({ id, ctx }: { id: string; ctx: IncidentContext }
       )}
 
       <DescribeChat
-        busyOverlay="正在整理理賠項目…"
         lines={lines}
         quickReplies={quickReplies}
         placeholder={quickReplies.length > 0 ? "回答上面的問題，或點選項" : "回答上面的問題"}
         value={text}
         onChange={setText}
         busy={busy}
+        typingLabel="正在整理您的回答"
         onSend={(content, mode) => void send(content, mode)}
       />
 
+      <ConfirmDialog
+        open={dialogOpen}
+        ctx={ctx}
+        busy={confirming}
+        error={confirmError}
+        onSupplement={() => {
+          setDialogOpen(false);
+          setSupplementPrompt(true);
+        }}
+        onConfirm={() => void confirm()}
+      />
+
       <ActionBar>
+        {confirmation === "awaiting" && !dialogOpen && (
+          <Button className={btn} onClick={() => setDialogOpen(true)} data-testid="back-to-confirm">
+            回到確認
+          </Button>
+        )}
         <ActionBar.Push>
           <Link to="/" className={btn}>
             回首頁

@@ -34,16 +34,20 @@ export async function setupClaimIncident(page: Page, name: string) {
   await login(page, `e2e-docs-${name}-${Date.now()}@example.com`);
   const api = page.request;
   const options = await (await api.get("/api/v1/plans/fubon_advanced/sum-insured-options")).json();
-  const policy = await (
-    await api.post("/api/v1/policies/manual", {
-      data: {
-        plan_id: "fubon_advanced",
-        sum_insured: options.sum_insured[0],
-        start_date: "2026-07-05",
-        end_date: "2026-07-10",
-      },
-    })
-  ).json();
+  const policyRes = await api.post("/api/v1/policies/manual", {
+    data: {
+      plan_id: "fubon_advanced",
+      sum_insured: options.sum_insured[0],
+      start_date: "2026-07-05",
+      end_date: "2026-07-10",
+    },
+  });
+  // 偶發失敗時要看得到狀態碼與內容，不是後面才冒出 policy_id 是 undefined
+  expect(
+    policyRes.ok(),
+    `POST policies/manual 回 ${policyRes.status()}：${await policyRes.text()}`,
+  ).toBeTruthy();
+  const policy = await policyRes.json();
   await api.patch(`/api/v1/policies/${policy.id}`, { data: { destination: "日本" } });
   const createdRes = await api.post(`/api/v1/policies/${policy.id}/incidents`, {
     data: { description: "班機延誤了六小時" },

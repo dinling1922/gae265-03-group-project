@@ -61,11 +61,12 @@ test("問完後顯示理賠頁：狀態列、狀況總結、待辦兩張卡、�
   await expect(page.getByTestId("incident-type")).toContainText("班機延誤");
   await expect(page.getByTestId("facts")).toBeVisible();
   await expect(page.getByTestId("clauses")).toBeVisible();
-  // 待辦：事故當下與回國後整理兩張卡，整個行程的理賠申請書在最後一組
+  // 待辦：事故當下與回國後整理兩張卡，共同文件（理賠申請書）在最後一組
   const todos = page.getByTestId("todos");
   await expect(todos.getByRole("region", { name: "事故當下" })).toBeVisible();
   await expect(todos.getByRole("region", { name: "回國後整理" })).toBeVisible();
-  await expect(todos.getByRole("heading", { name: "整個行程" })).toBeVisible();
+  // 「共同文件」組在兩張卡（事故當下、回國後整理）各有一個，共同文件分在兩邊
+  await expect(todos.getByRole("heading", { name: "共同文件" }).first()).toBeVisible();
   await expect(todos.getByText("填寫理賠申請書")).toBeVisible();
   // 送件區：還缺文件時有「上傳文件」；問答卡有提問列
   await expect(page.getByTestId("send-box")).toContainText("還缺");
@@ -136,6 +137,8 @@ test("系統確認的待辦取消勾選前會先問", async ({ page }) => {
   await expect(agentDone).toBeVisible({ timeout: SLOW });
   // 系統會依「事故類型_待辦名稱_序號」把檔案改名，所以看不到原檔名
   await expect(agentDone.getByTestId("todo-files")).toContainText("班機延誤_");
+  // 假的 6 號存的不是真的 Drive 檔案：檔名不變成打不開的連結（真的 Drive 檔案才會連到 Drive）
+  await expect(agentDone.getByTestId("todo-file-link")).toHaveCount(0);
   const box = agentDone.getByRole("checkbox");
   await expect(box).toBeChecked();
   await box.click();
@@ -241,12 +244,16 @@ test("結案後唯讀：已結案 Pill、結案說明、沒有提問列，待辦
   await expect(page.getByText("已結案", { exact: true })).toBeVisible();
   await expect(page.getByTestId("closed-banner")).toContainText("只能查看");
   await expect(page.getByTestId("message")).toHaveCount(0);
-  await expect(page.getByTestId("send-closed")).toBeVisible();
+  // 選了自己處理、沒建草稿，也沒上傳文件：說明兩者都沒有，兩個按鈕都反灰
+  await expect(page.getByTestId("send-closed")).toHaveText(
+    "未在你的 Gmail 建立草稿，此次理賠也未上傳任何文件至 Google Drive。",
+  );
   await expect(page.getByTestId("todos").getByRole("checkbox").first()).toBeDisabled();
   await expect(page.getByTestId("doc-file")).toHaveCount(0);
-  // 結案後的反灰按鈕
   await page.getByRole("button", { name: "到 Gmail 查看" }).click({ force: true });
   await expect(page.getByTestId("toast")).toHaveText("暫無作用");
+  await page.getByRole("button", { name: "下載全部文件" }).click({ force: true });
+  await expect(page.getByTestId("toast").first()).toHaveText("暫無作用");
 });
 
 test("手機寬度（390px）下理賠頁單欄、沒有橫向捲動", async ({ page }) => {

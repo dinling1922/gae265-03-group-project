@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { patchIncidentTodo, sendIncidentMessage } from "../../client";
-import type { IncidentContext, TodoView } from "../../client/types.gen";
+import { deleteIncidentDocument, patchIncidentTodo, sendIncidentMessage } from "../../client";
+import type { DocumentView, IncidentContext, TodoView } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn, btnPri, btnSm, btnSmPri } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
@@ -31,12 +31,15 @@ export function TripPage({
 }) {
   const { setIncident, refresh } = useIncident(id);
   const [busy, setBusy] = useState(false);
+  // 問答送出中：{ 剛送出的那句話 }；只有問答才顯示 AI「輸入中」，勾選待辦不顯示
+  const [asking, setAsking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答抽屜是否拉開
   // 系統已確認的待辦被取消勾選前，先問一次；需上傳但還沒有文件的待辦勾選前，也先問一次
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
+  const [deleting, setDeleting] = useState<DocumentView | null>(null);
 
   const closed = ctx.status === "completed";
   const todos = ctx.todos ?? [];
@@ -58,21 +61,36 @@ export function TripPage({
     setIncident(res.data);
   }
 
+  async function removeDocument(document: DocumentView) {
+    setBusy(true);
+    setError(null);
+    const res = await deleteIncidentDocument({
+      path: { incident_id: id, document_id: document.id },
+    });
+    setBusy(false);
+    setDeleting(null);
+    if (!res.data) return setError(errorText(res.error, res.response?.status));
+    setIncident(res.data);
+  }
+
   async function ask(content: string) {
     if (!content.trim() || busy) return;
     setBusy(true);
+    setAsking(content);
     setError(null);
     const res = await sendIncidentMessage({
       path: { incident_id: id },
       body: { content, input_mode: "text" },
     });
     if (!res.data) {
+      setAsking(null);
       setBusy(false);
       return setError(errorText(res.error, res.response?.status));
     }
     // 回應裡的事件是送出當下的快照，不能直接蓋掉快取，改成重新讀取（5 號回覆可能很慢）
     await refresh();
     setQuestion("");
+    setAsking(null);
     setBusy(false);
   }
 
@@ -81,10 +99,28 @@ export function TripPage({
     text: m.content,
     citations: m.citations,
   }));
+  const lastMessage = ctx.messages?.at(-1);
+  if (asking && !(lastMessage?.role === "user" && lastMessage.content === asking)) {
+    lines.push({ from: "me", text: asking });
+  }
 
   return (
     <main data-page-paper className={`mx-auto flex flex-col gap-6 font-ui md:px-6 ${wideMain}`}>
-      <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
+        {/* 過渡用：整個入口切換前，舊的理賠頁也連得到行程頁（#360） */}
+        {ctx.policy.policy_id && (
+          <Link
+            to="/trip/$policyId"
+            params={{ policyId: ctx.policy.policy_id }}
+            search={{ incident: id }}
+            className="t-caption underline"
+            data-testid="view-trip"
+          >
+            看整個行程
+          </Link>
+        )}
+      </div>
 
       <section
         className={`${card} flex flex-wrap items-center gap-x-6 gap-y-2`}
@@ -184,12 +220,20 @@ export function TripPage({
                     if (checked && todo.requires_upload && !hasFile) return setTicking(todo);
                     void toggle(todo, checked);
                   }}
+                  onDeleteDocument={setDeleting}
                 />
               </>
             )}
           </section>
 
-          {todos.length > 0 && <SendBox id={id} todos={todos} closed={closed} />}
+          {todos.length > 0 && (
+            <SendBox
+              id={id}
+              todos={todos}
+              closed={closed}
+              hasFiles={(ctx.documents ?? []).some((d) => d.storage_path)}
+            />
+          )}
         </div>
 
         {/* 手機：問答預設收起，右緣的圓鈕點開，從底部拉起（設計稿 v3.7）；桌機是右欄 */}
@@ -249,6 +293,8 @@ export function TripPage({
                 value={question}
                 onChange={setQuestion}
                 busy={busy}
+                typing={asking !== null}
+                typingLabel="正在查閱條款"
                 onSend={(content) => void ask(content)}
                 maxLength={300}
                 minHeight={180}
@@ -302,6 +348,31 @@ export function TripPage({
               onClick={() => ticking && void toggle(ticking, true)}
             >
               我要打勾
+            </button>
+          </>
+        }
+      />
+      <DialogShell
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="刪除這份文件？"
+        description={
+          <p>
+            「{deleting?.file_name}」會從這個待辦移除，也會從你的 Google Drive
+            刪除，刪掉就拿不回來。 如果它是這項待辦唯一的文件，待辦會回到「待上傳」。
+          </p>
+        }
+        testId="delete-document-dialog"
+        actions={
+          <>
+            <Dialog.Close className={btn}>保留</Dialog.Close>
+            <button
+              type="button"
+              className={btnPri}
+              data-testid="delete-document-confirm"
+              onClick={() => deleting && void removeDocument(deleting)}
+            >
+              刪除文件
             </button>
           </>
         }
