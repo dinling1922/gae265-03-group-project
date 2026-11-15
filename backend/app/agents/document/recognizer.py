@@ -388,7 +388,8 @@ class DocumentAgent:
                 google,
                 token,
                 pending_file_name(ctx, sniff_type(file)),
-                in_trip_folder=False,
+                # 最可能是共同文件時（行程版）直接放行程資料夾，不另開「共同文件 日期」的事故資料夾
+                in_trip_folder=_in_trip_folder(ctx, ""),
             )
         except Exception as e:  # log 只記例外型別
             logger.warning("document storage failed: %s", type(e).__name__)
