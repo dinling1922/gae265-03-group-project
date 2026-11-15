@@ -13,16 +13,20 @@ import type {
   Destination,
 } from "../../client/types.gen";
 import { CalendarIcon } from "../../components/icons";
-import { btn, btnPri } from "../../components/ui/buttons";
+import { btn, btnPri, btnSm } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
+import { FieldError } from "../../components/ui/Field";
 import { Tabs } from "../../components/ui/Tabs";
+import { useToast } from "../../components/ui/Toast";
 import { ActivityDialog, type ActivityForm, type ActivityTarget } from "./ActivityDialog";
 import { DayTabs, Timeline } from "./DayTimeline";
 import { MapPanel } from "./MapPanel";
 import { mapStops, useMapView } from "./mapView";
+import { ToolsDialog } from "./ToolsDialog";
 import { TripSidebar } from "./TripSidebar";
 import { datesBetween, formatDay, formatHour, tripDays, validateTrip } from "./tripRules";
 import { type TripFields, useItineraryActions } from "./useItineraryActions";
+import { useItineraryWebMCP } from "./useItineraryWebMCP";
 
 const SAVE_DELAY_MS = 500;
 
@@ -80,7 +84,7 @@ function Itinerary({
   const dirty =
     !comparison ||
     comparison.destination !== form.destination ||
-    comparison.city !== form.city ||
+    comparison.city !== form.city.trim() ||
     comparison.depart_date !== form.depart ||
     comparison.return_date !== form.returnDate;
 
@@ -99,6 +103,7 @@ function Itinerary({
       const result = await actions.saveTrip(snapshot, confirmRemove);
       setSaving(false);
       if (result.ok) {
+        failed.current = null;
         setSaveError(null);
         setToRemove(null);
         return result.data.comparison;
@@ -106,6 +111,7 @@ function Itinerary({
       if (result.code === "WOULD_REMOVE_ACTIVITIES") {
         setToRemove((result.detail as { activities: ActivityBrief[] }).activities);
       } else {
+        failed.current = JSON.stringify(snapshot);
         setSaveError(result.message);
       }
       return null;
@@ -115,12 +121,17 @@ function Itinerary({
     return next;
   }
 
+  // 存檔的等待計時：按「下一步」時要取消，不然計時到了會再存一次（還沒有比較紀錄時就是再建立一筆）
+  // 上次失敗的表單內容：沒改過就不自動重送（不然 saving 一變回 false 就會每 500ms 重試）
+  const failed = useRef<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // biome-ignore lint/correctness/useExhaustiveDependencies: 只在表單或已存的值變了時重排；save 每次渲染都是新函式
   useEffect(() => {
-    if (!valid || !dirty || toRemove) return;
-    const timer = setTimeout(() => void save(), SAVE_DELAY_MS);
-    return () => clearTimeout(timer);
-  }, [valid, dirty, toRemove, form, comparison]);
+    if (!valid || !dirty || toRemove || saving) return;
+    if (failed.current === JSON.stringify(fields())) return;
+    timer.current = setTimeout(() => void save(), SAVE_DELAY_MS);
+    return () => clearTimeout(timer.current);
+  }, [valid, dirty, toRemove, saving, form, comparison]);
 
   const cancelShorten = () => {
     setToRemove(null);
@@ -135,6 +146,7 @@ function Itinerary({
   };
 
   const goNext = async () => {
+    clearTimeout(timer.current);
     const saved = dirty ? await save() : comparison;
     if (saved) void navigate({ to: "/compare/$id/concerns", params: { id: saved.id } });
   };
@@ -143,6 +155,22 @@ function Itinerary({
   const dates = comparison ? datesBetween(comparison.depart_date, comparison.return_date) : [];
   const view = useMapView(dates, activities);
   const { day } = view;
+  const toast = useToast();
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const { supported } = useItineraryWebMCP({
+    comparison,
+    activities,
+    view,
+    actions,
+    syncForm: (c) =>
+      setForm({
+        destination: c.destination,
+        city: c.city,
+        depart: c.depart_date,
+        returnDate: c.return_date,
+      }),
+    toast: toast.show,
+  });
   const { stops, unmapped } = mapStops(dates, activities, view.scope, day);
   const counts: Record<string, number> = {};
   for (const a of activities) counts[a.date] = (counts[a.date] ?? 0) + 1;
@@ -179,11 +207,25 @@ function Itinerary({
         onChange={(patch) => setForm((f) => ({ ...f, ...patch }))}
         errors={errors}
         saveError={saveError}
+        onOpenTools={() => setToolsOpen(true)}
         nextDisabled={!valid || saving}
         onNext={() => void goNext()}
       />
 
       <main className="flex min-w-0 flex-col gap-6 p-4 md:p-6">
+        <div className="flex justify-end">
+          <Button
+            onClick={() => setToolsOpen(true)}
+            data-testid="open-tools"
+            className={`${btnSm} gap-2`}
+          >
+            <span
+              aria-hidden="true"
+              className="size-2 rounded-full bg-leaf shadow-[0_0_0_3px_var(--color-leaf-soft)]"
+            />
+            WebMCP · 7 個工具
+          </Button>
+        </div>
         {comparison && dates.length > 0 ? (
           <>
             <TripBanner comparison={comparison} />
@@ -248,9 +290,11 @@ function Itinerary({
         )}
       </aside>
 
+      <ToolsDialog open={toolsOpen} onOpenChange={setToolsOpen} supported={supported} />
       <ActivityDialog target={target} onClose={() => setTarget(null)} onSubmit={submitActivity} />
       <ShortenDialog
         activities={toRemove}
+        error={saveError}
         onCancel={cancelShorten}
         onConfirm={() => void save(true)}
       />
@@ -283,10 +327,12 @@ function TripBanner({ comparison }: { comparison: ComparisonOut }) {
 /** 縮短日期會刪活動：列出會移除的活動，確認後才帶 confirm_remove 存檔。 */
 function ShortenDialog({
   activities,
+  error,
   onCancel,
   onConfirm,
 }: {
   activities: ActivityBrief[] | null;
+  error: string | null;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -313,6 +359,7 @@ function ShortenDialog({
           </li>
         ))}
       </ul>
+      <FieldError>{error}</FieldError>
     </DialogShell>
   );
 }

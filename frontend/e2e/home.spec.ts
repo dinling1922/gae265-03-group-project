@@ -75,7 +75,6 @@ test("推薦過的比較紀錄出現在首頁，點進去到 1-3，上一步到 
   await page.getByLabel("目的地").selectOption("日本");
   await page.getByLabel("出發日").fill(day(7));
   await page.getByLabel("回程日").fill(day(12));
-  await page.getByLabel("年齡").fill("30");
   await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: /^班機延誤/ }).click();
   await page.getByRole("button", { name: "下一步" }).click();

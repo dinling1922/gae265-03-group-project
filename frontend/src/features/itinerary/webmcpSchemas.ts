@@ -1,0 +1,270 @@
+// 這份內容與 docs/design/itinerary/schema.json 一致（e2e 會比對）；改工具定義時兩邊一起改。
+// 放在模組層級：useWebMCP 用 JSON.stringify 比較 schema，key 順序不能變，也不要每次渲染重建。
+
+export const TOOL_SCHEMAS = {
+  get_trip_state: {
+    description:
+      "讀取這份旅遊日程的概況：目的地、城市、日期、每天的活動數，以及畫面上目前選取的活動。開始規劃或回答「整趟排得怎樣」之前先用；要看某一天的細節改用 get_day_plan。",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+    annotations: {
+      readOnlyHint: true,
+      untrustedContentHint: true,
+    },
+  },
+  get_day_plan: {
+    description:
+      "讀取某一天的活動、空著的時段與地圖編號。新增、修改或刪除活動前，用來確認時段是否有空、找到要改的活動。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        day: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          description: "第幾天，第一天是 1；與 date 擇一",
+        },
+        date: {
+          type: "string",
+          description: "日期，YYYY-MM-DD 或 M/D；與 day 擇一",
+        },
+      },
+    },
+    annotations: {
+      readOnlyHint: true,
+      untrustedContentHint: true,
+    },
+  },
+  set_trip_details: {
+    description:
+      "設定目的地、城市與出發、回程日；頁面還沒有日程時會建立一份。使用者說出要去哪裡、哪幾天，或要改日期時使用。日期縮短會移除範圍外的活動，此時會先回報並要求使用者同意。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        destination: {
+          type: "string",
+          enum: [
+            "美國",
+            "加拿大",
+            "日本",
+            "韓國",
+            "新加坡",
+            "英國",
+            "歐洲申根國家",
+            "澳洲",
+            "紐西蘭",
+            "中國大陸",
+            "香港澳門",
+            "泰國",
+            "越南",
+            "馬來西亞",
+            "菲律賓",
+            "印尼",
+          ],
+          description: "國家或地區；城市請對應到所屬的選項（例如京都→日本）",
+        },
+        city: {
+          type: "string",
+          description: "使用者說的城市，例如「京都」「大阪、奈良」；選填",
+        },
+        start_date: {
+          type: "string",
+          description: "出發日，YYYY-MM-DD 或使用者說的 M/D（年份由網站決定）",
+        },
+        end_date: {
+          type: "string",
+          description: "回程日，YYYY-MM-DD 或 M/D；旅遊天數 4～10 天（含頭尾）",
+        },
+        confirm_remove: {
+          type: "boolean",
+          description: "使用者已同意移除新日期範圍外的活動時才設為 true",
+        },
+      },
+      required: ["destination", "start_date", "end_date"],
+    },
+  },
+  add_itinerary_activities: {
+    description:
+      "在空著的時段加入一或多個活動，例如吃飯、景點、咖啡或休息。排一整天或整趟時一次送出多筆；時段已有活動的那筆會失敗並附上原因，其他照常加入。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        activities: {
+          type: "array",
+          minItems: 1,
+          maxItems: 30,
+          items: {
+            type: "object",
+            properties: {
+              day: {
+                type: "integer",
+                minimum: 1,
+                maximum: 10,
+                description: "第幾天，第一天是 1；與 date 擇一",
+              },
+              date: {
+                type: "string",
+                description: "日期，YYYY-MM-DD 或 M/D；與 day 擇一",
+              },
+              hour: {
+                type: "integer",
+                minimum: 7,
+                maximum: 22,
+                description: "開始的整點，24 小時制",
+              },
+              title: {
+                type: "string",
+                description: "簡短的活動名稱，例如「錦市場吃生魚片丼」",
+              },
+              location: {
+                type: "string",
+                description: "店名、地區或地址",
+              },
+              description: {
+                type: "string",
+                description: "推薦理由或實用提醒，一兩句",
+              },
+              category: {
+                type: "string",
+                enum: ["eat", "explore", "culture", "coffee", "rest", "stay"],
+                description: "美食、探索、文化、咖啡、休息、住宿",
+              },
+              duration: {
+                type: "number",
+                minimum: 0.5,
+                maximum: 8,
+                multipleOf: 0.5,
+                description: "時長（小時）",
+              },
+              latitude: {
+                type: "number",
+                minimum: -85,
+                maximum: 85,
+                description: "緯度；有座標才會出現在地圖上",
+              },
+              longitude: {
+                type: "number",
+                minimum: -180,
+                maximum: 180,
+                description: "經度",
+              },
+            },
+            required: ["hour", "title"],
+          },
+        },
+      },
+      required: ["activities"],
+    },
+  },
+  update_itinerary_activity: {
+    description:
+      "修改一個已存在的活動：內容、地點、座標，或移到其他日子與時段。使用者要換掉、調整或補上座標時使用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        activity_id: {
+          type: "string",
+          description: "活動 id，來自 get_day_plan 或先前的回應",
+        },
+        day: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          description: "移到第幾天；與 date 擇一",
+        },
+        date: {
+          type: "string",
+          description: "移到的日期，YYYY-MM-DD 或 M/D",
+        },
+        hour: {
+          type: "integer",
+          minimum: 7,
+          maximum: 22,
+          description: "移到的整點",
+        },
+        title: {
+          type: "string",
+          description: "新的活動名稱",
+        },
+        location: {
+          type: "string",
+          description: "新的地點",
+        },
+        description: {
+          type: "string",
+          description: "新的說明",
+        },
+        category: {
+          type: "string",
+          enum: ["eat", "explore", "culture", "coffee", "rest", "stay"],
+          description: "美食、探索、文化、咖啡、休息、住宿",
+        },
+        duration: {
+          type: "number",
+          minimum: 0.5,
+          maximum: 8,
+          multipleOf: 0.5,
+          description: "時長（小時）",
+        },
+        latitude: {
+          type: "number",
+          minimum: -85,
+          maximum: 85,
+          description: "緯度",
+        },
+        longitude: {
+          type: "number",
+          minimum: -180,
+          maximum: 180,
+          description: "經度",
+        },
+      },
+      required: ["activity_id"],
+    },
+  },
+  remove_itinerary_activity: {
+    description: "從日程移除一個活動，讓那個時段空出來。使用者說不要某個活動，或要清出時段時使用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        activity_id: {
+          type: "string",
+          description: "活動 id，來自 get_day_plan 或先前的回應",
+        },
+      },
+      required: ["activity_id"],
+    },
+  },
+  set_map_view: {
+    description:
+      "把地圖切到某一天或整趟，並可標示一個活動；時間軸與地點清單會一起跟著標示。使用者想在地圖上看某天或某個地點時使用。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        scope: {
+          type: "string",
+          enum: ["day", "trip"],
+          description: "看單日或整趟，預設 day",
+        },
+        day: {
+          type: "integer",
+          minimum: 1,
+          maximum: 10,
+          description: "第幾天；與 date 擇一",
+        },
+        date: {
+          type: "string",
+          description: "日期，YYYY-MM-DD 或 M/D",
+        },
+        activity_id: {
+          type: "string",
+          description: "要標示的活動 id；必須有座標",
+        },
+      },
+    },
+  },
+} as const;
+
+export type ToolName = keyof typeof TOOL_SCHEMAS;

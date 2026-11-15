@@ -29,6 +29,9 @@ importers:
       react-leaflet:
         specifier: 5.0.0
         version: 5.0.0(leaflet@1.9.4)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      use-webmcp-tool:
+        specifier: 0.3.0
+        version: 0.3.0(react@19.3.0)
     devDependencies:
       '@biomejs/biome':
         specifier: 2.6.2
@@ -1335,6 +1338,11 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  use-webmcp-tool@0.3.0:
+    resolution: {integrity: sha512-iwO5KbSdDzcV33PSCZw4baclCD3tEU4drdXAeeKfTCM/+F5t+LAug14UXbYKD3K3tWxBiYCuDuWXmm/q1ZSDjw==}
+    peerDependencies:
+      react: '>=18'
+
   vite@8.3.1:
     resolution: {integrity: sha512-/bvH9E9tmCXRGp2uXY3WbOldqpTwFkbha/8ANaEQ6VkxhH60KyqLwgZq6lG2y+4uT55x9+9eUHMpQ7uGnOCKjA==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -1377,6 +1385,9 @@ packages:
         optional: true
       yaml:
         optional: true
+
+  webmcp-types@0.1.11:
+    resolution: {integrity: sha512-eMbboj2UcDVEJ0bdLsKJNRnvcVrAzesVnK5A4R+b9zbPiM6kuGPXQNTWlMlWq1FWr0L2BWZ3iA6e8fr3TN7gVw==}
 
   webpack-virtual-modules@0.6.2:
     resolution: {integrity: sha512-66/V2i5hQanC51vBQKPH4aI8NMAcBW59FVBs+rC7eGHupMyfn34q7rZIE+ETlJ+XTevqfUhVVBgSUNSW2flEUQ==}
@@ -2469,6 +2480,11 @@ snapshots:
     dependencies:
       react: 19.3.0
 
+  use-webmcp-tool@0.3.0(react@19.3.0):
+    dependencies:
+      react: 19.3.0
+      webmcp-types: 0.1.11
+
   vite@8.3.1(@types/node@24.19.0)(jiti@2.7.0):
     dependencies:
       lightningcss: 1.33.0
@@ -2480,6 +2496,8 @@ snapshots:
       '@types/node': 24.19.0
       fsevents: 2.3.3
       jiti: 2.7.0
+
+  webmcp-types@0.1.11: {}
 
   webpack-virtual-modules@0.6.2: {}
 

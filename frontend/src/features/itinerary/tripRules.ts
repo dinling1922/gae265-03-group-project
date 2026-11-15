@@ -48,6 +48,11 @@ export function datesBetween(depart: string, returnDate: string): string[] {
 
 const WEEKDAY = ["日", "一", "二", "三", "四", "五", "六"];
 
+/** 「五」；星期用 UTC 算，與日期字串一致。 */
+export function weekdayOf(date: string): string {
+  return WEEKDAY[new Date(Date.parse(date)).getUTCDay()] ?? "";
+}
+
 /** 「9/18（五）」；星期用 UTC 算，與日期字串一致。 */
 export function formatDay(date: string): string {
   const d = new Date(Date.parse(date));

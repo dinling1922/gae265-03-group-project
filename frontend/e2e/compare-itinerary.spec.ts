@@ -337,3 +337,19 @@ test("1-2 按下一步存檔時顯示載入遮罩", async ({ page }) => {
   await expect(page.getByRole("status").filter({ hasText: "正在比較方案…" })).toBeVisible();
   await expect(page).toHaveURL(/\/result$/);
 });
+
+// 城市結尾有空白（打字打到一半）：存檔送 trim 後的值，不能因為畫面上的值與已存的不同而一直重送。
+test("城市結尾有空白時只存一次，不會無限重送", async ({ page }) => {
+  await login(page, "e2e-itinerary-trailing-space@example.com");
+  await page.goto("/compare/new");
+  const id = await fillTrip(page, "日本", 7, 11);
+  let patches = 0;
+  await page.route(`**/api/v1/comparisons/${id}`, async (route) => {
+    if (route.request().method() === "PATCH") patches += 1;
+    await route.continue();
+  });
+  await page.getByLabel("城市").fill("New York ");
+  await expect(page.getByTestId("trip-banner")).toContainText("New York，日本");
+  await page.waitForTimeout(1500); // 自動存檔的等待是 0.5 秒：多等幾輪看有沒有重送
+  expect(patches).toBe(1);
+});
