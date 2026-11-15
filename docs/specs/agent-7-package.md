@@ -204,3 +204,15 @@
 - 契約 v2 提案：`docs/agents/handoff/contract-v2-proposal.md`
 - Google 登入驗證清單：`docs/agents/handoff/google-login.md`
 - ADR：`docs/adr/0004-llm-never-produces-numbers.md`、`docs/adr/0015-agent-handoff-contracts.md`、`docs/adr/0019-no-insurance-company.md`、`docs/adr/0020-google-login-and-incremental-authorization.md`
+
+## 後續變更
+
+### 2026-11-15　行程版寄出與建立草稿（契約 v2.13，ADR-0029）
+
+正式版 `GmailClaimPackager` 實作 `build_trip`、`send_trip`，平台的 `can_send` 因此變成 `true`：行程版送件頁可以寄出與建立草稿，寄出或建立草稿後的 Gmail 視窗、結案後的「到 Gmail 查看」也跟著能用。
+
+- 一封信涵蓋全部符合保障的事件，不拆信。問候、保單資訊、聯絡電話與免責聲明整封信只寫一次；主旨同事件版。
+- 事故摘要一個事故一行（事件依發生時間），開頭寫事故名稱。事故相關的空格前面也加事故名稱，例如「（請填寫班機延誤日期）」；同類型第二次起加半形序號「班機延誤(2)」（全形「）」會讓空格範圍找錯）。沒有事故類型名稱的叫「事故」。被保險人姓名、保單號碼、聯絡電話等整封信只有一份的空格不加事故名稱。
+- 附件與「未隨信附上的文件」的規則同事件版，順序是先各事件的待辦（依事件順序、待辦順序），再共同文件（D02、D10 等）；共同文件只附一次。「未隨信附上的文件」裡事件的待辦前面加事故名稱（「・班機延誤(2)：延誤證明（另行提供）」），共同文件只寫待辦名稱。
+- 不寫適用保障與 `amount_note`。
+- 寄出與建立草稿的規則、授權、Drive 取檔與錯誤說明同事件版（共用同一段程式）；沒有附件時只要 Gmail 授權。
