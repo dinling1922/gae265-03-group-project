@@ -18,6 +18,8 @@ import { Dialog, DialogShell } from "../../components/ui/DialogShell";
 import { Tabs } from "../../components/ui/Tabs";
 import { ActivityDialog, type ActivityForm, type ActivityTarget } from "./ActivityDialog";
 import { DayTabs, Timeline } from "./DayTimeline";
+import { MapPanel } from "./MapPanel";
+import { mapStops, useMapView } from "./mapView";
 import { TripSidebar } from "./TripSidebar";
 import { datesBetween, formatDay, formatHour, tripDays, validateTrip } from "./tripRules";
 import { type TripFields, useItineraryActions } from "./useItineraryActions";
@@ -139,8 +141,9 @@ function Itinerary({
 
   // ---- 日程：日期分頁、活動 ----
   const dates = comparison ? datesBetween(comparison.depart_date, comparison.return_date) : [];
-  const [activeDate, setActiveDate] = useState<string>(dates[0] ?? "");
-  const day = dates.includes(activeDate) ? activeDate : (dates[0] ?? "");
+  const view = useMapView(dates, activities);
+  const { day } = view;
+  const { stops, unmapped } = mapStops(dates, activities, view.scope, day);
   const counts: Record<string, number> = {};
   for (const a of activities) counts[a.date] = (counts[a.date] ?? 0) + 1;
   const dayActivities = activities.filter((a) => a.date === day);
@@ -169,7 +172,7 @@ function Itinerary({
     <div
       data-page-paper
       data-page-wide
-      className="relative left-1/2 grid w-screen -translate-x-1/2 grid-cols-1 font-ui md:grid-cols-[minmax(250px,305px)_minmax(0,1fr)] min-[1091px]:grid-cols-[minmax(255px,305px)_minmax(390px,1fr)_minmax(345px,440px)] min-[1250px]:grid-cols-[minmax(290px,335px)_minmax(430px,1fr)_minmax(365px,455px)]"
+      className="relative left-1/2 grid w-screen -translate-x-1/2 grid-cols-1 font-ui min-[768px]:grid-cols-[minmax(250px,305px)_minmax(0,1fr)] min-[1091px]:grid-cols-[minmax(255px,305px)_minmax(390px,1fr)_minmax(345px,440px)] min-[1250px]:grid-cols-[minmax(290px,335px)_minmax(430px,1fr)_minmax(365px,455px)]"
     >
       <TripSidebar
         form={form}
@@ -184,7 +187,7 @@ function Itinerary({
         {comparison && dates.length > 0 ? (
           <>
             <TripBanner comparison={comparison} />
-            <DayTabs dates={dates} value={day} onChange={setActiveDate} counts={counts}>
+            <DayTabs dates={dates} value={day} onChange={view.showDay} counts={counts}>
               {dates.map((d, i) => (
                 <Tabs.Panel key={d} value={d}>
                   <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
@@ -203,6 +206,8 @@ function Itinerary({
                   )}
                   <Timeline
                     activities={d === day ? dayActivities : []}
+                    selectedId={view.selected?.id ?? null}
+                    onSelect={view.select}
                     onAdd={(hour) => setTarget({ kind: "add", date: d, hour })}
                     onEdit={(activity) => setTarget({ kind: "edit", activity })}
                     onRemove={(activity) => void removeActivity(activity)}
@@ -227,10 +232,21 @@ function Itinerary({
         )}
       </main>
 
-      <aside
-        data-testid="map-panel"
-        className="border-line p-4 md:col-start-2 md:border-t md:p-6 min-[1091px]:sticky min-[1091px]:top-4 min-[1091px]:col-start-3 min-[1091px]:max-h-[calc(100vh-2rem)] min-[1091px]:self-start min-[1091px]:overflow-auto min-[1091px]:border-t-0 min-[1091px]:border-l"
-      />
+      <aside className="border-line p-4 md:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[1091px]:sticky min-[1091px]:top-4 min-[1091px]:col-start-3 min-[1091px]:max-h-[calc(100vh-2rem)] min-[1091px]:self-start min-[1091px]:overflow-auto min-[1091px]:border-t-0 min-[1091px]:border-l">
+        {comparison && dates.length > 0 && (
+          <MapPanel
+            dates={dates}
+            scope={view.scope}
+            day={day}
+            stops={stops}
+            unmapped={unmapped}
+            selectedId={view.selected?.id ?? null}
+            onShowTrip={view.showTrip}
+            onShowDay={view.showDay}
+            onSelect={(stop) => view.select(stop.activity)}
+          />
+        )}
+      </aside>
 
       <ActivityDialog target={target} onClose={() => setTarget(null)} onSubmit={submitActivity} />
       <ShortenDialog
