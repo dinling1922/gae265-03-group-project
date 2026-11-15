@@ -237,6 +237,19 @@ export const TOOL_SCHEMAS = {
       required: ["activity_id"],
     },
   },
+  clear_itinerary_activities: {
+    description:
+      "清除整趟旅行所有的活動（目的地與日期不變）。使用者要整個重排或清空日程時使用；會刪掉全部活動，必須先徵得使用者同意，再帶 confirm: true。只想拿掉一個活動請改用 remove_itinerary_activity。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        confirm: {
+          type: "boolean",
+          description: "使用者已同意清除全部活動時才設為 true；沒帶時只回報會刪幾個，什麼都不刪",
+        },
+      },
+    },
+  },
   set_map_view: {
     description:
       "把地圖切到某一天或整趟，並可標示一個活動；時間軸與地點清單會一起跟著標示。使用者想在地圖上看某天或某個地點時使用。",

@@ -158,6 +158,7 @@ function Itinerary({
   const { day } = view;
   const toast = useToast();
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [clearOpen, setClearOpen] = useState(false);
   const { supported } = useItineraryWebMCP({
     comparison,
     activities,
@@ -192,6 +193,12 @@ function Itinerary({
     return null;
   }
 
+  async function clearAll() {
+    const result = await actions.clearActivities();
+    setActionError(result.ok ? null : result.message);
+    if (result.ok) setClearOpen(false);
+  }
+
   async function removeActivity(a: ActivityOut) {
     const result = await actions.removeActivity(a.id);
     setActionError(result.ok ? null : result.message);
@@ -209,6 +216,8 @@ function Itinerary({
         errors={errors}
         saveError={saveError}
         onOpenTools={() => setToolsOpen(true)}
+        activityCount={activities.length}
+        onClear={() => setClearOpen(true)}
         nextDisabled={!valid || saving}
         onNext={() => void goNext()}
       />
@@ -285,6 +294,12 @@ function Itinerary({
 
       <ToolsDialog open={toolsOpen} onOpenChange={setToolsOpen} supported={supported} />
       <ActivityDialog target={target} onClose={() => setTarget(null)} onSubmit={submitActivity} />
+      <ClearDialog
+        count={clearOpen ? activities.length : null}
+        error={actionError}
+        onCancel={() => setClearOpen(false)}
+        onConfirm={() => void clearAll()}
+      />
       <ShortenDialog
         activities={toRemove}
         error={saveError}
@@ -360,6 +375,38 @@ function TripBanner({ comparison }: { comparison: ComparisonOut }) {
 }
 
 /** 縮短日期會刪活動：列出會移除的活動，確認後才帶 confirm_remove 存檔。 */
+function ClearDialog({
+  count,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  count: number | null;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <DialogShell
+      open={count !== null}
+      onOpenChange={(open) => !open && onCancel()}
+      title={`將移除全部 ${count ?? 0} 個活動`}
+      description="這趟旅行排好的活動會全部刪除，無法復原；目的地與日期不變。"
+      testId="clear-dialog"
+      actions={
+        <>
+          <Dialog.Close className={btn}>取消</Dialog.Close>
+          <Button className={btnPri} onClick={onConfirm} data-testid="clear-confirm">
+            確認清除
+          </Button>
+        </>
+      }
+    >
+      <FieldError>{error}</FieldError>
+    </DialogShell>
+  );
+}
+
 function ShortenDialog({
   activities,
   error,

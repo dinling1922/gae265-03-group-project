@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
+  clearItineraryActivities,
   createComparison,
   createItineraryActivities,
   deleteItineraryActivity,
@@ -54,7 +55,7 @@ function failure(error: unknown, status: number | undefined): ActionResult<never
 }
 
 /**
- * 日程頁的動作（建立／更新旅行規劃、新增／修改／移除活動）：畫面上的按鈕與 WebMCP 工具共用。
+ * 日程頁的動作（建立／更新旅行規劃、新增／修改／移除／清除活動）：畫面上的按鈕與 WebMCP 工具共用。
  * 每個動作都等後端回應、快取更新（會重新讀取日程活動）之後才回來，呼叫端不用再等畫面。
  * `id` 是 undefined 代表還在 `/compare/new`，還沒有比較紀錄。
  */
@@ -122,5 +123,13 @@ export function useItineraryActions(id: string | undefined) {
     return { ok: true, data: null };
   }
 
-  return { saveTrip, addActivities, changeActivity, removeActivity };
+  /** 清除這趟旅行的所有活動（旅行規劃不動）；回傳刪了幾個。 */
+  async function clearActivities(): Promise<ActionResult<{ removed: number }>> {
+    const { data, error, response } = await clearItineraryActivities({ path });
+    if (!data) return failure(error, response?.status);
+    await refreshActivities();
+    return { ok: true, data };
+  }
+
+  return { saveTrip, addActivities, changeActivity, removeActivity, clearActivities };
 }

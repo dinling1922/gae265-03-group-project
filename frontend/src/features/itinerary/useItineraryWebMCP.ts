@@ -172,7 +172,7 @@ type UpdateArgs = Partial<ActivityArgs> & { activity_id: string };
 type MapArgs = DayRef & { scope?: MapScope; activity_id?: string };
 
 /**
- * 日程頁的 7 個 WebMCP 工具（ADR-0031）：離開頁面自動移除。工具與畫面按鈕共用同一組動作函式，
+ * 日程頁的 8 個 WebMCP 工具（ADR-0031）：離開頁面自動移除。工具與畫面按鈕共用同一組動作函式，
  * 等資料與畫面更新完才回傳；失敗時丟出可照著做的訊息。不呼叫 LLM。
  * 回傳是否支援 WebMCP（工具面板用）。
  */
@@ -435,6 +435,26 @@ export function useItineraryWebMCP(ctx: WebMCPContext): { supported: boolean } {
         day: dates.indexOf(target.date) + 1,
         hour: target.hour,
       };
+    },
+  });
+
+  useWebMCP<{ confirm?: boolean }>({
+    name: "clear_itinerary_activities",
+    ...TOOL_SCHEMAS.clear_itinerary_activities,
+    execute: async ({ confirm }) => {
+      trip();
+      const count = latest.current.activities.length;
+      if (count === 0) return { removed: 0 };
+      if (confirm !== true) {
+        throw new Error(
+          `WOULD_REMOVE_ACTIVITIES：會移除全部 ${count} 個活動，什麼都還沒刪。請先徵得使用者同意，再帶 confirm: true 重新呼叫。`,
+        );
+      }
+      const result = await latest.current.actions.clearActivities();
+      if (!result.ok) throw new Error(result.message);
+      await waitFor(() => latest.current.activities.length === 0);
+      latest.current.toast(`agent 清除了所有活動（${result.data.removed} 個）`);
+      return { removed: result.data.removed };
     },
   });
 

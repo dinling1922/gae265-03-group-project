@@ -190,6 +190,25 @@ async def test_delete_frees_the_slot_and_missing_activity_is_404(
     assert len((await add(client, comparison, activity()))["created"]) == 1
 
 
+async def test_clear_removes_all_activities_of_this_trip_only(
+    client: AsyncClient, comparison: str
+) -> None:
+    created = await client.post(
+        "/comparisons",
+        json={"destination": "日本", "depart_date": day(1), "return_date": day(4)},
+    )
+    assert created.status_code == 201, created.text
+    other = created.json()["id"]
+    await add(client, comparison, activity(hour=9), activity(hour=10))
+    await add(client, other, activity(hour=9))
+    url = f"/comparisons/{comparison}/activities"
+    assert (await client.delete(url)).json() == {"removed": 2}
+    assert (await client.get(url)).json() == []
+    assert (await client.delete(url)).json() == {"removed": 0}
+    assert len((await client.get(f"/comparisons/{other}/activities")).json()) == 1
+    assert len((await add(client, comparison, activity(hour=9)))["created"]) == 1
+
+
 async def test_someone_elses_comparison_and_activities_are_not_found(
     client: AsyncClient, comparison: str, session: AsyncSession
 ) -> None:
@@ -201,6 +220,7 @@ async def test_someone_elses_comparison_and_activities_are_not_found(
 
     base = f"/comparisons/{comparison}/activities"
     assert (await client.get(base)).status_code == 404
+    assert (await client.delete(base)).status_code == 404
     assert (
         await client.post(base, json={"activities": [activity()]})
     ).status_code == 404

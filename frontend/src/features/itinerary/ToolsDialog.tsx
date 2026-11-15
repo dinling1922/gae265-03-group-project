@@ -28,6 +28,11 @@ const TOOLS: { name: ToolName; readOnly: boolean; text: string }[] = [
     text: "修改一個活動的內容、座標，或移到其他日子與時段。",
   },
   { name: "remove_itinerary_activity", readOnly: false, text: "移除一個活動，讓時段空出來。" },
+  {
+    name: "clear_itinerary_activities",
+    readOnly: false,
+    text: "清除整趟所有活動；會先回報數量，經使用者同意才執行。",
+  },
   { name: "set_map_view", readOnly: false, text: "切換地圖顯示某一天或整趟，並標示某個活動。" },
 ];
 

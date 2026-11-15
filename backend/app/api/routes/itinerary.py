@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Response, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, ValidationError, model_validator
 from pydantic_core import PydanticCustomError
+from sqlalchemy import delete
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -89,6 +90,10 @@ class ActivityFailure(BaseModel):
 class ActivitiesCreated(BaseModel):
     created: list[ActivityOut]
     failed: list[ActivityFailure]
+
+
+class ActivitiesCleared(BaseModel):
+    removed: int = Field(description="刪掉幾個活動")
 
 
 class SlotTaken(BaseModel):
@@ -252,3 +257,18 @@ async def delete_itinerary_activity(
     await session.delete(await _own_activity(session, comparison, activity_id))
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/comparisons/{comparison_id}/activities")
+async def clear_itinerary_activities(
+    session: SessionDep, user: CurrentUser, comparison_id: uuid.UUID
+) -> ActivitiesCleared:
+    """清除這趟旅行的所有日程活動（旅行規劃本身不動）；沒有活動也回 0。"""
+    comparison = await own_comparison(session, user, comparison_id)
+    result = await session.exec(
+        delete(ItineraryActivity).where(
+            col(ItineraryActivity.comparison_id) == comparison.id
+        )
+    )
+    await session.commit()
+    return ActivitiesCleared(removed=result.rowcount)

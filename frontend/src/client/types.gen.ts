@@ -5,6 +5,18 @@ export type ClientOptions = {
 };
 
 /**
+ * ActivitiesCleared
+ */
+export type ActivitiesCleared = {
+    /**
+     * Removed
+     *
+     * 刪掉幾個活動
+     */
+    removed: number;
+};
+
+/**
  * ActivitiesCreated
  */
 export type ActivitiesCreated = {
@@ -5300,6 +5312,36 @@ export type UpdateComparisonResponses = {
 };
 
 export type UpdateComparisonResponse = UpdateComparisonResponses[keyof UpdateComparisonResponses];
+
+export type ClearItineraryActivitiesData = {
+    body?: never;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/activities';
+};
+
+export type ClearItineraryActivitiesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearItineraryActivitiesError = ClearItineraryActivitiesErrors[keyof ClearItineraryActivitiesErrors];
+
+export type ClearItineraryActivitiesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActivitiesCleared;
+};
+
+export type ClearItineraryActivitiesResponse = ClearItineraryActivitiesResponses[keyof ClearItineraryActivitiesResponses];
 
 export type ListItineraryActivitiesData = {
     body?: never;

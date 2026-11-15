@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { login } from "./helpers";
 
-// 日程頁的 7 個 WebMCP 工具：用 document.modelContext.executeTool 直接呼叫，不經過 LLM。
+// 日程頁的 8 個 WebMCP 工具：用 document.modelContext.executeTool 直接呼叫，不經過 LLM。
 // Chromium 要加 --enable-features=WebMCP（playwright.config.ts 已加）。
 
 function day(offset: number): string {
@@ -76,7 +76,7 @@ async function createTrip(page: Page, depart = 7, ret = 12): Promise<string> {
 const card = (page: Page, title: string) =>
   page.getByTestId("activity-card").filter({ hasText: title });
 
-test("7 個工具都有註冊，內容與 schema.json 一致，離開日程頁後移除", async ({ page }) => {
+test("8 個工具都有註冊，內容與 schema.json 一致，離開日程頁後移除", async ({ page }) => {
   await login(page, "e2e-webmcp-register@example.com");
   await page.goto("/compare/new");
   await expect(page.getByTestId("open-tools")).toBeVisible();
@@ -85,7 +85,7 @@ test("7 個工具都有註冊，內容與 schema.json 一致，離開日程頁�
     readFileSync(new URL("../../docs/design/itinerary/schema.json", import.meta.url), "utf8"),
   ) as { tools: { name: string; description: string; inputSchema: object }[] };
   expect(await toolNames(page)).toEqual(schema.tools.map((t) => t.name).sort());
-  expect(schema.tools).toHaveLength(7);
+  expect(schema.tools).toHaveLength(8);
 
   const registered = await page.evaluate(async () => {
     // biome-ignore lint/suspicious/noExplicitAny: 同上
@@ -137,7 +137,7 @@ test("在 /compare/new 呼叫 set_trip_details：表單填好、網址換成日�
   await expect(page.getByRole("tab")).toHaveCount(5);
   await expect(page.getByTestId("toast")).toHaveText("agent 設定了旅行規劃");
   // 換頁之後工具也重新註冊
-  expect(await toolNames(page)).toHaveLength(7);
+  expect(await toolNames(page)).toHaveLength(8);
 });
 
 test("set_trip_details 的錯誤：日期格式、天數、目的地", async ({ page }) => {
@@ -240,6 +240,33 @@ test("還沒設定日期就呼叫會改資料的工具：回「請先用 set_tri
   }
   const state = await ok(page, "get_trip_state");
   expect(state.has_trip).toBe(false);
+});
+
+test("clear_itinerary_activities：沒帶 confirm 只回報數量不刪，帶了才清空；沒活動回 0", async ({
+  page,
+}) => {
+  await login(page, "e2e-webmcp-clear@example.com");
+  await createTrip(page);
+  expect(await ok(page, "clear_itinerary_activities", { confirm: true })).toEqual({ removed: 0 });
+
+  await ok(page, "add_itinerary_activities", {
+    activities: [
+      { day: 1, hour: 9, title: "早餐" },
+      { day: 2, hour: 10, title: "咖啡" },
+      { day: 3, hour: 11, title: "散步" },
+    ],
+  });
+  const message = await fail(page, "clear_itinerary_activities");
+  expect(message).toContain("WOULD_REMOVE_ACTIVITIES");
+  expect(message).toContain("3 個活動");
+  expect((await ok(page, "get_trip_state")).activity_count).toBe(3);
+
+  expect(await ok(page, "clear_itinerary_activities", { confirm: true })).toEqual({ removed: 3 });
+  await expect(page.getByTestId("toast")).toHaveText("agent 清除了所有活動（3 個）");
+  const state = await ok(page, "get_trip_state");
+  expect(state.activity_count).toBe(0);
+  expect(state.has_trip).toBe(true);
+  await expect(page.getByTestId("activity-card")).toHaveCount(0);
 });
 
 test("update_itinerary_activity 與 remove_itinerary_activity：畫面更新、不存在的 id 回可照著做的錯誤", async ({
@@ -425,7 +452,7 @@ test("get_trip_state 與 get_day_plan 的回應不超過 1,500 字元（10 天�
   }
 });
 
-test("工具面板：7 個工具、4 句範例說法、支援狀態；不支援 WebMCP 時說明開啟方式", async ({
+test("工具面板：8 個工具、4 句範例說法、支援狀態；不支援 WebMCP 時說明開啟方式", async ({
   page,
 }) => {
   await login(page, "e2e-webmcp-panel@example.com");
@@ -433,7 +460,7 @@ test("工具面板：7 個工具、4 句範例說法、支援狀態；不支援 
   await page.getByTestId("open-tools").click();
   const dialog = page.getByTestId("tools-dialog");
   await expect(dialog.getByRole("heading", { name: "這一頁開放給 agent 的工具" })).toBeVisible();
-  await expect(dialog.getByTestId("tools-list").locator("li")).toHaveCount(7);
+  await expect(dialog.getByTestId("tools-list").locator("li")).toHaveCount(8);
   await expect(dialog.getByTestId("tools-list").getByText("唯讀")).toHaveCount(2);
   await expect(dialog.getByRole("button", { name: /^複製：/ })).toHaveCount(4);
   await expect(dialog.getByTestId("webmcp-status")).toHaveAttribute("data-supported", "true");

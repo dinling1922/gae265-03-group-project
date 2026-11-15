@@ -1,7 +1,7 @@
 import { Button } from "@base-ui/react/button";
 import type { Destination } from "../../client/types.gen";
 import { SparkleIcon } from "../../components/icons";
-import { btnPri } from "../../components/ui/buttons";
+import { btnPri, btnSmDanger } from "../../components/ui/buttons";
 import { Field, FieldError, FieldHint, fieldInput, fieldSelect } from "../../components/ui/Field";
 import { PageHead } from "../../components/ui/PageHead";
 import { DaysSummary } from "../compare/DaysSummary";
@@ -21,6 +21,8 @@ export function TripSidebar({
   errors,
   saveError,
   onOpenTools,
+  activityCount,
+  onClear,
   nextDisabled,
   onNext,
 }: {
@@ -30,6 +32,9 @@ export function TripSidebar({
   saveError: string | null;
   /** 開啟 WebMCP 工具面板；還沒有面板時不給，按鈕停用。 */
   onOpenTools?: () => void;
+  /** 目前排了幾個活動；大於 0 才顯示「清除所有活動」。 */
+  activityCount: number;
+  onClear: () => void;
   nextDisabled: boolean;
   onNext: () => void;
 }) {
@@ -112,6 +117,15 @@ export function TripSidebar({
         )}
         <FieldError>{saveError}</FieldError>
       </div>
+      {activityCount > 0 && (
+        <Button
+          onClick={onClear}
+          data-testid="clear-activities"
+          className={`${btnSmDanger} w-full`}
+        >
+          清除所有活動（{activityCount}）
+        </Button>
+      )}
       <Button
         onClick={onOpenTools}
         disabled={!onOpenTools}
@@ -131,7 +145,7 @@ export function TripSidebar({
               aria-hidden="true"
               className="size-2 rounded-full bg-leaf shadow-[0_0_0_3px_var(--color-leaf-soft)]"
             />
-            WebMCP · 7 個工具
+            WebMCP · 8 個工具
           </span>
         </span>
         <span aria-hidden="true" className="t-label text-brand">

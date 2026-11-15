@@ -165,6 +165,44 @@ test("縮短日期會移除活動時先確認，取消不變、確認後移除",
   await expect(page.getByTestId("activity-card")).toHaveCount(1); // 第一天早餐還在
 });
 
+test("清除所有活動：沒活動時不顯示按鈕，取消不變、確認後清空且旅行規劃不變", async ({ page }) => {
+  await login(page, "e2e-itinerary-clear@example.com");
+  await page.goto("/compare/new");
+  const id = await fillTrip(page, "日本", 7, 12);
+  await expect(page.getByTestId("clear-activities")).toBeHidden();
+
+  const add = await page.request.post(`/api/v1/comparisons/${id}/activities`, {
+    data: {
+      activities: [
+        { date: day(7), hour: 9, title: "第一天早餐" },
+        { date: day(9), hour: 10, title: "第三天咖啡" },
+      ],
+    },
+  });
+  expect(add.ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.getByTestId("activity-card")).toHaveCount(1);
+
+  const open = page.getByTestId("clear-activities");
+  await expect(open).toHaveText("清除所有活動（2）");
+  await open.click();
+  const dialog = page.getByTestId("clear-dialog");
+  await expect(dialog.getByRole("heading", { name: "將移除全部 2 個活動" })).toBeVisible();
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(open).toHaveText("清除所有活動（2）");
+
+  await open.click();
+  await dialog.getByTestId("clear-confirm").click();
+  await expect(dialog).toBeHidden();
+  await expect(open).toBeHidden();
+  await expect(page.getByTestId("activity-card")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByLabel("回程日")).toHaveValue(day(12));
+  await expect(page.getByRole("tab")).toHaveCount(6);
+  await expect(page.getByTestId("clear-activities")).toBeHidden();
+});
+
 // 不排活動也能下一步；1-2 按上一步回來，活動還在。
 test("不排活動可以直接下一步；1-2 上一步回到日程頁，活動還在", async ({ page }) => {
   await login(page, "e2e-itinerary-back@example.com");

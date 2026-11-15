@@ -122,6 +122,13 @@ export const itineraryHandlers = (
     );
     return HttpResponse.json<ActivityOut>(next);
   }),
+  http.delete("*/api/v1/comparisons/:id/activities", ({ params }) => {
+    const id = String(params.id);
+    if (!rangeOf(id)) return HttpResponse.json({ detail: "找不到這筆比較紀錄" }, { status: 404 });
+    const removed = list(id).length;
+    mockActivities.set(id, []);
+    return HttpResponse.json({ removed });
+  }),
   http.delete("*/api/v1/comparisons/:id/activities/:activityId", ({ params }) => {
     const id = String(params.id);
     if (!rangeOf(id)) return HttpResponse.json({ detail: "找不到這筆比較紀錄" }, { status: 404 });
