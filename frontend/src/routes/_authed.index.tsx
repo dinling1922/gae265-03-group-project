@@ -72,7 +72,7 @@ function HomePage() {
       </div>
       {import.meta.env.DEV && (
         <p>
-          <Link to="/dev" className="text-blue-700 underline">
+          <Link to="/dev" className="inline-block py-3 text-blue-700 underline md:py-0">
             開發工具（API 測試台、條文瀏覽、健康狀態）
           </Link>
         </p>
@@ -102,7 +102,7 @@ function RecentComparisons() {
         {comparisons.length > SHOWN && (
           <Link
             to="/compare"
-            className="ml-auto flex items-center gap-1.5 text-xs font-bold leading-[18px] text-leaf md:gap-3.5 md:text-base md:leading-6"
+            className="-my-3.5 ml-auto flex items-center gap-1.5 py-3.5 text-xs font-bold leading-[18px] text-leaf md:my-0 md:gap-3.5 md:py-0 md:text-base md:leading-6"
           >
             看全部
             <ChevronIcon className="size-4" />
@@ -162,7 +162,7 @@ function MyTrips() {
         {list.length > SHOWN && (
           <Link
             to="/trip"
-            className="ml-auto flex items-center gap-1.5 text-xs font-bold leading-[18px] text-leaf md:gap-3.5 md:text-base md:leading-6"
+            className="-my-3.5 ml-auto flex items-center gap-1.5 py-3.5 text-xs font-bold leading-[18px] text-leaf md:my-0 md:gap-3.5 md:py-0 md:text-base md:leading-6"
           >
             看全部
             <ChevronIcon className="size-4" />
