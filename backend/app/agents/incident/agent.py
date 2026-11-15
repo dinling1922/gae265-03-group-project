@@ -579,6 +579,20 @@ class IncidentAgentV1:
             if type_code == flow.FLIGHT_DELAY
             else {}
         )
+        # 旅客說更正後的時數、記錄的起飛時間算出不同的時數：同樣由程式處理，不問模型。模型對
+        # 「其實只有兩個小時」這類句子曾亂填欄位（正式站 11/15 的 eval），讓更正被跳過（#383）
+        if (
+            not clock
+            and type_code == flow.FLIGHT_DELAY
+            and (corrected := _hours_correction(state["text"], known))
+        ):
+            lead = DELAY_CORRECTED_LEAD.format(hours=known[DELAY_HOURS_KEY])
+            return {
+                "known": known,
+                "updates": corrected,
+                "type_code": type_code,
+                "lead": lead,
+            }
         result = (
             ExtractResult(answers=clock)
             if clock
@@ -595,14 +609,6 @@ class IncidentAgentV1:
         answers = _with_relative_date(state["text"], known, answers, fields)
         updates = _apply_changes(fields, answers, known)
         if not updates and type_code == flow.FLIGHT_DELAY:
-            if corrected := _hours_correction(state["text"], known):
-                lead = DELAY_CORRECTED_LEAD.format(hours=known[DELAY_HOURS_KEY])
-                return {
-                    "known": known,
-                    "updates": corrected,
-                    "type_code": type_code,
-                    "lead": lead,
-                }
             if fix := _stated_hours_fix(state["text"], known):
                 updates = [fix]
         if not updates:
