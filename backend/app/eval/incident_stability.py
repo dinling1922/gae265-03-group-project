@@ -22,6 +22,7 @@ from typing import Any
 
 import httpx
 
+from app.agents.incident.agent import NEW_SITUATION_MESSAGE
 from app.core.config import ROOT_DIR, settings
 
 DEFAULT_BASE = "http://localhost:8000/api/v1"
@@ -29,6 +30,20 @@ MAX_TURNS = 15
 REQUEST_TIMEOUT = 180
 UNKNOWN = "不知道"
 ASK_AGAIN = "沒有聽懂"  # 5 號重問同一題時的說法
+# 問答退回貼條款原文時的開頭（adapters._original）；出現就表示沒有白話說明
+ORIGINAL_NOTICE = "（無法產生白話說明，以下直接列出條款原文。）"
+FOLLOW_UP_KINDS = ("new_situation", "qa")
+
+
+@dataclass(frozen=True)
+class FollowUp:
+    """問完之後再送的一句，和預期的回覆種類：new_situation（固定訊息）或 qa（有出處的條款問答）。
+
+    不論哪一種，這一句都不能改動已記下的狀況與結論，所以前後一律比對。
+    """
+
+    say: str
+    expect: str
 
 
 @dataclass(frozen=True)
@@ -41,6 +56,7 @@ class Scenario:
     description: str
     answers: list[tuple[str, str]]
     expect_documents: frozenset[str]
+    follow_up: FollowUp | None = None
 
 
 @dataclass
@@ -52,10 +68,25 @@ class Run:
     turn_seconds: list[float]
     repeats: int
     log: list[tuple[str, str]] = field(default_factory=list)
+    # 只有劇本帶後續句才有值：None 表示沒有後續句
+    follow_up_ok: bool | None = None
+    follow_up_problem: str | None = None
 
     @property
     def seconds(self) -> float:
         return sum(self.turn_seconds)
+
+
+def _follow_up(row: dict[str, Any]) -> FollowUp | None:
+    raw = row.get("follow_up")
+    if raw is None:
+        return None
+    say, expect = raw.get("say"), raw.get("expect")
+    if not say or expect not in FOLLOW_UP_KINDS:
+        raise ValueError(
+            f"劇本「{row['name']}」的 follow_up 要有 say，expect 要是 {FOLLOW_UP_KINDS} 其中之一"
+        )
+    return FollowUp(say=say, expect=expect)
 
 
 def load_scenarios(path: Path) -> list[Scenario]:
@@ -69,6 +100,7 @@ def load_scenarios(path: Path) -> list[Scenario]:
             description=row["description"],
             answers=[(key, answer) for key, answer in row["answers"]],
             expect_documents=frozenset(row["expect_documents"]),
+            follow_up=_follow_up(row),
         )
         for row in json.loads(path.read_text(encoding="utf-8"))
     ]
@@ -77,6 +109,37 @@ def load_scenarios(path: Path) -> list[Scenario]:
 def pick(question: str, answers: list[tuple[str, str]]) -> str:
     """題目含哪個關鍵字就用哪個回答（依序比對）；都對不到就回「不知道」。"""
     return next((a for key, a in answers if key in question), UNKNOWN)
+
+
+Snapshot = tuple[dict[str, str], list[str]]
+
+
+def _snapshot(incident: dict[str, Any]) -> Snapshot:
+    return (
+        {f["fact_key"]: f["value"] for f in incident["facts"]},
+        [c["conclusion"] for c in incident["clauses"]],
+    )
+
+
+def judge_follow_up(
+    expect: str, reply: dict[str, Any], before: Snapshot, after: Snapshot
+) -> str | None:
+    """後續句的回覆符不符合預期；符合回 None，不符合回原因。種類由程式判斷，不靠模型。"""
+    message = reply["message"]
+    if expect == "new_situation":
+        if message != NEW_SITUATION_MESSAGE:
+            return "沒有回新狀況的固定訊息"
+    elif message == NEW_SITUATION_MESSAGE:
+        return "預期是條款問答，卻回了新狀況的固定訊息"
+    elif not reply.get("citations"):
+        return "條款問答沒有出處"
+    elif message.startswith(ORIGINAL_NOTICE):
+        return "條款問答退回貼條款原文"
+    if before[0] != after[0]:
+        return "後續句改動了已記下的狀況"
+    if before[1] != after[1]:
+        return "後續句改動了結論"
+    return None
 
 
 async def _post(client: httpx.AsyncClient, url: str, body: dict[str, Any]) -> Any:
@@ -88,10 +151,11 @@ async def _post(client: httpx.AsyncClient, url: str, body: dict[str, Any]) -> An
 async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Run:
     turn_seconds: list[float] = []
 
-    async def timed(url: str, body: dict[str, Any]) -> Any:
+    async def timed(url: str, body: dict[str, Any], *, record: bool = True) -> Any:
         started = time.perf_counter()
         data = await _post(client, url, body)
-        turn_seconds.append(time.perf_counter() - started)
+        if record:
+            turn_seconds.append(time.perf_counter() - started)
         return data
 
     data = await timed(
@@ -108,6 +172,23 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
         log += [("旅客", said), ("5 號", data["reply"]["message"])]
 
     incident = data["incident"]
+    repeats = sum(ASK_AGAIN in text for who, text in log if who == "5 號")
+    follow_up_problem: str | None = None
+    if s.follow_up:
+        # 後續句不算進輪數與秒數，原本的待辦與結論也只看問完那一刻的事件
+        if data["reply"].get("finished"):
+            before = _snapshot(incident)
+            data = await timed(
+                f"/incidents/{incident_id}/messages",
+                {"content": s.follow_up.say},
+                record=False,
+            )
+            log += [("旅客", s.follow_up.say), ("5 號", data["reply"]["message"])]
+            follow_up_problem = judge_follow_up(
+                s.follow_up.expect, data["reply"], before, _snapshot(data["incident"])
+            )
+        else:
+            follow_up_problem = "對話沒有問完，沒有送後續句"
     documents = sorted(
         {t["document_code"] for t in incident["todos"] if t["applicable"]} - {None}
     )
@@ -117,8 +198,10 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
         conclusions=[c["conclusion"] for c in incident["clauses"]],
         facts={f["fact_key"]: f["value"] for f in incident["facts"]},
         turn_seconds=turn_seconds,
-        repeats=sum(ASK_AGAIN in text for who, text in log if who == "5 號"),
+        repeats=repeats,
         log=log,
+        follow_up_ok=None if s.follow_up is None else follow_up_problem is None,
+        follow_up_problem=follow_up_problem,
     )
 
 
@@ -148,10 +231,23 @@ async def measure(
                 results[s.name].append(run)
                 print(  # noqa: T201
                     f"{s.name} {i + 1}/{runs} {'OK' if run.ok else 'FAIL'} "
-                    f"{len(run.turn_seconds)} 輪 {run.seconds:.1f} 秒 重問 {run.repeats}",
+                    f"{len(run.turn_seconds)} 輪 {run.seconds:.1f} 秒 重問 {run.repeats}"
+                    f"{_follow_up_label(run)}",
                     flush=True,
                 )
     return results
+
+
+def _follow_up_label(run: Run) -> str:
+    if run.follow_up_ok is None:
+        return ""
+    return (
+        " 後續句 OK" if run.follow_up_ok else f" 後續句 FAIL（{run.follow_up_problem}）"
+    )
+
+
+def _passed(run: Run) -> bool:
+    return run.ok and run.follow_up_ok is not False
 
 
 def _mean(values: list[float]) -> float:
@@ -192,8 +288,32 @@ def render_report(
         )
     lines.append("")
 
+    with_follow_up = [s for s in scenarios if s.follow_up]
+    if with_follow_up:
+        lines += [
+            "## 後續句",
+            "",
+            "問完之後再送一句：回覆種類要對，而且不能改動已記下的狀況與結論。",
+            "不算進上表的輪數與秒數，也不影響上表的成功判定。",
+            "",
+            "| 劇本 | 後續句 | 預期 | 通過 | 未通過的原因 |",
+            "|---|---|---|---|---|",
+        ]
+        for s in with_follow_up:
+            assert s.follow_up
+            runs = results[s.name]
+            problems = sorted(
+                {r.follow_up_problem for r in runs if r.follow_up_problem}
+            )
+            lines.append(
+                f"| {s.name} | {s.follow_up.say} | {s.follow_up.expect} "
+                f"| {sum(r.follow_up_ok is True for r in runs)}/{len(runs)} "
+                f"| {'；'.join(problems) or '—'} |"
+            )
+        lines.append("")
+
     failures = [(s, i, r) for s in scenarios for i, r in enumerate(results[s.name], 1)]
-    failures = [(s, i, r) for s, i, r in failures if not r.ok]
+    failures = [(s, i, r) for s, i, r in failures if not _passed(r)]
     if failures:
         lines.append("## 失敗的對話")
         for s, i, r in failures:
@@ -255,7 +375,7 @@ async def main() -> int:
     path.write_text(report, encoding="utf-8")
     print(report.split("## 失敗的對話")[0])  # noqa: T201
     print(f"完整報告 → {path}")  # noqa: T201
-    return 0 if all(r.ok for runs in results.values() for r in runs) else 1
+    return 0 if all(_passed(r) for runs in results.values() for r in runs) else 1
 
 
 if __name__ == "__main__":
