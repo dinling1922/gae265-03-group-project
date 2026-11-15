@@ -27,6 +27,7 @@ from app.agents.incident.judge import (
     parse_date,
     parse_delay_hours,
     relative_actual_date,
+    stated_clock_times,
     stated_delay_hours,
     timed_delay_minutes,
 )
@@ -170,13 +171,9 @@ NEW_SITUATION_MESSAGE = (
     "偵測到新狀況。請按左側的「＋有新狀況」，我會幫您另外整理；"
     "如果是要更正這次的內容，可以直接告訴我哪裡不對。"
 )
-# 旅客更正「延誤幾小時」，但記錄裡的起飛時間算出不同的時數：不改任何狀況，數字由程式帶入，
-# 請旅客確認時間（#E）。旅客接著說正確時間，就走一般的欄位更正。
-DELAY_MISMATCH_MESSAGE = (
-    "目前記錄的是原定 {planned_date} {planned_time}、實際 {actual_date} {actual_time} 起飛，"
-    "算起來延誤約 {hours} 小時 {minutes} 分。"
-    "如果時間記錯了，請告訴我正確的原定或實際起飛時間，我會重新整理。"
-)
+# 旅客更正「延誤幾小時」，而記錄的起飛時間算出不同的時數：以旅客說的時數為準重新判斷，
+# 回覆開頭由程式組這句說明，時數取解析出的整數（#383，取代 #E 請旅客確認時間的固定訊息）
+DELAY_CORRECTED_LEAD = "好的，已依您更正的延誤 {hours} 小時重新判斷。"
 UNSUPPORTED_MESSAGE = (
     "這類狀況目前無法協助判斷，建議直接詢問保險公司。如果沒有其他狀況，可以直接回首頁。"
 )
@@ -372,15 +369,45 @@ def _coverages_of(
     return [c for c in ctx.policy.coverages if c.insurance_code in judged]
 
 
-def _delay_mismatch_message(known: dict[str, str], minutes: int) -> str:
-    return DELAY_MISMATCH_MESSAGE.format(
-        planned_date=known.get(PLANNED_DATE_KEY),
-        planned_time=known.get("dep_plan"),
-        actual_date=known.get(ACTUAL_DATE_KEY),
-        actual_time=known.get("dep_act"),
-        hours=minutes // 60,
-        minutes=minutes % 60,
-    )
+def _clock_times_fix(text: str, known: dict[str, str]) -> dict[str, str]:
+    """旅客說出原定／實際起飛時間：回傳要更正的欄位。
+
+    實際起飛時間被更正、而實際起飛日期不是明確的日期（記的是「不知道」或沒記）時，日期預設為
+    事故當天；說「隔天」的由 `_with_relative_date` 接著蓋掉（#382）。
+    """
+    answers = stated_clock_times(text)
+    if "dep_act" in answers and parse_date(known.get(ACTUAL_DATE_KEY)) is None:
+        planned = known.get(PLANNED_DATE_KEY)
+        if parse_date(planned):
+            answers[ACTUAL_DATE_KEY] = str(planned)
+    return answers
+
+
+def _hours_correction(text: str, known: dict[str, str]) -> list[FactUpdate]:
+    """旅客更正「延誤幾小時」，而記錄的起飛時間算出不同的時數：改記旅客說的時數（#383）。
+
+    實際起飛時間與實際起飛日期改成「不知道」，之後的結論就以時數為準；旅客再給時間時，
+    由 `_clock_times_fix` 當成欄位更正。
+    """
+    stated = stated_delay_hours(text)
+    recorded = timed_delay_minutes(known)
+    if stated is None or recorded is None or recorded < 0 or recorded // 60 == stated:
+        return []
+    values = {
+        "dep_act": UNKNOWN,
+        ACTUAL_DATE_KEY: UNKNOWN,
+        DELAY_HOURS_KEY: str(stated),
+    }
+    labels = {
+        "dep_act": "實際起飛時間",
+        ACTUAL_DATE_KEY: "實際起飛日期",
+        DELAY_HOURS_KEY: "延誤時數",
+    }
+    updates = []
+    for key, value in values.items():
+        known[key] = value
+        updates.append(FactUpdate(fact_key=key, label=labels[key], value=value))
+    return updates
 
 
 def _stated_hours_fix(text: str, known: dict[str, str]) -> FactUpdate | None:
@@ -425,6 +452,7 @@ class TurnState(TypedDict):
     type_code: str
     reply: IncidentReply | None
     revised: bool  # 這輪旅客更正了先前答過的題目
+    lead: str  # 結論訊息前面由程式加的一句說明（更正延誤時數時用）
 
 
 class IncidentAgentV1:
@@ -507,6 +535,7 @@ class IncidentAgentV1:
                 "type_code": "",
                 "reply": None,
                 "revised": False,
+                "lead": "",
             }
         )
         reply = state["reply"]
@@ -544,8 +573,18 @@ class IncidentAgentV1:
         event = ctx.incident_type_name or next(
             (t.name for t in ctx.event_types if t.code == type_code), type_code
         )
-        result = await self._revise(
-            f"【這次的事件】{event}\n【旅客說】{state['masked']}", fields
+        # 旅客直接給原定／實際起飛時間：由程式取出，不必問模型，也不會走到守門（#382）
+        clock = (
+            _clock_times_fix(state["text"], known)
+            if type_code == flow.FLIGHT_DELAY
+            else {}
+        )
+        result = (
+            ExtractResult(answers=clock)
+            if clock
+            else await self._revise(
+                f"【這次的事件】{event}\n【旅客說】{state['masked']}", fields
+            )
         )
         if result.new_situation:
             reply = IncidentReply(message=NEW_SITUATION_MESSAGE)
@@ -556,19 +595,13 @@ class IncidentAgentV1:
         answers = _with_relative_date(state["text"], known, answers, fields)
         updates = _apply_changes(fields, answers, known)
         if not updates and type_code == flow.FLIGHT_DELAY:
-            stated = stated_delay_hours(state["text"])
-            recorded = timed_delay_minutes(known)
-            if (
-                stated is not None
-                and recorded is not None
-                and recorded >= 0
-                and recorded // 60 != stated
-            ):
-                message = _delay_mismatch_message(known, recorded)
+            if corrected := _hours_correction(state["text"], known):
+                lead = DELAY_CORRECTED_LEAD.format(hours=known[DELAY_HOURS_KEY])
                 return {
-                    "reply": IncidentReply(message=message),
-                    "updates": [],
+                    "known": known,
+                    "updates": corrected,
                     "type_code": type_code,
+                    "lead": lead,
                 }
             if fix := _stated_hours_fix(state["text"], known):
                 updates = [fix]
@@ -617,6 +650,10 @@ class IncidentAgentV1:
             state["updates"],
             state["services"],
         )
+        if state["lead"]:
+            reply = reply.model_copy(
+                update={"message": f"{state['lead']}{reply.message}"}
+            )
         return {"reply": reply}
 
     async def _node_understand(self, state: TurnState) -> dict[str, Any]:
