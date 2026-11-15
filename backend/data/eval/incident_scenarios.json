@@ -115,7 +115,8 @@
       ["有住院", "否"],
       ["醫療費", "是"]
     ],
-    "expect_documents": ["D13", "D14", "D24"]
+    "expect_documents": ["D13", "D14", "D24"],
+    "follow_up": { "say": "颱風來了，我回台灣的班機延誤了", "expect": "new_situation" }
   },
   {
     "name": "Demo 事故 B（颱風班機延誤）",
@@ -131,6 +132,7 @@
       ["實際是幾點", "22:00"],
       ["替代班機", "是"]
     ],
-    "expect_documents": ["D01", "D02"]
+    "expect_documents": ["D01", "D02"],
+    "follow_up": { "say": "延誤 8 小時可以賠多少？", "expect": "qa" }
   }
 ]
