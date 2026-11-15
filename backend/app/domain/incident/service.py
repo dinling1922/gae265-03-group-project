@@ -422,7 +422,7 @@ async def build_context(session: AsyncSession, incident: Incident) -> IncidentCo
     )
     clauses = (
         await session.exec(
-            select(Insurance.code, IncidentClause)
+            select(Insurance.code, Insurance.name, IncidentClause)
             .join(IncidentClause, col(IncidentClause.insurance_id) == col(Insurance.id))
             .where(IncidentClause.incident_id == incident.id)
             .order_by(col(Insurance.code), col(IncidentClause.section))
@@ -469,13 +469,14 @@ async def build_context(session: AsyncSession, incident: Incident) -> IncidentCo
     clause_views = [
         ClauseView(
             insurance_code=code,
+            insurance_name=name,
             section=clause.section,
             subsection=clause.subsection,
             reason=clause.reason,
             conclusion=clause.conclusion,  # pyright: ignore[reportArgumentType]
             amount_note=clause.amount_note,
         )
-        for code, clause in clauses
+        for code, name, clause in clauses
     ]
     return IncidentContext(
         incident_id=incident.id,

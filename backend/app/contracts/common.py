@@ -9,7 +9,7 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, Field
 
 # 契約版本。只新增、不改舊欄位（v1 的實作不改也能跑）；變更紀錄見 docs/agents/handoff/contract-changelog.md
-CONTRACT_VERSION = "2.15.0"
+CONTRACT_VERSION = "2.16.0"
 
 Phase = Literal["on_site", "after_return"]  # 事故當下／回家後
 
@@ -69,6 +69,10 @@ Conclusion = Literal["applicable", "excluded", "insufficient"]
 
 class ClauseView(BaseModel):
     insurance_code: str
+    insurance_name: str | None = Field(
+        default=None,
+        description="v2.16：險種名稱；整份險種沒有章名時，畫面拿它當標題",
+    )
     section: str | None = None
     subsection: str | None = Field(
         default=None, description="v2.6：章底下的節；沒有節或整章適用時是 None"
