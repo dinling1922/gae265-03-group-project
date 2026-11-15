@@ -34,6 +34,8 @@ export type WebMCPContext = {
   /** 把存好的旅行規劃寫回左欄表單。 */
   syncForm: (comparison: ComparisonOut) => void;
   toast: (text: string) => void;
+  /** 在畫面上開「清除所有活動」確認視窗，等使用者按；回傳使用者是否同意。 */
+  askClear: () => Promise<boolean>;
 };
 
 /** 每個工具回應的字元上限：模型要讀完整個回應，太長會擠掉其他內容。 */
@@ -438,17 +440,15 @@ export function useItineraryWebMCP(ctx: WebMCPContext): { supported: boolean } {
     },
   });
 
-  useWebMCP<{ confirm?: boolean }>({
+  useWebMCP({
     name: "clear_itinerary_activities",
     ...TOOL_SCHEMAS.clear_itinerary_activities,
-    execute: async ({ confirm }) => {
+    execute: async () => {
       trip();
-      const count = latest.current.activities.length;
-      if (count === 0) return { removed: 0 };
-      if (confirm !== true) {
-        throw new Error(
-          `WOULD_REMOVE_ACTIVITIES：會移除全部 ${count} 個活動，什麼都還沒刪。請先徵得使用者同意，再帶 confirm: true 重新呼叫。`,
-        );
+      if (latest.current.activities.length === 0) return { removed: 0 };
+      // 一定要使用者在畫面上按確認；agent 自己帶任何參數都跳不過
+      if (!(await latest.current.askClear())) {
+        throw new Error("USER_DECLINED：使用者在畫面上沒有同意，沒有刪除任何活動。");
       }
       const result = await latest.current.actions.clearActivities();
       if (!result.ok) throw new Error(result.message);

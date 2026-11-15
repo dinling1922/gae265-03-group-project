@@ -221,6 +221,6 @@
 | `update_itinerary_activity` | `update_itinerary_activity` | 可改時段與日子 |
 | `remove_itinerary_activity` | `remove_itinerary_activity` | 不標 `consequentialHint` |
 | `set_map_view` | `set_map_view` | 不變 |
-| （新增） | `clear_itinerary_activities` | 使用者要清空整份日程；沒帶 `confirm: true` 只回報數量、什麼都不刪，與 `set_trip_details` 的 `confirm_remove` 同一種確認方式 |
+| （新增） | `clear_itinerary_activities` | 使用者要清空整份日程；呼叫後畫面跳出確認視窗，使用者按下才刪（取消回 `USER_DECLINED`）；agent 帶任何參數都跳不過，與 `set_trip_details` 靠對話確認不同 |
 
 共 8 個。所有指定日子的參數都接受 `day`（第幾天）或 `date`；讀取類兩個工具標 `readOnlyHint` 與 `untrustedContentHint`（內容含使用者寫的文字）。

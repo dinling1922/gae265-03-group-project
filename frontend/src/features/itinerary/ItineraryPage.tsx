@@ -159,6 +159,24 @@ function Itinerary({
   const toast = useToast();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  // agent 要清除活動時，畫面上開確認視窗等使用者按；這裡存等待中的結果（沒人等時是 null）
+  const clearAsk = useRef<((approved: boolean) => void) | null>(null);
+  function closeClear(approved: boolean) {
+    clearAsk.current?.(approved);
+    setClearOpen(false);
+  }
+  function askClear(): Promise<boolean> {
+    clearAsk.current?.(false);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => closeClear(false), 120_000);
+      clearAsk.current = (approved) => {
+        clearTimeout(timer);
+        clearAsk.current = null;
+        resolve(approved);
+      };
+      setClearOpen(true);
+    });
+  }
   const { supported } = useItineraryWebMCP({
     comparison,
     activities,
@@ -172,6 +190,7 @@ function Itinerary({
         returnDate: c.return_date,
       }),
     toast: toast.show,
+    askClear,
   });
   const { stops, unmapped } = mapStops(dates, activities, view.scope, day);
   const counts: Record<string, number> = {};
@@ -297,8 +316,8 @@ function Itinerary({
       <ClearDialog
         count={clearOpen ? activities.length : null}
         error={actionError}
-        onCancel={() => setClearOpen(false)}
-        onConfirm={() => void clearAll()}
+        onCancel={() => closeClear(false)}
+        onConfirm={() => (clearAsk.current ? closeClear(true) : void clearAll())}
       />
       <ShortenDialog
         activities={toRemove}

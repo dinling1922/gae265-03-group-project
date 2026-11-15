@@ -31,7 +31,7 @@ const TOOLS: { name: ToolName; readOnly: boolean; text: string }[] = [
   {
     name: "clear_itinerary_activities",
     readOnly: false,
-    text: "清除整趟所有活動；會先回報數量，經使用者同意才執行。",
+    text: "清除整趟所有活動；畫面會跳出確認視窗，使用者按確認才執行。",
   },
   { name: "set_map_view", readOnly: false, text: "切換地圖顯示某一天或整趟，並標示某個活動。" },
 ];

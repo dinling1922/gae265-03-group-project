@@ -242,12 +242,13 @@ test("還沒設定日期就呼叫會改資料的工具：回「請先用 set_tri
   expect(state.has_trip).toBe(false);
 });
 
-test("clear_itinerary_activities：沒帶 confirm 只回報數量不刪，帶了才清空；沒活動回 0", async ({
+test("clear_itinerary_activities：畫面跳確認視窗，取消什麼都不刪，確認才清空；沒活動回 0", async ({
   page,
 }) => {
   await login(page, "e2e-webmcp-clear@example.com");
   await createTrip(page);
-  expect(await ok(page, "clear_itinerary_activities", { confirm: true })).toEqual({ removed: 0 });
+  expect(await ok(page, "clear_itinerary_activities")).toEqual({ removed: 0 });
+  await expect(page.getByTestId("clear-dialog")).toBeHidden();
 
   await ok(page, "add_itinerary_activities", {
     activities: [
@@ -256,12 +257,22 @@ test("clear_itinerary_activities：沒帶 confirm 只回報數量不刪，帶了
       { day: 3, hour: 11, title: "散步" },
     ],
   });
-  const message = await fail(page, "clear_itinerary_activities");
-  expect(message).toContain("WOULD_REMOVE_ACTIVITIES");
-  expect(message).toContain("3 個活動");
+  const dialog = page.getByTestId("clear-dialog");
+
+  // 取消：工具回 USER_DECLINED，活動都還在
+  const declined = fail(page, "clear_itinerary_activities", { confirm: true });
+  await expect(dialog.getByRole("heading", { name: "將移除全部 3 個活動" })).toBeVisible();
+  await dialog.getByRole("button", { name: "取消" }).click();
+  expect(await declined).toContain("USER_DECLINED");
+  await expect(dialog).toBeHidden();
   expect((await ok(page, "get_trip_state")).activity_count).toBe(3);
 
-  expect(await ok(page, "clear_itinerary_activities", { confirm: true })).toEqual({ removed: 3 });
+  // 確認：agent 就算帶了 confirm: true，也要等使用者按；按了才清空
+  const cleared = ok(page, "clear_itinerary_activities", { confirm: true });
+  await expect(dialog).toBeVisible();
+  expect((await ok(page, "get_trip_state")).activity_count).toBe(3); // 還沒按，沒刪
+  await dialog.getByTestId("clear-confirm").click();
+  expect(await cleared).toEqual({ removed: 3 });
   await expect(page.getByTestId("toast")).toHaveText("agent 清除了所有活動（3 個）");
   const state = await ok(page, "get_trip_state");
   expect(state.activity_count).toBe(0);

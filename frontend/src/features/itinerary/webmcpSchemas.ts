@@ -239,15 +239,10 @@ export const TOOL_SCHEMAS = {
   },
   clear_itinerary_activities: {
     description:
-      "清除整趟旅行所有的活動（目的地與日期不變）。使用者要整個重排或清空日程時使用；會刪掉全部活動，必須先徵得使用者同意，再帶 confirm: true。只想拿掉一個活動請改用 remove_itinerary_activity。",
+      "清除整趟旅行所有的活動（目的地與日期不變）。使用者要整個重排或清空日程時使用；呼叫後畫面會跳出確認視窗，要使用者按下確認才會刪，取消就什麼都不刪（回 USER_DECLINED）。只想拿掉一個活動請改用 remove_itinerary_activity。",
     inputSchema: {
       type: "object",
-      properties: {
-        confirm: {
-          type: "boolean",
-          description: "使用者已同意清除全部活動時才設為 true；沒帶時只回報會刪幾個，什麼都不刪",
-        },
-      },
+      properties: {},
     },
   },
   set_map_view: {
