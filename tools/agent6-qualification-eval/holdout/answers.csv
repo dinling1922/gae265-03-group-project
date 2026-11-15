@@ -1,0 +1,36 @@
+name,code,field,label,version,expected,lang,why
+h_d01_ok_en_std_atd,D01,delay_period,延誤期間,complete,pass,en,STD 與 ATD 都有
+h_d01_ok_zh_delay_hours_minutes,D01,delay_period,延誤期間,complete,pass,zh,寫明延遲 3 小時 20 分
+h_d01_ok_ja_cancel,D01,delay_period,延誤期間,complete,pass,ja,班機取消（欠航）且有原定時間
+h_d01_missing_ja,D01,delay_period,延誤期間,missing,fail,ja,只證明延誤，沒有時間或時數
+h_d01_trap_checkin_gate,D01,delay_period,延誤期間,trap,fail,en,三個時間是報到截止、登機門關閉與原定起飛，沒有實際起飛或延誤時數
+h_d01_trap_ja_meal_voucher,D01,delay_period,延誤期間,trap,fail,ja,「3時間以上」是餐券的說明，不是這班的延誤時數
+h_d01_trap_zh_hotline,D01,delay_period,延誤期間,trap,fail,zh,「24 小時」是客服時間；只有原定時間
+h_dx_ok_ja_spaced_label,D13,diagnosis,病名,complete,pass,ja,日文「病　名」欄名中間有全形空白，後面有病名
+h_dx_ok_en_clinical_impression,D13,diagnosis,病名,complete,pass,en,Clinical impression 就是臨床診斷
+h_dx_ok_zh_clinical,D13,diagnosis,病名,complete,pass,zh,臨床診斷有病名
+h_dx_missing_en,D13,diagnosis,病名,missing,fail,en,只有主訴，沒有診斷
+h_dx_trap_ja_mikinyu,D13,diagnosis,病名,trap,fail,ja,病名欄寫「未記入」
+h_dx_trap_en_tbd,D13,diagnosis,病名,trap,fail,en,Diagnosis 寫 TBD（待定）
+h_dx_trap_zh_see_back,D13,diagnosis,病名,trap,fail,zh,「詳見背面」，這一頁沒有病名
+h_visit_ok_ja_no_colon,D13,visit_date,就診日期,complete,pass,ja,受診日後面沒有冒號，直接接日期
+h_visit_ok_en_attended,D13,visit_date,就診日期,complete,pass,en,attended … on 日期，就是就診日期
+h_visit_ok_zh_kanzhen_ri,D13,visit_date,就診日期,complete,pass,zh,「看診日」就是就診日期
+h_visit_missing_ja,D13,visit_date,就診日期,missing,fail,ja,只有作成日（開立日），沒有受診日
+h_visit_trap_en_treated_ward,D13,visit_date,就診日期,trap,fail,en,treated at 後面是病房床號；只有報告日期
+h_visit_trap_ja_blank_reception_no,D13,visit_date,就診日期,trap,fail,ja,受診日欄空白，同一行是受付番號
+h_visit_trap_zh_see_slip,D13,visit_date,就診日期,trap,fail,zh,門診日期寫「見掛號單」，數字是掛號單號
+h_amt_ok_ja_oshiharai,D14,amount,金額,complete,pass,ja,"今回お支払額 ¥8,250"
+h_amt_ok_en_amount_due,D14,amount,金額,complete,pass,en,"Amount due JPY 8,250"
+h_amt_ok_zh_total,D14,amount,金額,complete,pass,zh,"費用總計 8,250 日圓"
+h_amt_missing_en,D14,amount,金額,missing,fail,en,沒有任何金額
+h_amt_trap_en_total_pages,D14,amount,金額,trap,fail,en,Total 後面是頁數
+h_amt_trap_ja_see_statement,D14,amount,金額,trap,fail,ja,金額寫「見另附明細」，數字是明細編號
+h_amt_trap_en_paid_ref,D14,amount,金額,trap,fail,en,Paid 後面是交易參考編號
+h_date_ok_ja_dotted,D14,date,日期,complete,pass,ja,領収日 2026.07.07
+h_date_ok_en_invoice_date,D14,date,日期,complete,pass,en,Invoice date 07/07/2026
+h_date_ok_ja_wareki_short,D14,date,日期,complete,pass,ja,日本收據常見的和曆縮寫 R8.7.7（令和8年7月7日）
+h_date_missing_zh,D14,date,日期,missing,fail,zh,沒有任何日期
+h_date_trap_patient_no,D14,date,日期,trap,fail,ja,患者番號 12-34-5678 長得像日期
+h_date_trap_next_appointment,D14,date,日期,trap,fail,en,唯一的日期是下次回診日，不是收據日期
+h_date_trap_zh_hours,D14,date,日期,trap,fail,zh,門診時間 8.30-11.30 長得像日期

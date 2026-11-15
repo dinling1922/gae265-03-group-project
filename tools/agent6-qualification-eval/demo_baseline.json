@@ -1,0 +1,498 @@
+{
+  "baggage_delay.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": null,
+    "missing": [],
+    "found_fields": [],
+    "reason": "看不出這是哪一種理賠文件，不屬於這個行程的任何待辦；如果是理賠文件，請拍清楚整份文件再上傳"
+  },
+  "baggage_delay.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": null,
+    "missing": [],
+    "found_fields": [],
+    "reason": "看不出這是哪一種理賠文件，不屬於這個行程的任何待辦；如果是理賠文件，請拍清楚整份文件再上傳"
+  },
+  "boarding_pass.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D02 登機證",
+    "missing": [],
+    "found_fields": [],
+    "reason": "已收到，還缺機票（或改傳一份搭機證明）"
+  },
+  "boarding_pass.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D02 登機證",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "boarding_proof.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D02 搭機證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "boarding_proof.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D02 搭機證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "chubb_claim_form_blank.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "chubb_claim_form_blank.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "chubb_policy_attachments.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D25 保險單",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "chubb_policy_attachments.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D25 保險單",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "chubb_policy_blank.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D25 保險單",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "chubb_policy_blank.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D25 保險單",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "claim_form.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "claim_form.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "delay.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [
+      "延誤期間",
+      "延誤原因"
+    ],
+    "reason": null
+  },
+  "delay.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "delay_missing.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [
+      "延誤期間",
+      "延誤原因"
+    ],
+    "reason": null
+  },
+  "delay_missing.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "delay_no_period.pdf @ flight_delay": {
+    "status": "incomplete",
+    "failure": null,
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [
+      "延誤期間"
+    ],
+    "found_fields": [
+      "延誤原因"
+    ],
+    "reason": "延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）"
+  },
+  "delay_no_period.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "delay_no_reason.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [
+      "延誤期間"
+    ],
+    "reason": "證明上沒看到延誤原因，保險公司可能需要原因來判斷是否理賠，建議向航空公司索取註明原因的證明"
+  },
+  "delay_no_reason.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "fubon_claim_form_blank.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "fubon_claim_form_blank.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "med_certificate.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D13 診斷書",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_certificate.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D13 診斷書",
+    "missing": [],
+    "found_fields": [
+      "病名",
+      "就診日期"
+    ],
+    "reason": null
+  },
+  "med_certificate_no_diagnosis.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D13 診斷書",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_certificate_no_diagnosis.pdf @ medical": {
+    "status": "incomplete",
+    "failure": null,
+    "document_kind": "D13 診斷書",
+    "missing": [
+      "病名"
+    ],
+    "found_fields": [
+      "就診日期"
+    ],
+    "reason": "診斷書上看不到病名"
+  },
+  "med_claim_form.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "med_claim_form.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "med_id_card_copy.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D24 身分證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_id_card_copy.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D24 身分證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "med_passport_copy.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D24 身分證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_passport_copy.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D24 身分證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "med_policy.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D25 保險單",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_policy.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D25 保險單",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "med_receipt.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D14 醫療費用收據",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_receipt.pdf @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D14 醫療費用收據",
+    "missing": [],
+    "found_fields": [
+      "金額",
+      "日期"
+    ],
+    "reason": null
+  },
+  "med_receipt_no_amount.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D14 醫療費用收據",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_receipt_no_amount.pdf @ medical": {
+    "status": "incomplete",
+    "failure": null,
+    "document_kind": "D14 醫療費用收據",
+    "missing": [
+      "金額"
+    ],
+    "found_fields": [
+      "日期"
+    ],
+    "reason": "收據上看不到金額"
+  },
+  "photo_boarding_pass.jpg @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D02 登機證",
+    "missing": [],
+    "found_fields": [],
+    "reason": "已收到，還缺機票（或改傳一份搭機證明）"
+  },
+  "photo_boarding_pass.jpg @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D02 登機證",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "photo_claim_form.jpg @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "photo_claim_form.jpg @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D10 理賠申請書",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "photo_delay_glare.jpg @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [
+      "延誤期間",
+      "延誤原因"
+    ],
+    "reason": null
+  },
+  "photo_delay_glare.jpg @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "photo_med_receipt.jpg @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D14 醫療費用收據",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "photo_med_receipt.jpg @ medical": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D14 醫療費用收據",
+    "missing": [],
+    "found_fields": [
+      "金額",
+      "日期"
+    ],
+    "reason": null
+  },
+  "photo_ticket_blurry.jpg @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D02 機票",
+    "missing": [],
+    "found_fields": [],
+    "reason": "已收到，還缺登機證（或改傳一份搭機證明）"
+  },
+  "photo_ticket_blurry.jpg @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D02 機票",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "receipt.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": null,
+    "missing": [],
+    "found_fields": [],
+    "reason": "看不出這是哪一種理賠文件，不屬於這個行程的任何待辦；如果是理賠文件，請拍清楚整份文件再上傳"
+  },
+  "receipt.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": null,
+    "missing": [],
+    "found_fields": [],
+    "reason": "看不出這是哪一種理賠文件，不屬於這個行程的任何待辦；如果是理賠文件，請拍清楚整份文件再上傳"
+  },
+  "ticket.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D02 機票",
+    "missing": [],
+    "found_fields": [],
+    "reason": "已收到，還缺登機證（或改傳一份搭機證明）"
+  },
+  "ticket.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D02 機票",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "ticket_boarding.pdf @ flight_delay": {
+    "status": "recognized",
+    "failure": null,
+    "document_kind": "D02 機票及登機證",
+    "missing": [],
+    "found_fields": [],
+    "reason": null
+  },
+  "ticket_boarding.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D02 機票及登機證",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "ticket_locked.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "unreadable",
+    "document_kind": null,
+    "missing": [],
+    "found_fields": [],
+    "reason": "這個 PDF 有密碼保護，請先解除後再上傳"
+  },
+  "ticket_locked.pdf @ medical": {
+    "status": "failed",
+    "failure": "unreadable",
+    "document_kind": null,
+    "missing": [],
+    "found_fields": [],
+    "reason": "這個 PDF 有密碼保護，請先解除後再上傳"
+  }
+}
