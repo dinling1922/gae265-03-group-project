@@ -242,7 +242,10 @@ test("所有事故都不符保障：可以結案，結案後鎖住並說明沒�
   await page.getByTestId("close-confirm").click();
 
   await expect(page.getByTestId("send-closed")).toHaveText("此行程已結案");
-  await expect(page.getByTestId("send-box-gmail")).toBeHidden();
+  // 直接結案沒有信也沒有文件：兩個按鈕保留但反灰
+  await expect(page.getByRole("button", { name: "到 Gmail 查看" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "下載全部文件" })).toBeVisible();
+  await expect(page.getByTestId("send-box-gmail")).toHaveCount(0);
   await expect(page.getByTestId("locked-note")).toContainText("重新建立行程");
   await expect(page.getByText("已結案", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("close-trip")).toHaveCount(0);
@@ -268,6 +271,8 @@ test("自己處理結案後：送件區說明沒建草稿，連結沒有的維�
 
   await page.goto(`/trip/${policyId}`);
   await expect(page.getByTestId("send-closed")).toContainText("未在你的 Gmail 建立草稿");
+  // 沒建草稿就沒有 Gmail 連結：按鈕保留但反灰
+  await expect(page.getByRole("button", { name: "到 Gmail 查看" })).toBeVisible();
   await expect(page.getByTestId("send-box-gmail")).toHaveCount(0);
 });
 
@@ -407,9 +412,8 @@ test("建立草稿結案：送件區提醒草稿還沒寄出要到 Gmail 寄出"
   expect(drafted.status(), await drafted.text()).toBe(201);
 
   await page.goto(`/trip/${policyId}`);
-  await expect(page.getByTestId("send-draft-note")).toHaveText(
-    "草稿還沒寄出的話，請到 Gmail 寄出。",
-  );
+  await expect(page.getByTestId("send-closed")).toContainText("已在你的 Gmail 建立草稿");
+  await expect(page.getByTestId("send-draft-note")).toHaveCount(0);
   await expect(page.getByTestId("locked-note").getByTestId("new-trip")).toHaveAttribute(
     "href",
     "/incident/new",
