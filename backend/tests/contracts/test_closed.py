@@ -48,6 +48,7 @@ async def test_closed_incident_rejects_every_change(
             f"/incidents/{i}/documents/{uuid.uuid4()}/confirm",
             json={"todo_id": str(uuid.uuid4())},
         ),
+        "刪除文件": client.delete(f"/incidents/{i}/documents/{uuid.uuid4()}"),
         "送件": client.post(
             f"/incidents/{i}/submission", json={"recipient": "claims@example.com"}
         ),

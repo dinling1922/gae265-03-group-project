@@ -255,6 +255,7 @@ async def test_行程鎖住後所有文件動作回_409(
             f"/policies/{policy.id}/documents/discard-pending",
             json={"before": dt.datetime.now(dt.UTC).isoformat()},
         ),
+        client.delete(f"/policies/{policy.id}/documents/{uuid.uuid4()}"),
     ]
     for call in calls:
         assert (await call).status_code == 409

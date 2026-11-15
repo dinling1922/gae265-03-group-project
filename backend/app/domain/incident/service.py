@@ -1250,6 +1250,44 @@ async def todo_has_attachable_document(
     )
 
 
+def is_attachable(document: IncidentDocument) -> bool:
+    """會進送件包的文件：辨識通過、或使用者確認過，而且有存檔位置（7 號的附件規則）。"""
+    return bool(document.storage_path) and (
+        document.recognition_status == "recognized" or document.confirmed_by_user
+    )
+
+
+async def owned_document(
+    session: AsyncSession, incident: Incident, document_id: uuid.UUID
+) -> IncidentDocument:
+    """這個事件裡的一份文件（任何狀態）；不是這個事件的就丟 DocumentActionError。"""
+    document = await session.get(IncidentDocument, document_id)
+    if document is None or document.incident_id != incident.id:
+        raise DocumentActionError(404, "找不到這份文件")
+    return document
+
+
+async def release_todo_after_removal(
+    session: AsyncSession, todo_id: uuid.UUID | None, *, was_attachable: bool
+) -> None:
+    """使用者刪掉一份文件之後，把靠它完成的待辦退回「待上傳」。
+
+    只有刪的是會進送件包的文件、而且這項待辦底下已經沒有別的附件、待辦需要上傳又已經完成時才退回；
+    還有別份文件、或刪的是沒通過的文件，待辦不動。待辦由 6 號勾起或使用者確認而完成，都一樣處理。
+    """
+    if todo_id is None or not was_attachable:
+        return
+    todo = await session.get(IncidentTodo, todo_id)
+    if todo is None or not todo.requires_upload or todo.status != "done":
+        return
+    if await todo_has_attachable_document(session, todo_id):
+        return
+    todo.status, todo.done_by = "pending", None
+    todo.without_document = False
+    session.add(todo)
+    await session.flush()
+
+
 async def confirm_document(
     session: AsyncSession,
     incident: Incident,
