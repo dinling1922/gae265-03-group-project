@@ -43,6 +43,28 @@
 - **API**：`curl -sS "http://localhost:$(docker compose port backend 8000 | cut -d: -f2)/api/v1/health"`；OpenAPI 在同一個 port 的 `/openapi.json`。
 - **只做前端、不需要後端**：`cd frontend && VITE_MOCK=true pnpm dev`（MSW 假資料，`src/mocks/`）。
 
+### e2e 偶發出現「401 未登入」、排序或時間相關的失敗
+
+WSL2 的系統時鐘可能每 30 秒往回跳約 0.5～0.7 秒（2026-11-15 在一台 WSL2 上量到；原因沒有確定）。登入用的簽章 cookie 帶著簽發時間，Starlette 每個回應都會重簽，所以時鐘往回跳之後，剛簽的 cookie 會被判成「來自未來」而失效，那一秒內的請求回 401 `未登入`（`itsdangerous` 的 `Signature age -1 < 0 seconds`）；依建立時間排序的測試也會因此亂序。單獨重跑就會過，所以看起來像偶發。
+
+確認方法：在 WSL 裡跑下面這段 90 秒，出現 `-5xx`、`-7xx` ms 的跳動就是這個問題。
+
+```bash
+python3 - <<'PY'
+import time
+r, m, prev, jumps = time.time(), time.monotonic(), 0, []
+while time.monotonic() < m + 90:
+    d = (time.time() - r) - (time.monotonic() - m)
+    if abs(d - prev) > 0.02:
+        jumps.append((round(time.monotonic() - m, 1), round((d - prev) * 1000)))
+    prev = d
+    time.sleep(0.005)
+print(jumps)
+PY
+```
+
+處理在 WSL／Windows 端（不在 repo）。已試過、沒有用：停掉 `systemd-timesyncd`（2026-11-15，跳動仍每 30 秒一次，只是從一次兩下變成一次一下）。這比較像 WSL2 和 Windows 主機的對時（Hyper-V time sync）造成的，還沒試的做法：`wsl --shutdown` 後重開，或檢查 Windows 的時間服務。這是本機環境問題，正式環境的時鐘不會這樣跳。
+
 ## 改完程式碼的驗證
 
 依序執行，全部通過才算完成：

@@ -2,6 +2,20 @@
 
 5、6、7 號 agent 的契約（`backend/app/contracts/`）、`IncidentContext` 與相關資料表的變更。**新的寫在最上面**。變更契約的人要在這裡加一筆，並更新對應的交接說明（`agent-5/6/7-*.md`）、契約測試與 `make client`。
 
+## 2026-11-15　契約 v2.15.0：小助理的總結與一鍵修正（ADR-0030）
+
+**版本號**：`CONTRACT_VERSION = "2.15.0"`。**只新增、選配**：沒實作的 7 號照常能用，不傳 `mode` 時行為同 2.14，`summary` 是 `None`、`actions` 是空的。
+- `prepare_trip` 多選填參數 `mode: Literal["self", "send"] | None`：畫面在哪一步（`None`＝選寄送方式 ①、`self`＝問要不要建草稿 ②、`send`＝信件預覽頁 ③，ADR-0025）。平台只對簽名有 `mode` 的實作帶上。
+- `PackagePreparation` 多 `summary: str | None`（一段總結）與 `actions: list[PackageAction]`（建議的修正）。`PackageAction`：`action_id`（程式產生、同樣狀況同樣的值，如 `restore:<document_id>`）、`kind`（目前只有 `restore_file`）、`label`（按鈕文字）、`document_id`／`todo_id`／`incident_id`。
+- 新選配協定 `TripPackageFixer.apply_action(trip, action_id, google, user) -> PackageActionResult(ok, message)`。只做 `kind` 說的事（`restore_file`：把 Drive 垃圾桶裡的附件移出來；不上傳、不改名、不刪除、不寫資料庫）；執行前要再確認一次（檔案還在垃圾桶、是這個行程的附件、還原後 `file_status` 是 `ok`）；失敗回 `ok=False`，不丟例外。
+- **放寬兩條規則，只針對 `summary`**：字句可以不同（溫度 0，內容依據相同）、可以提到畫面已提示的事（缺的待辦、取不到的附件）。`reminders`、`actions` 仍由程式產生、結果穩定、不重複畫面。`summary` 裡的數字要通過白名單（ADR-0004），不通過就回 `None`。
+- **更正 v2.13**：同類型事故的序號寫半形「(2)」（「班機延誤(2)」），不是全形「（2）」：信件空格的比對是 `（請填寫([^）]+)）`（`letter.py`、`blanks.ts`、`packager.py`），全形「）」會讓範圍找錯。提醒文字用同一個寫法。
+- 平台：
+  - `POST /policies/{id}/package/prepare` 多選填 query `mode`（`self`／`send`，其他值 422）；回 `PackagePreparation`（多 `summary`、`actions`）。`actions` 指到不存在的事件、待辦或文件平台丟掉並記 log。
+  - 新 `POST /policies/{id}/package/actions/{action_id}`：使用者按下按鈕才呼叫，回 `PackageActionResult`。7 號沒有實作回 409；7 號丟例外回 200 與 `ok=false`；行程鎖住回 409；別人的保單回 404。
+  - 前端（F4）：在 ①②③ 呼叫 prepare 顯示總結、提醒與修正按鈕；修正做完重新呼叫 prepare；② 按「還原」後要重新檢查，不能直接結案。
+- 假實作：檔名含「垃圾桶」的附件當作在垃圾桶，`prepare_trip` 建議 `restore:<id>`，`apply_action` 只認自己建議的 id；有提醒或修正時 `summary` 是一句固定的話。
+
 ## 2026-11-14　契約 v2.14.0：7 號的送件前小助理提醒 `prepare_trip`
 
 **版本號**：`CONTRACT_VERSION = "2.14.0"`。**只新增、選配**：沒實作 `prepare_trip` 的 7 號照常能用，平台回空的提醒。

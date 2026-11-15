@@ -16,6 +16,7 @@ import type {
   SubmissionOut,
   TodoView,
   TripOut,
+  TripSummaryOut,
 } from "../client/types.gen";
 
 // 出事了流程（保單 → 事件 → 待辦 → 文件 → 送件）的假資料，行為照後端的假 agent：
@@ -383,6 +384,41 @@ export const incidentHandlers = [
       [...incidents].map(([id, m]) => summary(id, m)).reverse(),
     ),
   ),
+  // 我的行程：假資料依保單把事件分組，待辦進度與送件狀態都簡化
+  http.get("*/api/v1/trips", () => {
+    const byPolicy = new Map<string, IncidentContext[]>();
+    for (const m of incidents.values()) {
+      const key = m.ctx.policy.policy_id ?? "";
+      byPolicy.set(key, [...(byPolicy.get(key) ?? []), m.ctx]);
+    }
+    return HttpResponse.json<TripSummaryOut[]>(
+      [...byPolicy].map(([policyId, ctxs]) => {
+        const p = policies.find((x) => x.id === policyId) ?? BASE_POLICY;
+        const todos = ctxs.flatMap((c) => c.todos ?? []).filter((t) => t.applicable !== false);
+        const done = todos.filter((t) => t.is_done).length;
+        const locked = ctxs.every((c) => c.status === "completed");
+        return {
+          policy_id: policyId,
+          display_name: p.display_name,
+          destination: p.destination,
+          start_date: p.start_date,
+          end_date: p.end_date,
+          incident_count: ctxs.length,
+          open_count: ctxs.filter((c) => c.status !== "completed").length,
+          locked,
+          last_activity_at: new Date().toISOString(),
+          incident_type_names: [
+            ...new Set(ctxs.map((c) => c.incident_type_name).filter((n): n is string => !!n)),
+          ],
+          todo_done: done,
+          todo_total: todos.length,
+          state: todos.length === 0 ? "describing" : done === todos.length ? "done" : "in_progress",
+          closed_as: locked ? "self_submitted" : null,
+          has_unfinished: !locked && done < todos.length,
+        };
+      }),
+    );
+  }),
   http.post("*/api/v1/policies/:policyId/incidents", async ({ params, request }) => {
     const policy = policies.find((p) => p.id === params.policyId);
     if (!policy) return HttpResponse.json({ detail: "找不到這份保單" }, { status: 404 });
