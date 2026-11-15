@@ -10,6 +10,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from sqlalchemy import delete
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
@@ -453,3 +454,17 @@ async def create_policy_conversation(
         plan_id=policy.plan_id,
         insurance_codes=[i.code for i in insurances],
     )
+
+
+@router.delete("/policies/{policy_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_policy(
+    session: SessionDep, user: CurrentUser, policy_id: uuid.UUID
+) -> None:
+    """刪除單份保單，連帶它的對話、事件、待辦、文件紀錄與送件紀錄（資料庫外鍵 CASCADE，ADR-0009）。
+
+    已存進使用者自己 Google Drive 的文件與已建立的 Gmail 草稿不動（ADR-0021），那些在使用者的帳號裡。
+    別人的保單跟不存在一樣回 404。
+    """
+    policy = await _own_policy(session, user, policy_id)
+    await session.exec(delete(Policy).where(col(Policy.id) == policy.id))
+    await session.commit()

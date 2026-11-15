@@ -16,7 +16,7 @@ import { useTripLinks } from "./useTripLinks";
  * 行程頁的送件區（ADR-0029、規格 7.3.4）：整個行程一起送件。
  * 還缺文件 → 「還缺 N 份文件」＋上傳文件；待辦沒勾完 → 說明；備齊 → 「文件已備齊」＋送件；
  * 所有事故都不符保障 → 「結案」（不寄信、不寫送件紀錄）；
- * 結案後依當時的選擇說明，「到 Gmail 查看」「下載全部文件」拿得到連結才亮，否則反灰。
+ * 結案後依當時的選擇說明；「到 Gmail 查看」「下載全部文件」一律保留，拿得到連結才亮，否則反灰（直接結案也一樣）。
  */
 export function TripSendBox({ policyId, trip }: { policyId: string; trip: TripOut }) {
   const { refresh } = useTrip(policyId);
@@ -55,13 +55,8 @@ export function TripSendBox({ policyId, trip }: { policyId: string; trip: TripOu
           <p className="m-0 t-body text-muted" data-testid="send-closed">
             {trip.submission.status ? closedText(trip.submission.status, hasFiles) : "此行程已結案"}
           </p>
-          {trip.submission.status === "drafted" && (
-            <p className="m-0 t-caption text-muted" data-testid="send-draft-note">
-              草稿還沒寄出的話，請到 Gmail 寄出。
-            </p>
-          )}
-          {/* 直接結案（沒有送件）沒有信也沒有要下載的行程資料夾，不放 Gmail 與下載按鈕 */}
-          <div className="ml-auto flex flex-wrap gap-3" hidden={!trip.submission.status}>
+          {/* 兩個按鈕一律保留：拿得到連結才亮，否則反灰（直接結案沒有信也沒有文件，兩個都反灰） */}
+          <div className="ml-auto flex flex-wrap gap-3">
             {gmailUrl ? (
               <a
                 href={gmailUrl}

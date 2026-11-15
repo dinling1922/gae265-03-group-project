@@ -9,7 +9,11 @@ from typing import Any
 
 import httpx
 import pytest
-from app.agents.incident.agent import NEW_SITUATION_MESSAGE
+from app.agents.incident.agent import (
+    NEW_SITUATION_MESSAGE,
+    UNRELATED_MESSAGE,
+    UNSURE_MESSAGE,
+)
 from app.eval.incident_stability import (
     FollowUp,
     Run,
@@ -84,8 +88,25 @@ def test_正式的劇本檔都讀得進來_而且兩個_Demo_劇本帶後續句(
     scenarios = load_scenarios(settings.DATA_DIR / "eval" / "incident_scenarios.json")
 
     with_follow_up = {s.name: s.follow_up for s in scenarios if s.follow_up}
-    assert {n.split("（")[0] for n in with_follow_up} == {"Demo 事故 A", "Demo 事故 B"}
-    assert {f.expect for f in with_follow_up.values()} == {"new_situation", "qa"}
+    assert {n.split("（")[0] for n in with_follow_up} == {
+        "Demo 事故 A",
+        "Demo 事故 B",
+        "更正延誤時數",
+    }
+    assert {f.expect for f in with_follow_up.values()} == {
+        "new_situation",
+        "qa",
+        "excluded",
+    }
+    # 正式站 11/15 的三句更正（#384）：各一個劇本，預期更正後文件不再適用
+    corrections = {
+        n: f for n, f in with_follow_up.items() if n.startswith("更正延誤時數")
+    }
+    assert [f.say for f in corrections.values()] == [
+        "其實班機延誤只有兩個小時，我搞錯了",
+        "原訂14:00，實際16:00",
+        "有關啊只是班機延誤只有兩個小時不是八個小時",
+    ]
 
 
 # ---- 判斷後續句的回覆 ----
@@ -134,12 +155,50 @@ def test_後續句前後狀況或結論有變動就失敗() -> None:
     assert conclusion_changed and "結論" in conclusion_changed
 
 
+def test_更正類後續句_重新下結論_文件不再適用才算過() -> None:
+    reply = {"message": "好的，已依您更正的延誤 2 小時重新判斷。……", "citations": []}
+    after = ({"delay_hours": "2"}, ["excluded"])
+    docs = frozenset({"D01", "D02"})
+
+    def judge(r=reply, a=after, still=frozenset()) -> str | None:
+        return judge_follow_up(
+            "excluded", r, SAME, a, expect_documents=docs, after_documents=still
+        )
+
+    assert judge() is None  # 狀況會跟著更正，不比對狀況
+    assert "可申請" in (judge(a=({}, ["applicable"])) or "")
+    assert "沒有重新下結論" in (judge(a=({}, ["insufficient"])) or "")
+    assert "D01" in (judge(still=frozenset({"D01"})) or "")
+    assert judge(still=frozenset({"D03"})) is None  # 不是劇本預期的文件，不算
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        (NEW_SITUATION_MESSAGE, "新狀況"),
+        (UNSURE_MESSAGE, "守門"),
+        (UNRELATED_MESSAGE, "守門"),
+        (ORIGINAL_NOTICE, "原文"),
+    ],
+)
+def test_更正類後續句_被守門擋下_當新狀況_貼原文都失敗(
+    message: str, expected: str
+) -> None:
+    problem = judge_follow_up(
+        "excluded", {"message": message}, SAME, ({}, ["excluded"])
+    )
+
+    assert problem and expected in problem
+
+
 # ---- 流程：假的平台 ----
 
 
-def _incident(facts: dict[str, str], conclusions: list[str]) -> dict[str, Any]:
+def _incident(
+    facts: dict[str, str], conclusions: list[str], applicable: bool = True
+) -> dict[str, Any]:
     return {
-        "todos": [{"document_code": "D01", "applicable": True}],
+        "todos": [{"document_code": "D01", "applicable": applicable}],
         "clauses": [{"conclusion": c} for c in conclusions],
         "facts": [{"fact_key": k, "value": v} for k, v in facts.items()],
     }
@@ -177,9 +236,12 @@ def _step(
     citations: list[dict[str, Any]] | None = None,
     facts: dict[str, str] | None = None,
     conclusions: list[str] | None = None,
+    applicable: bool = True,
 ) -> dict[str, Any]:
     return {
-        "incident": _incident(facts or {"day": "9/11"}, conclusions or ["applicable"]),
+        "incident": _incident(
+            facts or {"day": "9/11"}, conclusions or ["applicable"], applicable
+        ),
         "reply": {
             "message": message,
             "finished": finished,
@@ -257,6 +319,44 @@ async def test_後續句回了別的東西_記下原因_但原本的成功判定
     assert run.follow_up_problem
 
 
+async def test_更正類後續句_會改動狀況_看更正後的結論與文件() -> None:
+    follow_up = FollowUp(say="原訂14:00，實際16:00", expect="excluded")
+    platform = FakePlatform(
+        [
+            _step("整理好了。", finished=True),
+            _step(
+                "好的，已更正。",
+                finished=True,
+                facts={"day": "9/11", "dep_act": "16:00"},
+                conclusions=["excluded"],
+                applicable=False,
+            ),
+        ]
+    )
+
+    async with platform.client() as client:
+        run = await run_once(client, "pol-1", _scenario(follow_up))
+
+    assert run.follow_up_ok is True
+    assert run.follow_up_reply == "好的，已更正。"
+    assert run.follow_up_conclusions == ["excluded"]
+    assert run.ok is True  # 原本的判定只看問完那一刻
+    assert run.conclusions == ["applicable"]
+
+
+async def test_更正類後續句_結論沒變就失敗() -> None:
+    follow_up = FollowUp(say="原訂14:00，實際16:00", expect="excluded")
+    platform = FakePlatform(
+        [_step("整理好了。", finished=True), _step("貼原文", finished=True)]
+    )
+
+    async with platform.client() as client:
+        run = await run_once(client, "pol-1", _scenario(follow_up))
+
+    assert run.follow_up_ok is False
+    assert run.follow_up_problem
+
+
 async def test_一直沒問完就不送後續句() -> None:
     follow_up = FollowUp(say="延誤 8 小時可以賠多少？", expect="qa")
     platform = FakePlatform([_step("哪一天發生的？")] * 16)
@@ -316,3 +416,34 @@ def test_有後續句的劇本報告多一欄後續句通過_沒有的維持原�
     assert "| 新劇本 | 問 | qa | 1/2 | 沒有出處 |" in report
     follow_up_section = report.split("## 後續句")[1]
     assert "舊劇本" not in follow_up_section.split("\n## ")[0]
+
+
+def test_更正類後續句的報告列出每次的回覆與結論() -> None:
+    base = _scenario(None)
+    scenario = Scenario(
+        **{
+            **base.__dict__,
+            "name": "更正",
+            "follow_up": FollowUp("原訂14:00，實際16:00", "excluded"),
+        }
+    )
+    results = {
+        "更正": [
+            _run(
+                follow_up_ok=True,
+                follow_up_reply="好的，已更正。",
+                follow_up_conclusions=["excluded"],
+            )
+        ]
+    }
+
+    report = render_report(
+        scenarios=[scenario],
+        results=results,
+        day=__import__("datetime").date(2026, 11, 15),
+        provider="p",
+        model="m",
+    )
+
+    assert "| 更正 | 原訂14:00，實際16:00 | excluded | 1/1 | — |" in report
+    assert "- 更正 第 1 次：回覆「好的，已更正。」；結論 excluded" in report

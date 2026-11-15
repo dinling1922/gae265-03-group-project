@@ -53,6 +53,8 @@ test("出事了：手選保單後走完 說明、待辦、上傳、送件", asyn
   await page.getByTestId("message").fill("昨天在東京成田機場");
   await page.getByTestId("send").click();
   await replied;
+  // 問完先跳「確認目前的狀況」（2-2g），按確認才進行程頁（#345）
+  await page.getByTestId("confirm-yes").click();
   await expect(page.getByTestId("todos").getByRole("checkbox").first()).toBeVisible({
     timeout: SLOW,
   });
@@ -109,9 +111,12 @@ test("出事了：手選保單後走完 說明、待辦、上傳、送件", asyn
   // 寄出前再確認一次：寄出後這筆理賠即結案
   await expect(page.getByTestId("send-confirm-dialog")).toContainText("即結案");
   await page.getByTestId("send-confirm").click();
-  await expect(page.getByTestId("closed")).toContainText("已用你的 Gmail 寄給保險公司", {
-    timeout: SLOW,
-  });
+  await expect(page.getByTestId("closed")).toContainText(
+    "已替你送件並於你的 Gmail 寄件備份留存紀錄",
+    {
+      timeout: SLOW,
+    },
+  );
   // 跳出視窗說明信在 Gmail 的寄件備份，關掉再繼續
   await expect(page.getByTestId("gmail-result-dialog")).toContainText("寄件備份");
   await page.getByRole("button", { name: "關閉" }).click();
@@ -195,7 +200,9 @@ test("出事了：自己處理、不建草稿，直接結案", async ({ page, re
   // 先問要不要建草稿，並說明不論選什麼都會結案；選取消就不建立
   await expect(page.getByTestId("draft-question")).toContainText("就會結案");
   await page.getByRole("button", { name: "取消" }).click();
-  await expect(page.getByTestId("closed")).toContainText("沒有建立草稿", { timeout: SLOW });
+  await expect(page.getByTestId("closed")).toContainText("未在你的 Gmail 建立草稿", {
+    timeout: SLOW,
+  });
   await expect(page.getByTestId("closed-banner")).toBeVisible();
 });
 

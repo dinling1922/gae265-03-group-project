@@ -96,14 +96,14 @@ SCENARIOS: dict[Scenario, SampleIncident] = {
             "D10": ("after_return", "填寫理賠申請書"),
         },
     ),
-    # 泰國行程、急性腸胃炎看門診不住院（#233 泰國醫療 demo：D13、D14、D24、D25、D10）
+    # 安達進階型、泰國行程、急性腸胃炎看門診不住院（#233 醫療 demo：D13、D14、D24、D25、D10）
     "medical": SampleIncident(
         title="在曼谷急性腸胃炎看門診",
         type_name="生病或受傷就醫",
         destination="泰國",
         occurred_at=datetime(2026, 7, 8, 3, 0, tzinfo=UTC),
-        plan_id="chubb_basic",
-        plan_name="安達 基礎型（展示）",
+        plan_id="chubb_advanced",
+        plan_name="安達 進階型（展示）",
         start=date(2026, 7, 5),
         end=date(2026, 7, 12),
         todos={
