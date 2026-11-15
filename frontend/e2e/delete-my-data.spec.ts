@@ -35,3 +35,11 @@ test("刪除我的所有資料：要二次確認，刪除後保單清空、仍�
   // 帳號保留，仍是登入狀態
   expect((await api.get("/api/v1/auth/me")).status()).toBe(200);
 });
+
+// 入口：header 右上的使用者名稱連到我的帳號，不用手打網址
+test("header 的使用者名稱連到我的帳號，那裡有刪除我的所有資料", async ({ page }) => {
+  await login(page, `e2e-account-link-${Date.now()}@example.com`);
+  await page.getByTestId("header-account-link").click();
+  await expect(page).toHaveURL(/\/account$/);
+  await expect(page.getByTestId("delete-my-data-start")).toBeVisible();
+});
