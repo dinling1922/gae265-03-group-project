@@ -159,6 +159,7 @@ const summary = (id: string, m: MockIncident): IncidentSummaryOut => ({
   incident_type_name: m.ctx.incident_type_name ?? null,
   created_at: m.createdAt,
   last_activity_at: m.createdAt, // 假資料沒有後續操作的時間，就用建立時間
+  confirmation: "confirmed",
 });
 
 const notFound = () => HttpResponse.json({ detail: "找不到這個事件" }, { status: 404 });
@@ -414,6 +415,7 @@ export const incidentHandlers = [
           todo_total: todos.length,
           state: todos.length === 0 ? "describing" : done === todos.length ? "done" : "in_progress",
           closed_as: locked ? "self_submitted" : null,
+          pending_incident_id: null,
           has_unfinished: !locked && done < todos.length,
         };
       }),
@@ -430,7 +432,10 @@ export const incidentHandlers = [
       message: m.ctx.messages?.[1]?.content ?? "",
       quick_replies: ["在機場", "已回國"],
     };
-    return HttpResponse.json<IncidentReplyOut>({ reply, incident: m.ctx }, { status: 201 });
+    return HttpResponse.json<IncidentReplyOut>(
+      { reply, incident: m.ctx, confirmation: "confirmed", show_confirm: false, changed: false },
+      { status: 201 },
+    );
   }),
   http.get("*/api/v1/policies/:policyId/trip", ({ params }) => {
     const trip = tripOf(String(params.policyId));
@@ -488,7 +493,13 @@ export const incidentHandlers = [
     if (m.ctx.status === "completed") return closedError();
     const { content } = (await request.json()) as { content: string };
     const reply = advance(m, content);
-    return HttpResponse.json<IncidentReplyOut>({ reply, incident: m.ctx });
+    return HttpResponse.json<IncidentReplyOut>({
+      reply,
+      incident: m.ctx,
+      confirmation: "confirmed",
+      show_confirm: false,
+      changed: false,
+    });
   }),
   http.patch("*/api/v1/incidents/:id/todos/:todoId", async ({ params, request }) => {
     const m = incidents.get(String(params.id));
