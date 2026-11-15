@@ -154,7 +154,7 @@ def stated_delay_hours(text: str) -> int | None:
 
 
 _CLOCK = r"([0-9]{1,2})\s*[:：]\s*([0-9]{2})"
-_PLANNED_CLOCK = re.compile(rf"(?:原定|原訂|預定|預計)[^0-9]{{0,6}}?{_CLOCK}")
+_PLANNED_CLOCK = re.compile(rf"(?:原定|原訂|預定)[^0-9]{{0,6}}?{_CLOCK}")
 _ACTUAL_CLOCK = re.compile(rf"實際[^0-9]{{0,6}}?{_CLOCK}")
 
 
