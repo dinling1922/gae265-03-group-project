@@ -652,8 +652,9 @@ class IncidentAgentV1:
             updates.append(
                 FactUpdate(fact_key=DELAY_BAND_KEY, label="延誤時間", value=band)
             )
-        hours = parse_delay_hours(text)
-        # 點選項的那句話（「延誤不到 4 小時」）不再當成旅客說的時數
+        # 延誤時數只記在班機延誤事件上：行李或就醫的追問中順帶提到「班機也延誤了 6 小時」不算（T4）；
+        # 類型還不知道的第一句描述，到這裡類型已經確定。點選項的那句話（「延誤不到 4 小時」）也不算
+        hours = parse_delay_hours(text) if type_code == flow.FLIGHT_DELAY else None
         if hours is not None and DELAY_HOURS_KEY not in known and not band:
             known[DELAY_HOURS_KEY] = str(hours)
             updates.append(
