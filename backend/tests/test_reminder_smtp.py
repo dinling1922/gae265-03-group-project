@@ -1,8 +1,8 @@
-"""真的透過 SMTP 寄提醒信（ADR-0028）。
+"""真的透過 SMTP 寄提醒信（ADR-0031）。
 
 - Mailpit：用正式環境同一個寄信器寄到 compose 的 Mailpit，再用 Mailpit 的 API 讀回來。
   Mailpit 沒開時自動略過（`make up` 會開）。
-- Azure：只有手動才跑，會真的寄出一封信。先把 `.env` 的 SMTP 設定換成 Azure，再執行
+- 正式設定：只有手動才跑，會真的寄出一封信。先把 `.env` 的 SMTP 設定換成專用 Gmail，再執行
   `make test-mail to=<你的信箱>`；沒有指定收件人時略過，CI 也不會跑。
 """
 

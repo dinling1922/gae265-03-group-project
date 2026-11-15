@@ -36,6 +36,8 @@ IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml exec backend
 
 `.env` 必須補齊 [integration-plan](integration-plan.md) 列的正式環境必填設定（Google、`TOKEN_ENCRYPTION_KEY`、`ADMIN_EMAILS` 等），缺任何一項 backend 會啟動失敗，部署的 `--wait` 會失敗。
 
+提醒信要另外補 `SMTP_*` 與 `MAIL_FROM`（專案專用的 Gmail，見下方「提醒信」）。沒補不會讓部署失敗，但信會寄不出去，worker 的 log 會一直出現寄信失敗與重試。
+
 ## 回滾
 
 手動部署舊的 tag。GHCR 已有該版 image 就不重新打包。
@@ -63,3 +65,95 @@ IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml ps
 ```
 
 本機驗證正式環境（不經 GHCR）：`docker compose -f compose.prod.yaml up --build`。
+
+## 提醒信（Celery）
+
+決策見 [ADR-0031](adr/0031-reminder-email-with-celery-redis.md)。正式環境多三個服務，都不對外開 port：`redis`（佇列，不保存資料）、`worker`（寄信）、`beat`（每 10 分鐘排一次掃描）。三個都用 backend 的 image，部署時一起更新。
+
+- **VM 停機**：每天 23:00 自動關機期間不會寄信；開機後下一次掃描會補寄到期的信（每張保單只補一封）。
+- **寄件設定**：用專案專用的 Gmail 寄出，申請方式見下方「申請寄信用的 Gmail」。改完 `.env` 要重新建立容器，`restart` 不會重讀：
+
+```bash
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml up -d worker beat
+```
+
+- **確認寄得出去**：在 VM 上用正式設定寄一封測試信給自己（會真的寄出）：
+
+```bash
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml exec worker python -c "
+from app.domain.reminder.mailer import SmtpMailer, OutgoingMail
+from app.domain.reminder.letter import Letter
+SmtpMailer().send(OutgoingMail(to='<你的信箱>', letter=Letter('好險有你 測試信', '測試', '<p>測試</p>'), message_id='<deploy-check@example.com>'))"
+```
+
+### 申請寄信用的 Gmail
+
+只要做一次，免費。另外申請一個帳號，不要用成員的個人信箱：個人信箱會公開給所有收件者，應用程式密碼外洩也等於個人信箱外洩。
+
+1. 申請新的 Gmail，名稱取得像系統信箱（例如 `haoxianyouni.noreply@gmail.com`）。手機驗證與兩步驟驗證用負責管理的成員的手機，交接時一起轉移。
+2. Google 帳戶 →「安全性」→ 開啟**兩步驟驗證**。
+3. Google 帳戶搜尋「**應用程式密碼**」，新增一組（例如命名為 `好險有你提醒信`），複製 16 碼密碼。只會顯示一次。
+4. VM 與要測試的本機 `.env` 填入（密碼用私訊交接，不要貼在群組或 commit 裡）：
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_STARTTLS=true
+SMTP_USERNAME=<專用 Gmail 地址>
+SMTP_PASSWORD=<16 碼應用程式密碼>
+MAIL_FROM=<專用 Gmail 地址>
+```
+
+5. 本機先寄一封測試信確認（會真的寄出）：
+
+```bash
+make test-mail to=<你的信箱>
+```
+
+注意：
+
+- `MAIL_FROM` 要和 `SMTP_USERNAME` 相同，Gmail 會把寄件地址改成登入的帳號；顯示名稱仍是「好險有你」。
+- 本機填了這些值，提醒信就會真的寄到 Google 登入帳號的信箱，不再進 Mailpit。測完把 `SMTP_*` 改回 `.env.example` 的值，再 `docker compose up -d worker beat`。
+- 一般 Gmail 每天寄送有上限（約數百封），超過會暫停寄信約一天，不會收費。
+- 使用者回信會進這個信箱；課程結束後到 Google 帳戶刪掉應用程式密碼。
+- 寄件地址是 `@gmail.com`。要換成 no-reply@產品網域，得另外買網域並改用交易信服務（ADR-0031）。
+
+### 用 Flower 看工作
+
+Flower 平常不啟動，也不對外。要看時在 VM 上啟動，再從自己的電腦開 SSH tunnel：
+
+```bash
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml --profile ops up -d flower
+```
+
+```bash
+ssh -L 5555:localhost:5555 user@<網域>
+```
+
+開 http://localhost:5555 。看完關掉，省記憶體：
+
+```bash
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml --profile ops stop flower
+```
+
+### 排查
+
+先看狀態與 log：
+
+```bash
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml ps
+```
+
+```bash
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml logs --tail=200 worker
+```
+
+| 狀況 | 怎麼看出來 | 處理 |
+| --- | --- | --- |
+| worker 卡住（還在跑但不做事） | `ps` 顯示 `unhealthy`；Flower 看到工作堆積；log 停在某個時間點 | `restart worker` |
+| 改了 `.env` 沒生效 | 新的 SMTP 設定沒用到 | 用上面的 `up -d worker beat` 重新建立，不要用 `restart` |
+| 設定錯誤（例如 `REDIS_URL`） | 容器一直重啟又馬上結束 | 修正 `.env`，再 `up -d` |
+| 寄信一直失敗 | log 反覆出現 `Retry in` 或 SMTP 錯誤（例如 `535 Username and Password not accepted`） | 檢查 `SMTP_USERNAME`、應用程式密碼與 `MAIL_FROM`；應用程式密碼被刪除或改了 Google 密碼都會失效，要重建一組；重啟沒有用 |
+| Postgres 或 Redis 停了 | log 出現連線錯誤 | 先處理 db 或 redis，worker 會自己重新連上 |
+
+寄信失敗重試 5 次（10、20、40、80、160 秒）都失敗也不會漏寄：計數沒加，下一次掃描會再派發。不需要手動補寄。

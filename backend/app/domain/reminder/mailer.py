@@ -1,4 +1,4 @@
-"""寄出提醒信（ADR-0028）：只依 SMTP 設定寄信；開發是 Mailpit，正式環境是 Azure Communication Services。"""
+"""寄出提醒信（ADR-0031）：只依 SMTP 設定寄信；開發是 Mailpit，正式環境是專用 Gmail。"""
 
 import smtplib
 from dataclasses import dataclass

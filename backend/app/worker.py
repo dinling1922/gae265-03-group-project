@@ -1,4 +1,4 @@
-"""Celery 背景工作（ADR-0028）：提醒信的排程與寄送。
+"""Celery 背景工作（ADR-0031）：提醒信的排程與寄送。
 
 啟動方式見 compose.yaml：
 - worker：`celery -A app.worker:celery_app worker`

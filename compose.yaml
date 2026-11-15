@@ -1,6 +1,6 @@
 name: gae265_03_group_project
 
-# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0028）
+# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0031）
 x-celery-common: &celery-common
   image: gae265_03_group_project-backend
   # 和 backend 同一份 build 設定：image 還不存在時不會去 Docker Hub 拉，build cache 共用
@@ -121,7 +121,7 @@ services:
         - action: rebuild
           path: ./uv.lock
 
-  # 背景工作（ADR-0028）：Redis 只當佇列，不保存資料；狀態都在 Postgres
+  # 背景工作（ADR-0031）：Redis 只當佇列，不保存資料；狀態都在 Postgres
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped

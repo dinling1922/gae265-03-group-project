@@ -2,7 +2,7 @@
 # 設定讀根目錄 .env（範例見 .env.prod.example）；沒有 pgAdmin，資料庫不對外開 port
 name: gae265_03_group_project_prod
 
-# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0028）；不套用 migration，由 backend 負責
+# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0031）；不套用 migration，由 backend 負責
 x-celery-common: &celery-common
   image: ghcr.io/kurotyan514/gae265-03-group-project-backend:${IMAGE_TAG:-local}
   restart: unless-stopped
@@ -65,7 +65,7 @@ services:
       retries: 10
       start_period: 10s
 
-  # 背景工作（ADR-0028）：Redis 只當佇列，不保存資料、不對外開 port
+  # 背景工作（ADR-0031）：Redis 只當佇列，不保存資料、不對外開 port
   redis:
     image: redis:7.4-alpine
     restart: unless-stopped

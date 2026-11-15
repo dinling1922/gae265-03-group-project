@@ -119,15 +119,15 @@ class Settings(BaseSettings):
     # 加密 Google refresh token 的 Fernet 金鑰
     TOKEN_ENCRYPTION_KEY: SecretStr | None = None
 
-    # 背景工作（ADR-0028）：Celery 的 broker；compose 裡的服務會覆寫成 redis://redis:6379/0
+    # 背景工作（ADR-0031）：Celery 的 broker；compose 裡的服務會覆寫成 redis://redis:6379/0
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    # 提醒信的寄件信箱（ADR-0028）：只用 SMTP。開發預設寄到 compose 的 Mailpit，正式環境是 Azure Communication Services
+    # 提醒信的寄件信箱（ADR-0031）：只用 SMTP。開發預設寄到 compose 的 Mailpit，正式環境是專用 Gmail
     SMTP_HOST: str = "localhost"
     SMTP_PORT: int = 1025
     SMTP_USERNAME: str | None = None
     SMTP_PASSWORD: SecretStr | None = None
-    # 連線後升級成 TLS（Azure 的 587 埠要打開；Mailpit 不用）
+    # 連線後升級成 TLS（Gmail 的 587 埠要打開；Mailpit 不用）
     SMTP_STARTTLS: bool = False
     # 連線與每次讀寫的逾時，避免 worker 卡在寄信
     SMTP_TIMEOUT_SECONDS: int = 30

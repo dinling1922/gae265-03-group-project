@@ -2,7 +2,7 @@
 status: accepted
 ---
 
-# 提醒信用 Celery＋Redis 排程，Flower 監控；由系統通知信箱經 Azure 寄出
+# 提醒信用 Celery＋Redis 排程，Flower 監控；由專案專用的 Gmail 寄出
 
 規格書 v3.7 的 4.9（R9）要求：行程還缺需上傳的理賠文件時，系統定時寄**提醒信**給使用者。規則是缺文件滿 24 小時寄第一封，之後每 3 天寄一封，最多 3 封；新狀況新增需上傳的待辦時重新計時；需上傳的待辦都完成或行程結案就停止。這是第一個「沒有人發出請求、也要按時執行」的工作，FastAPI 的 `BackgroundTasks` 做不到。因此加入 Celery worker、Celery beat 與 Redis，並用 Flower 監控，取代 [ADR-0003](0003-no-background-worker-yet.md)「第一版不放背景工作佇列」。11/4 會議已傾向這個做法。
 
@@ -13,7 +13,7 @@ status: accepted
 - **流程由程式決定**（[ADR-0004](0004-llm-never-produces-numbers.md)）：
   - beat 每隔固定時間（預設 10 分鐘）排一次掃描工作，找出到期的保單，每張保單各排一個寄信工作。
   - 寄信工作先鎖住保單（`FOR UPDATE`）並重新檢查是否到期，寄出成功後才把 `reminder_count` 加 1。SMTP 失敗時自動重試。Celery 重複派發時，第二個工作看到計數已經加過，就不會再寄。
-  - 每封信的 Message-ID 固定由「保單＋這一輪的計時起點＋第幾封」組成，重寄時 ID 相同。收件者都是 Google 帳號，Gmail 通常把相同 Message-ID 的信當成同一封；這是常見行為、不是保證，Azure 也可能改寫這個 header，沒效果時只是回到可能重複一封的情況。
+  - 每封信的 Message-ID 固定由「保單＋這一輪的計時起點＋第幾封」組成，重寄時 ID 相同。收件者都是 Google 帳號，Gmail 通常把相同 Message-ID 的信當成同一封；這是常見行為、不是保證，寄信服務也可能改寫這個 header，沒效果時只是回到可能重複一封的情況。
   - 不做寄送紀錄表：它擋不住「寄出後、寫入前當機」的重複，只能讓那一封停在「寄送中」，重寄或放棄仍要二選一。
   - 「這張保單該不該寄、下一封何時寄」寫成不碰資料庫的純函式，規則測試都測它。
 - **還缺文件的判斷**：只看 `requires_upload` 而且 `applicable` 的待辦；`status` 不是 `done` 的就算還缺。使用者自行勾選的未附文件待辦（`without_document`）也算完成。標為不適用的待辦不算還缺，也不列進信裡，和送件前的檢查一致。
@@ -21,11 +21,14 @@ status: accepted
 - **信件**：
   - 主旨與內文用固定範本，由程式帶入，不經 AI；依事故分組列出缺的文件。
   - 公司名從保單的方案（`plans.json` 的 `company`）取得，空的就寫「保險公司」。資料庫仍不存保險公司（[ADR-0019](0019-no-insurance-company.md)）。
-  - 「前往上傳」連到該行程的理賠頁（2-3），未登入時登入後回到這一頁。
+  - 「前往上傳」連到該行程的行程頁（`/trip/<保單>`，ADR-0029），選中第一個還缺文件的事故；未登入時登入後回到這一頁。
 - **寄件**：
   - 寄件者是系統通知信箱，顯示名稱「好險有你」，不用使用者的 Gmail；7 號用使用者的 Gmail 送件是另一條路，和 `AGENT_7_IMPL` 無關。
   - 收件者是使用者登入的 Google 帳號信箱，只寄已驗證的 email。
-  - 程式只依 SMTP 設定寄信。正式環境用 Azure Communication Services Email：先用 Azure 提供的寄件網域（`DoNotReply@xxxx.azurecomm.net`，顯示名稱仍是「好險有你」）。正式環境的網域是免費的 `cloudapp.azure.com`，不能設定 SPF、DKIM（[ADR-0001](0001-single-vm-docker-compose-deploy.md)），所以要另外買網域並驗證後，才能換成 no-reply@產品網域。開發環境用 Mailpit 收信，不會真的寄出。
+  - 程式只依 SMTP 設定寄信，換寄信服務只要改 `.env`。開發環境用 Mailpit 收信，不會真的寄出。
+  - 正式環境用**專案專用的 Gmail 帳號**當系統通知信箱：另外申請，不是任何成員或使用者的個人信箱。開兩步驟驗證後建立應用程式密碼，經 `smtp.gmail.com` 的 587 埠（STARTTLS）寄出，不用付費，也不用 Google Cloud 或 Workspace。
+  - Gmail 會把寄件地址改成登入的帳號，所以 `MAIL_FROM` 要和帳號相同；顯示名稱仍是「好險有你」。寄件地址是 `@gmail.com`，不是規格寫的 no-reply@產品網域：正式環境的網域是免費的 `cloudapp.azure.com`，不能設定 SPF、DKIM（[ADR-0001](0001-single-vm-docker-compose-deploy.md)），要換成產品網域得另外買網域，再改用交易信服務。
+  - 限制：一般 Gmail 每天寄送有上限（約數百封，以 Google 公告為準），每段行程最多 3 封，課程規模用不到；應用程式密碼能讀寫整個信箱，只放在 VM 的 `.env`；使用者回信會進這個信箱；兩步驟驗證綁在一位成員的手機，交接時要一起轉移。
 - **停擺後自動恢復，不提供手動補掃**：該寄哪些信每次都由 Postgres 的現況算出，worker、beat 或 Redis 停擺後重新啟動，下一次掃描就會補寄到期的信。
   - worker、beat、Redis 都設 `restart: unless-stopped`，worker 加 healthcheck（`celery inspect ping`）。
   - 掃描工作設 `expires`，停擺期間堆積的掃描過期就丟掉，恢復後不會連續跑上百次。
@@ -38,6 +41,9 @@ status: accepted
 - **backend 內的定時迴圈（lifespan 背景迴圈或 APScheduler）**：不用加服務。但 backend 開多個 process 時會重複寄信，重啟時工作會遺失，也沒有重試與監控。不採用。
 - **`make remind` 加主機的 cron**：最簡單，也是原本的備案。但 cron 設在 compose 之外，部署與交接都要多記一件事，也沒有重試與監控。不採用。
 - **用使用者的 Gmail 寄**：規格明定不用；而且使用者不一定授權了 Gmail，等於寄信給自己。不採用。
+- **Azure Communication Services Email**：原本的選擇，寄件地址是 Azure 提供的 `DoNotReply@xxxx.azurecomm.net`。但課程提供的訂閱沒有註冊 `Microsoft.Communication`，「學生」角色也不能註冊 Entra 應用程式與指派角色，要管理者另外開三項權限；Azure 提供的網域寄送量也很有限。不採用；之後取得權限仍可只改 `.env` 換過去。
+- **成員的個人 Gmail**：設定和專用 Gmail 一樣，但個人信箱會公開給所有收件者、回信與退信混進私人信件、應用程式密碼外洩等於個人信箱外洩，成員改密碼就停寄。不採用。
+- **第三方交易信服務（Mailgun、Brevo、Resend 等）**：沒有自己的網域時，只能寄給事先登記的收件者，或寄件地址要用別家信箱、容易進垃圾信匣。買網域後再考慮。
 - **Google Workspace 的 no-reply 帳號**：每月要付一個帳號的費用，寄件信箱也綁在管理員的帳號上，人員離開後不好交接。不採用。
 - **Flower 放在 Caddy 子路徑加 basic auth**：最方便，但會多一個公開入口；Flower 能取消與終止工作，密碼外洩就能操作排程。不採用。
 
@@ -45,7 +51,7 @@ status: accepted
 
 - 補充 [ADR-0001](0001-single-vm-docker-compose-deploy.md)：正式環境除了 backend、Postgres 與 Caddy，同一台 VM 另跑 Redis、worker 與 beat。它們都不對外開 port，Caddy 仍是唯一的對外入口，設定不用改。
 - 開發環境多 Redis、worker、beat、Flower、Mailpit 五個服務；正式環境多 Redis、worker、beat，Flower 只在需要時開。B2s 只有 4 GB 記憶體，Redis 要設 `maxmemory`，worker 的 concurrency 要設小。
-- `config.py`、`.env.example`、`.env.prod.example` 要加 Redis、SMTP 與提醒間隔的設定；`scripts/doctor.sh`、`docs/deploy.md` 與 CD 都要跟著改。正式環境要先申請 Azure Communication Services 並設定寄件網域。
+- `config.py`、`.env.example`、`.env.prod.example` 要加 Redis、SMTP 與提醒間隔的設定；`scripts/doctor.sh`、`docs/deploy.md` 與 CD 都要跟著改。正式環境要先申請專用 Gmail、開兩步驟驗證並建立應用程式密碼。
 - 交接文件 `function2-ui-realign.md` 原本建議「提醒信範本不做」，現在不適用；2-3 的「看提醒信範本」與「稍後再傳」的提示可以照設計稿做。
 - 有了排程服務，[ADR-0009](0009-policy-document-personal-data.md) 記為已知限制的「自動過期」之後也能做，但不在本 ADR 範圍。
 - 寄信和寫入資料庫不在同一個交易裡：寄出後、寫入前剛好當機，可能重複寄一封（固定 Message-ID 只能降低使用者看到兩封的機會）。在「可能重複」與「可能漏寄」之間選擇不漏寄，接受這個風險。

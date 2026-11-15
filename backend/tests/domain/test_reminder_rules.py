@@ -1,4 +1,4 @@
-"""提醒信規則（ADR-0028、規格書 4.9）：下一封何時寄、還缺哪些文件。"""
+"""提醒信規則（ADR-0031、規格書 4.9）：下一封何時寄、還缺哪些文件。"""
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta

@@ -1,4 +1,4 @@
-"""提醒信的規則（ADR-0028、規格書 4.9）：不碰資料庫，排程與寄信都依這裡判斷。"""
+"""提醒信的規則（ADR-0031、規格書 4.9）：不碰資料庫，排程與寄信都依這裡判斷。"""
 
 from collections.abc import Iterable
 from dataclasses import dataclass
