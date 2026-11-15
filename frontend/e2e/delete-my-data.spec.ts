@@ -43,3 +43,41 @@ test("header 的使用者名稱連到我的帳號，那裡有刪除我的所有�
   await expect(page).toHaveURL(/\/account$/);
   await expect(page.getByTestId("delete-my-data-start")).toBeVisible();
 });
+
+// 帳號頁「我的保單」：每份保單單獨刪除（二次確認），其他保單不動
+test("我的保單：單獨刪除一份要二次確認，另一份不動", async ({ page }) => {
+  await login(page, `e2e-delete-policy-${Date.now()}@example.com`);
+  const api = page.request;
+  const options = await (await api.get("/api/v1/plans/fubon_advanced/sum-insured-options")).json();
+  const ids: string[] = [];
+  for (const destination of ["日本", "韓國"]) {
+    const created = await api.post("/api/v1/policies/manual", {
+      data: {
+        plan_id: "fubon_advanced",
+        sum_insured: options.sum_insured[0],
+        start_date: "2026-07-05",
+        end_date: "2026-07-10",
+      },
+    });
+    const policy = await created.json();
+    await api.patch(`/api/v1/policies/${policy.id}`, { data: { destination } });
+    ids.push(policy.id);
+  }
+
+  await page.goto("/account");
+  const rows = page.getByTestId("my-policy");
+  await expect(rows).toHaveCount(2);
+  await rows.first().getByTestId("my-policy-delete").click();
+  // 先出現確認，資料還在；選「保留」收起確認
+  await expect(page.getByTestId("my-policy-confirm")).toBeVisible();
+  expect((await (await api.get("/api/v1/policies")).json()).length).toBe(2);
+  await page.getByTestId("my-policy-confirm").getByRole("button", { name: "保留" }).click();
+  await expect(page.getByTestId("my-policy-confirm")).toBeHidden();
+  expect((await (await api.get("/api/v1/policies")).json()).length).toBe(2);
+
+  await rows.first().getByTestId("my-policy-delete").click();
+  await page.getByTestId("my-policy-delete-yes").click();
+  await expect(rows).toHaveCount(1);
+  const left = await (await api.get("/api/v1/policies")).json();
+  expect(left).toHaveLength(1);
+});
