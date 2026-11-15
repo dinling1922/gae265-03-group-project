@@ -243,3 +243,18 @@ async def test_discard_trip_deletes_the_file() -> None:
     )
     assert await agent(drive=drive).discard_trip(trip, document, USER, FakeGoogle())
     assert "drive-file-9" not in drive.files
+
+
+async def test_pending_shared_document_goes_to_trip_folder() -> None:
+    """不確定、但最可能是共同文件時：暫存檔直接放行程資料夾，不另開「共同文件 日期」資料夾。"""
+    trip, drive = japan_trip(), FakeDrive()
+    pending = await agent(drive=drive).recognize_trip(
+        trip,
+        sample("delay").model_copy(update={"target_todo_id": todo_of(trip, "D24").id}),
+        USER,
+        FakeGoogle(),
+    )
+    assert pending.status == "needs_review" and pending.storage_path
+    folder = {n: fid for (n, _), fid in drive.folders.items()}
+    assert drive.files[pending.storage_path][0] == folder["日本 2026-07-05～07-11"]
+    assert not any(n.startswith("共同文件") for n in folder)
