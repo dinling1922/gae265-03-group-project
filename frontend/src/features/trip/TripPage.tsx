@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { patchTripTodo, sendIncidentMessage } from "../../client";
-import type { TodoView, TripOut } from "../../client/types.gen";
+import { deleteTripDocument, patchTripTodo, sendIncidentMessage } from "../../client";
+import type { DocumentView, TodoView, TripOut } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn, btnPri, btnSm } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
@@ -58,6 +58,7 @@ export function TripPage({
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答面板是否拉開
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
+  const [deleting, setDeleting] = useState<DocumentView | null>(null);
 
   const locked = trip.locked;
   // 預設選中發生日期最早的事故（事故已依發生時間排序）
@@ -165,6 +166,18 @@ export function TripPage({
       body: { is_done: checked },
     });
     setBusy(false);
+    if (!res.data) return setError(errorText(res.error, res.response?.status));
+    setTrip(res.data);
+  }
+
+  async function removeDocument(document: DocumentView) {
+    setBusy(true);
+    setError(null);
+    const res = await deleteTripDocument({
+      path: { policy_id: policyId, document_id: document.id },
+    });
+    setBusy(false);
+    setDeleting(null);
     if (!res.data) return setError(errorText(res.error, res.response?.status));
     setTrip(res.data);
   }
@@ -344,7 +357,12 @@ export function TripPage({
                     所有待辦都完成了，可以送件。
                   </p>
                 )}
-                <TripTodoCards trip={trip} disabled={busy || locked} onToggle={onToggle} />
+                <TripTodoCards
+                  trip={trip}
+                  disabled={busy || locked}
+                  onToggle={onToggle}
+                  onDeleteDocument={setDeleting}
+                />
               </>
             )}
           </section>
@@ -441,6 +459,31 @@ export function TripPage({
               onClick={() => ticking && void toggle(ticking, true)}
             >
               我要打勾
+            </button>
+          </>
+        }
+      />
+      <DialogShell
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title="刪除這份文件？"
+        description={
+          <p>
+            「{deleting?.file_name}」會從這個待辦移除，也會從你的 Google Drive
+            刪除，刪掉就拿不回來。 如果它是這項待辦唯一的文件，待辦會回到「待上傳」。
+          </p>
+        }
+        testId="delete-document-dialog"
+        actions={
+          <>
+            <Dialog.Close className={btn}>保留</Dialog.Close>
+            <button
+              type="button"
+              className={btnPri}
+              data-testid="delete-document-confirm"
+              onClick={() => deleting && void removeDocument(deleting)}
+            >
+              刪除文件
             </button>
           </>
         }

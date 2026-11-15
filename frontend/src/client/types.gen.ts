@@ -5591,6 +5591,40 @@ export type RejectIncidentDocumentResponses = {
 
 export type RejectIncidentDocumentResponse = RejectIncidentDocumentResponses[keyof RejectIncidentDocumentResponses];
 
+export type DeleteIncidentDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Incident Id
+         */
+        incident_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/incidents/{incident_id}/documents/{document_id}';
+};
+
+export type DeleteIncidentDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteIncidentDocumentError = DeleteIncidentDocumentErrors[keyof DeleteIncidentDocumentErrors];
+
+export type DeleteIncidentDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: IncidentContext;
+};
+
+export type DeleteIncidentDocumentResponse = DeleteIncidentDocumentResponses[keyof DeleteIncidentDocumentResponses];
+
 export type DiscardPendingIncidentDocumentsData = {
     body: DiscardPendingIn;
     path: {
@@ -6157,6 +6191,40 @@ export type RejectTripDocumentResponses = {
 };
 
 export type RejectTripDocumentResponse = RejectTripDocumentResponses[keyof RejectTripDocumentResponses];
+
+export type DeleteTripDocumentData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+        /**
+         * Document Id
+         */
+        document_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/documents/{document_id}';
+};
+
+export type DeleteTripDocumentErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteTripDocumentError = DeleteTripDocumentErrors[keyof DeleteTripDocumentErrors];
+
+export type DeleteTripDocumentResponses = {
+    /**
+     * Successful Response
+     */
+    200: TripOut;
+};
+
+export type DeleteTripDocumentResponse = DeleteTripDocumentResponses[keyof DeleteTripDocumentResponses];
 
 export type DiscardPendingTripDocumentsData = {
     body: DiscardPendingIn;

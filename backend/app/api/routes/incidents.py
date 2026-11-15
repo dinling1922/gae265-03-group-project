@@ -687,6 +687,32 @@ async def reject_incident_document(
     return await service.build_context(session, incident)
 
 
+@router.delete("/incidents/{incident_id}/documents/{document_id}")
+async def delete_incident_document(
+    session: SessionDep,
+    user: CurrentUser,
+    incident_id: uuid.UUID,
+    document_id: uuid.UUID,
+) -> IncidentContext:
+    """使用者刪掉一份已上傳的文件（上傳錯檔、多傳了；契約 v2.17）：雲端的檔案與資料庫的紀錄都拿掉。
+
+    任何辨識結果的文件都能刪。靠這份文件完成、又沒有別份附件的待辦退回「待上傳」。
+    事件結案後不能刪（409）；刪整個事件不在這裡。
+    """
+    incident = await _own_open_incident(session, user, incident_id)
+    try:
+        document = await service.owned_document(session, incident, document_id)
+    except service.DocumentActionError as e:
+        raise HTTPException(e.status, e.message) from e
+    todo_id, attachable = document.incident_todo_id, service.is_attachable(document)
+    await _discard_documents(session, incident, [document], user)
+    await service.release_todo_after_removal(
+        session, todo_id, was_attachable=attachable
+    )
+    await session.commit()
+    return await service.build_context(session, incident)
+
+
 @router.post("/incidents/{incident_id}/documents/discard-pending")
 async def discard_pending_incident_documents(
     session: SessionDep,

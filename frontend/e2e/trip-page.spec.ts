@@ -182,6 +182,38 @@ test("上傳文件：辨識通過自動打勾，完成度同步更新", async ({
   await expect(page.getByTestId("todos").getByText("AI 已打勾").first()).toBeVisible();
 });
 
+test("刪除已上傳的文件：先確認，刪掉後完成度退回、待辦回到待上傳", async ({ page }) => {
+  const { policyId } = await setup(page, "delete-doc", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const pill = page.getByText(/待辦 \d+／\d+/);
+  await expect(pill).toBeVisible();
+  const done0 = Number(((await pill.textContent()) ?? "").match(/待辦 (\d+)／/)?.[1]);
+
+  await page.getByTestId("doc-file").setInputFiles(pdf("延誤證明.pdf"));
+  await expect(pill).toHaveText(new RegExp(`待辦 ${done0 + 1}／`), { timeout: SLOW });
+  const row = page
+    .getByTestId("todos")
+    .getByRole("listitem")
+    .filter({ hasText: "AI 已打勾" })
+    .first();
+  await expect(row.getByTestId("todo-files")).toBeAttached();
+
+  // 按「刪除」先跳確認；選「保留」什麼都不變
+  await row.getByTestId("todo-toggle").click();
+  await row.getByTestId("todo-file-delete").click();
+  const dialog = page.getByTestId("delete-document-dialog");
+  await expect(dialog).toContainText("Google Drive");
+  await dialog.getByRole("button", { name: "保留" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(pill).toHaveText(new RegExp(`待辦 ${done0 + 1}／`));
+
+  await row.getByTestId("todo-file-delete").click();
+  await page.getByTestId("delete-document-confirm").click();
+  await expect(pill).toHaveText(new RegExp(`待辦 ${done0}／`), { timeout: SLOW });
+  await expect(page.getByTestId("todos").getByText("AI 已打勾")).toHaveCount(0);
+  await expect(page.getByTestId("todo-file-delete")).toHaveCount(0);
+});
+
 test("多個事故：文件對得到多個事故時要選，選單帶事故名稱，選好後檢查並打勾", async ({ page }) => {
   const { policyId } = await setup(page, "ambiguous", ["班機延誤了六小時", "班機取消了"]);
   await page.goto(`/trip/${policyId}`);

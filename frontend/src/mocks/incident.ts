@@ -607,6 +607,24 @@ export const incidentHandlers = [
     m.ctx.documents = m.ctx.documents?.filter((d) => d.id !== params.docId);
     return HttpResponse.json<IncidentContext>(m.ctx);
   }),
+  http.delete("*/api/v1/incidents/:id/documents/:docId", ({ params }) => {
+    const m = incidents.get(String(params.id));
+    if (!m) return notFound();
+    if (m.ctx.status === "completed") return closedError();
+    const gone = m.ctx.documents?.find((d) => d.id === params.docId);
+    if (!gone) return notFound();
+    m.ctx.documents = m.ctx.documents?.filter((d) => d.id !== params.docId);
+    // 靠它完成、沒有別份文件的待辦退回待上傳（與後端一致）
+    const todo = m.ctx.todos?.find((t) => t.id === gone.todo_id);
+    if (
+      todo?.requires_upload &&
+      todo.is_done &&
+      !m.ctx.documents?.some((d) => d.todo_id === todo.id)
+    ) {
+      Object.assign(todo, { status: "pending", is_done: false, done_by: null });
+    }
+    return HttpResponse.json<IncidentContext>(m.ctx);
+  }),
   http.post("*/api/v1/incidents/:id/documents/discard-pending", ({ params }) => {
     const m = incidents.get(String(params.id));
     if (!m) return notFound();

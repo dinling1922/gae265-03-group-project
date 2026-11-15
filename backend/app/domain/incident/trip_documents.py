@@ -150,6 +150,20 @@ async def pending_trip_document(
     return document
 
 
+async def owned_trip_document(
+    session: AsyncSession, policy_id: uuid.UUID, document_id: uuid.UUID
+) -> IncidentDocument:
+    """這個行程裡的一份文件（任何狀態，含共同文件）；不是就丟 DocumentActionError。"""
+    document = await session.get(IncidentDocument, document_id)
+    mine = document is not None and (
+        document.policy_id == policy_id
+        or document.incident_id in await _incident_ids(session, policy_id)
+    )
+    if document is None or not mine:
+        raise DocumentActionError(404, "找不到這份文件")
+    return document
+
+
 async def pending_trip_document_and_todo(
     session: AsyncSession,
     policy_id: uuid.UUID,

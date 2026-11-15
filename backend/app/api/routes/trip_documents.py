@@ -384,6 +384,34 @@ async def reject_trip_document(
     return await build_trip_out(session, user, policy)
 
 
+@router.delete("/policies/{policy_id}/documents/{document_id}")
+async def delete_trip_document(
+    session: SessionDep,
+    user: CurrentUser,
+    policy_id: uuid.UUID,
+    document_id: uuid.UUID,
+) -> TripOut:
+    """使用者刪掉行程裡一份已上傳的文件（含共同文件；契約 v2.17）：雲端的檔案與資料庫的紀錄都拿掉。
+
+    任何辨識結果的文件都能刪。靠這份文件完成、又沒有別份附件的待辦退回「待上傳」。
+    行程送件結案後不能刪（409）。
+    """
+    policy = await _open_policy(session, user, policy_id)
+    try:
+        document = await docs.owned_trip_document(session, policy_id, document_id)
+    except service.DocumentActionError as e:
+        raise _action_error(e) from e
+    todo_id, attachable = document.incident_todo_id, service.is_attachable(document)
+    await _discard(
+        session, await trip_domain.build_trip_context(session, policy), [document], user
+    )
+    await service.release_todo_after_removal(
+        session, todo_id, was_attachable=attachable
+    )
+    await session.commit()
+    return await build_trip_out(session, user, policy)
+
+
 @router.post("/policies/{policy_id}/documents/discard-pending")
 async def discard_pending_trip_documents(
     session: SessionDep,
