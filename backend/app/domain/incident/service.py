@@ -8,7 +8,7 @@ import re
 import uuid
 from collections.abc import Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
 from sqlalchemy import and_, or_
 from sqlmodel import col, func, select
@@ -157,7 +157,10 @@ async def refresh_shared_todos(session: AsyncSession, policy_id: uuid.UUID) -> N
     for incident in (
         await session.exec(
             select(Incident)
-            .where(Incident.policy_id == policy_id)
+            # 還沒確認的事件（#345）不計：共同待辦等確認才建立
+            .where(
+                Incident.policy_id == policy_id, Incident.confirmation == "confirmed"
+            )
             .order_by(col(Incident.created_at))
         )
     ).all():
@@ -303,14 +306,19 @@ async def create_incident(
     description: str,
     destination: str | None,
     title: str | None,
+    require_confirmation: bool = False,
 ) -> Incident:
-    """建立事件，並預先放入保單涵蓋的保障與基本待辦（5 之後再細修）。"""
+    """建立事件，並預先放入保單涵蓋的保障與基本待辦（5 之後再細修）。
+
+    `require_confirmation`：2-2 描述頁建立的事件要等使用者在確認彈窗按確認才進行程（#345）。
+    """
     # 沒帶（或只有空白）就用保單上讀到的目的地；有帶以帶的為準（#202）
     incident = Incident(
         policy_id=policy.id,
         destination=(destination or "").strip() or policy.destination,
         title=(title or description)[:50],
         description=description,
+        confirmation="clarifying" if require_confirmation else "confirmed",
     )
     session.add(incident)
     await session.flush()
@@ -750,12 +758,58 @@ async def add_user_message(
     return message
 
 
+class ApplyResult(NamedTuple):
+    message: Message
+    changed: bool  # 這輪回覆讓事實或條款結論跟之前不一樣
+    show_confirm: bool  # 前端要跳「確認目前的狀況」彈窗（#345）
+
+
+async def _state_snapshot(
+    session: AsyncSession, incident: Incident
+) -> tuple[dict[str, str], set[tuple[str, str | None, str | None, str]]]:
+    """事實與條款結論的快照，用來判斷一輪回覆有沒有改到狀況。"""
+    facts = {
+        f.fact_key: f.value
+        for f in (
+            await session.exec(
+                select(IncidentFact).where(IncidentFact.incident_id == incident.id)
+            )
+        ).all()
+    }
+    clauses = {
+        (str(c.insurance_id), c.section, c.subsection, c.conclusion)
+        for c in (
+            await session.exec(
+                select(IncidentClause).where(IncidentClause.incident_id == incident.id)
+            )
+        ).all()
+    }
+    return facts, clauses
+
+
+def next_confirmation(
+    current: str, *, finished: bool, changed: bool
+) -> tuple[str, bool]:
+    """2-2 現況確認的狀態轉換（#345）：回 (新狀態, 要不要跳彈窗)。
+
+    彈窗條件是「5 號問完（finished）而且有變」；等確認時沒變的回覆（問問題、講別件事）
+    不論 finished 都維持等確認、不跳，對話裡留「回到確認」。
+    """
+    if current == "confirmed":
+        return "confirmed", False
+    if current == "clarifying":
+        return ("awaiting", True) if finished else ("clarifying", False)
+    if not changed:
+        return "awaiting", False
+    return ("awaiting", True) if finished else ("clarifying", False)
+
+
 async def apply_reply(
     session: AsyncSession,
     incident: Incident,
     ctx: IncidentContext,
     reply: IncidentReply,
-) -> Message:
+) -> ApplyResult:
     """驗證 5 的回覆符合契約後寫入；違反任何一條就一筆都不寫。"""
     allowed = {(c.insurance_code, c.section) for c in ctx.policy.coverages}
     allowed_codes = set(ctx.policy.insurance_codes)
@@ -829,6 +883,7 @@ async def apply_reply(
         ]
 
     # ---- 通過檢查，開始寫 ----
+    before = await _state_snapshot(session, incident)
     if itype is not None and itype.id != incident.incident_type_id:
         incident.incident_type_id = itype.id
     if reply.title:
@@ -950,7 +1005,13 @@ async def apply_reply(
             MessageCitation(message_id=message.id, rule_id=rule.id, score=score)
         )
     await session.flush()
-    return message
+    changed = await _state_snapshot(session, incident) != before
+    incident.confirmation, show_confirm = next_confirmation(
+        incident.confirmation, finished=reply.finished, changed=changed
+    )
+    session.add(incident)
+    await session.flush()
+    return ApplyResult(message, changed, show_confirm)
 
 
 _EXTENSIONS = {

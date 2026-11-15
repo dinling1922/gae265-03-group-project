@@ -65,6 +65,10 @@ class CreateIncidentIn(BaseModel):
     description: str = Field(min_length=1, description="使用者對事故的第一句描述")
     destination: str | None = None
     title: str | None = Field(default=None, max_length=50)
+    require_confirmation: bool = Field(
+        default=False,
+        description="2-2 描述頁帶 true：事件要等使用者在確認彈窗按確認才進行程（#345）；行程頁新增狀況不帶",
+    )
 
 
 class MessageIn(BaseModel):
@@ -84,11 +88,29 @@ class IncidentSummaryOut(BaseModel):
     last_activity_at: datetime = Field(
         description="最後操作時間：事件本身、待辦、文件、對話訊息裡最新的一筆時間；清單依它由新到舊"
     )
+    confirmation: str = Field(
+        description="confirmed 已確認／clarifying 還在問／awaiting 等使用者確認（2-2 現況確認，#345）"
+    )
 
 
 class IncidentReplyOut(BaseModel):
     reply: IncidentReply
     incident: IncidentContext
+    confirmation: str = Field(
+        description="事件目前的確認狀態：confirmed／clarifying／awaiting（#345）"
+    )
+    show_confirm: bool = Field(
+        default=False,
+        description="要跳「確認目前的狀況」彈窗：5 號問完而且這輪有改到事實或結論（#345）",
+    )
+    changed: bool = Field(
+        default=False, description="這輪回覆讓事實或條款結論跟之前不一樣"
+    )
+
+
+class ConfirmOut(BaseModel):
+    policy_id: uuid.UUID = Field(description="確認後進這個行程頁 /trip/{policy_id}")
+    confirmation: str
 
 
 class TodoPatchIn(BaseModel):
@@ -243,19 +265,24 @@ async def create_incident(
         description=body.description,
         destination=body.destination,
         title=body.title,
+        require_confirmation=body.require_confirmation,
     )
     await service.add_user_message(session, incident, body.description, "text")
     ctx = await service.build_context(session, incident)
     agent = get_incident_agent()
     try:
         reply = await agent.start(ctx, service.make_services(session))
-        await service.apply_reply(session, incident, ctx, reply)
+        applied = await service.apply_reply(session, incident, ctx, reply)
     except ContractViolation as e:
         await session.rollback()
         raise _violation("事件釐清（5）", e) from e
     await session.commit()
     return IncidentReplyOut(
-        reply=reply, incident=await service.build_context(session, incident)
+        reply=reply,
+        incident=await service.build_context(session, incident),
+        confirmation=incident.confirmation,
+        show_confirm=applied.show_confirm,
+        changed=applied.changed,
     )
 
 
@@ -332,9 +359,28 @@ async def list_incidents(
             incident_type_name=name,
             created_at=i.created_at,
             last_activity_at=last,
+            confirmation=i.confirmation,
         )
         for i, name, last in rows
     ]
+
+
+@router.post("/incidents/{incident_id}/confirm")
+async def confirm_incident(
+    session: SessionDep, user: CurrentUser, incident_id: uuid.UUID
+) -> ConfirmOut:
+    """使用者在「確認目前的狀況」彈窗按確認（#345）：事件進行程，共同待辦這時才建立。
+
+    只有「等確認」的事件能確認；已經確認的回 409，還在問的也回 409。
+    """
+    incident = await _own_open_incident(session, user, incident_id)
+    if incident.confirmation != "awaiting":
+        raise HTTPException(status.HTTP_409_CONFLICT, "這個事件現在不是等確認的狀態")
+    incident.confirmation = "confirmed"
+    session.add(incident)
+    await service.refresh_shared_todos(session, incident.policy_id)
+    await session.commit()
+    return ConfirmOut(policy_id=incident.policy_id, confirmation=incident.confirmation)
 
 
 @router.get("/incidents/{incident_id}")
@@ -358,13 +404,17 @@ async def send_incident_message(
         reply = await agent.reply(
             ctx, body.content, body.input_mode, service.make_services(session)
         )
-        await service.apply_reply(session, incident, ctx, reply)
+        applied = await service.apply_reply(session, incident, ctx, reply)
     except ContractViolation as e:
         await session.rollback()
         raise _violation("事件釐清（5）", e) from e
     await session.commit()
     return IncidentReplyOut(
-        reply=reply, incident=await service.build_context(session, incident)
+        reply=reply,
+        incident=await service.build_context(session, incident),
+        confirmation=incident.confirmation,
+        show_confirm=applied.show_confirm,
+        changed=applied.changed,
     )
 
 
