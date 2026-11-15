@@ -20,7 +20,9 @@ class Comparison(BaseTable, table=True):
     destination: str = Field(description="目的地名稱（app.domain.destinations）")
     depart_date: date
     return_date: date
-    age: int
+    city: str = Field(
+        default="", sa_column_kwargs={"server_default": ""}, description="城市，選填"
+    )
     concerns: list[str] = Field(
         default_factory=list,
         sa_column=Column(ARRAY(Text), nullable=False, server_default="{}"),
