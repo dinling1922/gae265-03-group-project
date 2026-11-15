@@ -204,7 +204,6 @@ test("寬螢幕下，橫幅與日期分頁、地圖固定，時間軸與順序�
   const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())?.y ?? NaN;
   const tabsTop = async () => (await page.getByRole("tab").first().boundingBox())?.y ?? NaN;
 
-  const mapBefore = await top("map-panel");
   await page.mouse.move(700, 500);
   await page.mouse.wheel(0, 1200);
   await page.waitForTimeout(300);
@@ -212,8 +211,9 @@ test("寬螢幕下，橫幅與日期分頁、地圖固定，時間軸與順序�
   expect(await top("trip-banner")).toBeLessThan(80);
   expect(await tabsTop()).toBeLessThan(400);
   expect((await page.getByTestId("slot-7").boundingBox())?.y ?? 0).toBeLessThan(0);
-  // 地圖面板跟著固定在畫面上（不會跟著頁面捲走）
-  expect(await top("map-panel")).toBeLessThanOrEqual(mapBefore);
-  expect(await top("map-panel")).toBeGreaterThanOrEqual(0);
+  // 地圖欄：標題捲走，「全部天數」固定在畫面頂端、與橫幅的頂端對齊（24px）
+  const chips = (await page.getByRole("button", { name: "全部天數" }).boundingBox())?.y ?? NaN;
+  const banner = (await page.getByTestId("trip-banner").boundingBox())?.y ?? NaN;
+  expect(Math.abs(chips - banner), `全部天數 y=${chips}、橫幅 y=${banner}`).toBeLessThan(2);
   await expect(page.getByTestId("map-pin").first()).toBeInViewport();
 });

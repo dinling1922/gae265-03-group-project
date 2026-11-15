@@ -279,7 +279,7 @@ function Itinerary({
         )}
       </main>
 
-      <aside className="border-line p-4 md:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[1091px]:sticky min-[1091px]:top-4 min-[1091px]:col-start-3 min-[1091px]:h-[calc(100vh-2rem)] min-[1091px]:self-start min-[1091px]:overflow-y-auto min-[1091px]:border-t-0 min-[1091px]:border-l">
+      <aside className="border-line p-4 min-[768px]:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[1091px]:col-start-3 min-[1091px]:flex min-[1091px]:flex-col min-[1091px]:pb-0 min-[1091px]:border-t-0 min-[1091px]:border-l">
         {comparison && dates.length > 0 && (
           <MapPanel
             dates={dates}
