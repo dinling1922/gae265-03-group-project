@@ -196,3 +196,24 @@ test("日程頁的欄數隨寬度變化：三欄、兩欄、單欄", async ({ pa
   expect(b.banner.y).toBeGreaterThan(b.form.y);
   expect(b.map.y).toBeGreaterThan(b.banner.y);
 });
+
+// 捲動：中間欄的橫幅與日期分頁捲到頂就固定、只有時間軸捲動；右欄的地圖固定、只有「順序」清單捲動。
+test("寬螢幕下，橫幅與日期分頁、地圖固定，時間軸與順序清單才捲動", async ({ page }) => {
+  await setup(page, "e2e-map-sticky@example.com");
+  await page.setViewportSize({ width: 1400, height: 800 });
+  const top = async (testId: string) => (await page.getByTestId(testId).boundingBox())?.y ?? NaN;
+  const tabsTop = async () => (await page.getByRole("tab").first().boundingBox())?.y ?? NaN;
+
+  const mapBefore = await top("map-panel");
+  await page.mouse.move(700, 500);
+  await page.mouse.wheel(0, 1200);
+  await page.waitForTimeout(300);
+  // 橫幅與分頁固定在畫面頂端；時間軸已經捲走
+  expect(await top("trip-banner")).toBeLessThan(80);
+  expect(await tabsTop()).toBeLessThan(400);
+  expect((await page.getByTestId("slot-7").boundingBox())?.y ?? 0).toBeLessThan(0);
+  // 地圖面板跟著固定在畫面上（不會跟著頁面捲走）
+  expect(await top("map-panel")).toBeLessThanOrEqual(mapBefore);
+  expect(await top("map-panel")).toBeGreaterThanOrEqual(0);
+  await expect(page.getByTestId("map-pin").first()).toBeInViewport();
+});

@@ -119,102 +119,107 @@ export function MapPanel({
     on ? "border-brand bg-leaf-soft text-brand" : "border-line text-muted";
 
   return (
-    <div data-testid="map-panel" className="flex flex-col gap-3">
-      <div>
-        <p className="m-0 t-label text-muted">地圖</p>
-        <h2 className="m-0 t-section-title text-heading">日程地圖</h2>
-        <p className="m-0 t-caption text-muted">一站一站照順序走</p>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <Button
-          aria-pressed={scope === "trip"}
-          onClick={onShowTrip}
-          className={`${chip} ${active(scope === "trip")}`}
-        >
-          全部天數
-        </Button>
-        {dates.map((d, i) => (
+    <div data-testid="map-panel" className="flex flex-col gap-3 min-[1091px]:h-full">
+      {/* 上半（標題、切換、地圖、地點數、「這一天的順序」）在寬螢幕固定，只有下面的清單捲動 */}
+      <div className="flex shrink-0 flex-col gap-3">
+        <div>
+          <p className="m-0 t-label text-muted">地圖</p>
+          <h2 className="m-0 t-section-title text-heading">日程地圖</h2>
+          <p className="m-0 t-caption text-muted">一站一站照順序走</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
           <Button
-            key={d}
-            aria-pressed={scope === "day" && d === day}
-            onClick={() => onShowDay(d)}
-            className={`${chip} ${active(scope === "day" && d === day)}`}
+            aria-pressed={scope === "trip"}
+            onClick={onShowTrip}
+            className={`${chip} ${active(scope === "trip")}`}
           >
-            第 {i + 1} 天
+            全部天數
           </Button>
-        ))}
-      </div>
-      <MapContainer
-        center={[25.04, 121.56]}
-        zoom={3}
-        scrollWheelZoom={false}
-        // 容器不進 tab 順序（鍵盤用右邊的清單）：可聚焦的容器被按下時，瀏覽器會把它捲進可視範圍，點擊就落空
-        keyboard={false}
-        className="z-0 h-[280px] rounded-tile border border-line md:h-[360px]"
-      >
-        <TileLayer
-          attribution="© OpenStreetMap contributors"
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
-        <KeepSized />
-        <FitStops points={points} viewKey={`${scope}-${day}`} />
-        {scope === "day" && points.length > 1 && (
-          <Polyline
-            positions={points}
-            pathOptions={{ color: "#285442", weight: 3, opacity: 0.7, dashArray: "6 6" }}
+          {dates.map((d, i) => (
+            <Button
+              key={d}
+              aria-pressed={scope === "day" && d === day}
+              onClick={() => onShowDay(d)}
+              className={`${chip} ${active(scope === "day" && d === day)}`}
+            >
+              第 {i + 1} 天
+            </Button>
+          ))}
+        </div>
+        <MapContainer
+          center={[25.04, 121.56]}
+          zoom={3}
+          scrollWheelZoom={false}
+          // 容器不進 tab 順序（鍵盤用右邊的清單）：可聚焦的容器被按下時，瀏覽器會把它捲進可視範圍，點擊就落空
+          keyboard={false}
+          className="z-0 h-[280px] rounded-tile border border-line md:h-[clamp(220px,40vh,360px)]"
+        >
+          <TileLayer
+            attribution="© OpenStreetMap contributors"
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            maxZoom={19}
           />
-        )}
-        {stops.map((s) => (
-          <StopMarker
-            key={s.activity.id}
-            stop={s}
-            selected={s.activity.id === selectedId}
-            onSelect={onSelect}
-          />
-        ))}
-      </MapContainer>
-      <p className="m-0 t-caption text-muted" data-testid="map-stats">
-        {stops.length} 個地點
-      </p>
-      <h3 className="m-0 t-label text-heading">
-        {scope === "day" ? "這一天的順序" : "整趟的順序"}
-      </h3>
-      <ol className="m-0 flex list-none flex-col gap-2 p-0" data-testid="stop-list">
-        {stops.map((s) => {
-          const selected = s.activity.id === selectedId;
-          return (
-            <li key={s.activity.id}>
-              <Button
-                onClick={() => onSelect(s)}
-                aria-pressed={selected}
-                data-testid="stop-item"
-                data-selected={selected}
-                className={`flex w-full items-center gap-3 rounded-btn border px-3 py-2.5 text-left hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-leaf ${
-                  selected ? "border-brand bg-leaf-soft" : "border-line bg-white"
-                }`}
-              >
-                <span className="grid h-7 min-w-7 flex-none place-items-center rounded-full bg-brand px-1.5 text-[13px] font-bold text-white">
-                  {s.n}
-                </span>
-                <span className="min-w-0">
-                  <b className="block t-caption-bold text-heading">{s.activity.title}</b>
-                  <span className="t-micro text-muted">
-                    {scope === "trip" && `第 ${s.dayIndex + 1} 天・`}
-                    {formatHour(s.activity.hour)}
-                    {s.activity.location && `・${s.activity.location}`}
-                  </span>
-                </span>
-              </Button>
-            </li>
-          );
-        })}
-      </ol>
-      {unmapped > 0 && (
-        <p className="m-0 t-caption text-muted" data-testid="map-unmapped">
-          另有 {unmapped} 個活動沒有座標，不在地圖上
+          <KeepSized />
+          <FitStops points={points} viewKey={`${scope}-${day}`} />
+          {scope === "day" && points.length > 1 && (
+            <Polyline
+              positions={points}
+              pathOptions={{ color: "#285442", weight: 3, opacity: 0.7, dashArray: "6 6" }}
+            />
+          )}
+          {stops.map((s) => (
+            <StopMarker
+              key={s.activity.id}
+              stop={s}
+              selected={s.activity.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))}
+        </MapContainer>
+        <p className="m-0 t-caption text-muted" data-testid="map-stats">
+          {stops.length} 個地點
         </p>
-      )}
+        <h3 className="m-0 t-label text-heading">
+          {scope === "day" ? "這一天的順序" : "整趟的順序"}
+        </h3>
+      </div>
+      <div className="flex flex-col gap-3 min-[1091px]:min-h-32 min-[1091px]:flex-1 min-[1091px]:overflow-y-auto">
+        <ol className="m-0 flex list-none flex-col gap-2 p-0" data-testid="stop-list">
+          {stops.map((s) => {
+            const selected = s.activity.id === selectedId;
+            return (
+              <li key={s.activity.id}>
+                <Button
+                  onClick={() => onSelect(s)}
+                  aria-pressed={selected}
+                  data-testid="stop-item"
+                  data-selected={selected}
+                  className={`flex w-full items-center gap-3 rounded-btn border px-3 py-2.5 text-left hover:border-brand focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-leaf ${
+                    selected ? "border-brand bg-leaf-soft" : "border-line bg-white"
+                  }`}
+                >
+                  <span className="grid h-7 min-w-7 flex-none place-items-center rounded-full bg-brand px-1.5 text-[13px] font-bold text-white">
+                    {s.n}
+                  </span>
+                  <span className="min-w-0">
+                    <b className="block t-caption-bold text-heading">{s.activity.title}</b>
+                    <span className="t-micro text-muted">
+                      {scope === "trip" && `第 ${s.dayIndex + 1} 天・`}
+                      {formatHour(s.activity.hour)}
+                      {s.activity.location && `・${s.activity.location}`}
+                    </span>
+                  </span>
+                </Button>
+              </li>
+            );
+          })}
+        </ol>
+        {unmapped > 0 && (
+          <p className="m-0 t-caption text-muted" data-testid="map-unmapped">
+            另有 {unmapped} 個活動沒有座標，不在地圖上
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -228,8 +228,13 @@ function Itinerary({
         </div>
         {comparison && dates.length > 0 ? (
           <>
-            <TripBanner comparison={comparison} />
-            <DayTabs dates={dates} value={day} onChange={view.showDay} counts={counts}>
+            <DayTabs
+              dates={dates}
+              value={day}
+              onChange={view.showDay}
+              counts={counts}
+              header={<TripBanner comparison={comparison} />}
+            >
               {dates.map((d, i) => (
                 <Tabs.Panel key={d} value={d}>
                   <div className="mt-5 flex flex-wrap items-end justify-between gap-3">
@@ -274,7 +279,7 @@ function Itinerary({
         )}
       </main>
 
-      <aside className="border-line p-4 md:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[1091px]:sticky min-[1091px]:top-4 min-[1091px]:col-start-3 min-[1091px]:max-h-[calc(100vh-2rem)] min-[1091px]:self-start min-[1091px]:overflow-auto min-[1091px]:border-t-0 min-[1091px]:border-l">
+      <aside className="border-line p-4 md:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[1091px]:sticky min-[1091px]:top-4 min-[1091px]:col-start-3 min-[1091px]:h-[calc(100vh-2rem)] min-[1091px]:self-start min-[1091px]:overflow-y-auto min-[1091px]:border-t-0 min-[1091px]:border-l">
         {comparison && dates.length > 0 && (
           <MapPanel
             dates={dates}

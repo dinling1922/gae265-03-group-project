@@ -16,12 +16,15 @@ export function DayTabs({
   value,
   onChange,
   counts,
+  header,
   children,
 }: {
   dates: string[];
   value: string;
   onChange: (date: string) => void;
   counts: Record<string, number>;
+  /** 日期分頁上方、跟分頁一起固定的內容（旅程橫幅）。 */
+  header?: ReactNode;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -38,15 +41,19 @@ export function DayTabs({
   }, [value]);
   return (
     <Tabs.Root ref={ref} value={value} onValueChange={(v) => onChange(String(v))}>
-      <TabList>
-        {dates.map((d, i) => (
-          <Tab key={d} value={d}>
-            <span className="block t-micro text-muted">第 {i + 1} 天</span>
-            {formatDay(d)}
-            <span className="block t-micro font-normal text-muted">{counts[d] ?? 0} 個活動</span>
-          </Tab>
-        ))}
-      </TabList>
+      {/* 橫幅與日期分頁（桌機）捲到頂就固定，底下的時間軸才捲動；底色蓋住從下面捲過的卡片 */}
+      <div className="z-10 -mx-4 flex flex-col gap-4 bg-paper px-4 pt-4 md:sticky md:top-0 md:-mx-6 md:gap-5 md:px-6 md:pt-6">
+        {header}
+        <TabList>
+          {dates.map((d, i) => (
+            <Tab key={d} value={d}>
+              <span className="block t-micro text-muted">第 {i + 1} 天</span>
+              {formatDay(d)}
+              <span className="block t-micro font-normal text-muted">{counts[d] ?? 0} 個活動</span>
+            </Tab>
+          ))}
+        </TabList>
+      </div>
       {children}
     </Tabs.Root>
   );
