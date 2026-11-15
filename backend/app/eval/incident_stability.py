@@ -22,7 +22,10 @@ from typing import Any
 
 import httpx
 
-from app.agents.incident.agent import NEW_SITUATION_MESSAGE
+from app.agents.incident.agent import (
+    GATE_MESSAGES,
+    NEW_SITUATION_MESSAGE,
+)
 from app.core.config import ROOT_DIR, settings
 
 DEFAULT_BASE = "http://localhost:8000/api/v1"
@@ -32,14 +35,17 @@ UNKNOWN = "不知道"
 ASK_AGAIN = "沒有聽懂"  # 5 號重問同一題時的說法
 # 問答退回貼條款原文時的開頭（adapters._original）；出現就表示沒有白話說明
 ORIGINAL_NOTICE = "（無法產生白話說明，以下直接列出條款原文。）"
-FOLLOW_UP_KINDS = ("new_situation", "qa")
+FOLLOW_UP_KINDS = ("new_situation", "qa", "excluded")
 
 
 @dataclass(frozen=True)
 class FollowUp:
-    """問完之後再送的一句，和預期的回覆種類：new_situation（固定訊息）或 qa（有出處的條款問答）。
+    """問完之後再送的一句，和預期的回覆種類。
 
-    不論哪一種，這一句都不能改動已記下的狀況與結論，所以前後一律比對。
+    - new_situation：回新狀況的固定訊息；qa：有出處的條款問答。這兩種都不能改動已記下的狀況與結論，
+      所以前後一律比對。
+    - excluded：旅客更正延誤時數或起飛時間（#384），重新判斷後結論要是不在保障範圍，劇本預期的文件
+      不再適用；狀況會跟著更正，所以不比對狀況。
     """
 
     say: str
@@ -71,6 +77,8 @@ class Run:
     # 只有劇本帶後續句才有值：None 表示沒有後續句
     follow_up_ok: bool | None = None
     follow_up_problem: str | None = None
+    follow_up_reply: str | None = None
+    follow_up_conclusions: list[str] = field(default_factory=list)
 
     @property
     def seconds(self) -> float:
@@ -121,11 +129,25 @@ def _snapshot(incident: dict[str, Any]) -> Snapshot:
     )
 
 
+def _applicable_documents(incident: dict[str, Any]) -> list[str]:
+    return sorted(
+        {t["document_code"] for t in incident["todos"] if t["applicable"]} - {None}
+    )
+
+
 def judge_follow_up(
-    expect: str, reply: dict[str, Any], before: Snapshot, after: Snapshot
+    expect: str,
+    reply: dict[str, Any],
+    before: Snapshot,
+    after: Snapshot,
+    *,
+    expect_documents: frozenset[str] = frozenset(),
+    after_documents: frozenset[str] = frozenset(),
 ) -> str | None:
     """後續句的回覆符不符合預期；符合回 None，不符合回原因。種類由程式判斷，不靠模型。"""
     message = reply["message"]
+    if expect == "excluded":
+        return _judge_excluded(message, after, expect_documents, after_documents)
     if expect == "new_situation":
         if message != NEW_SITUATION_MESSAGE:
             return "沒有回新狀況的固定訊息"
@@ -139,6 +161,29 @@ def judge_follow_up(
         return "後續句改動了已記下的狀況"
     if before[1] != after[1]:
         return "後續句改動了結論"
+    return None
+
+
+def _judge_excluded(
+    message: str,
+    after: Snapshot,
+    expect_documents: frozenset[str],
+    after_documents: frozenset[str],
+) -> str | None:
+    """更正之後要重新下結論：不能被守門反問、貼條款原文或當成新狀況，結論不在保障範圍、文件不再適用。"""
+    if message == NEW_SITUATION_MESSAGE:
+        return "回了新狀況的固定訊息，沒有重新判斷"
+    if message in GATE_MESSAGES.values():
+        return "被守門擋下，沒有重新判斷"
+    if message.startswith(ORIGINAL_NOTICE):
+        return "退回貼條款原文，沒有重新判斷"
+    conclusions = after[1]
+    if "applicable" in conclusions:
+        return "結論仍是可申請"
+    if "excluded" not in conclusions:
+        return "沒有重新下結論"
+    if still := expect_documents & after_documents:
+        return f"文件仍然適用：{'、'.join(sorted(still))}"
     return None
 
 
@@ -174,6 +219,8 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
     incident = data["incident"]
     repeats = sum(ASK_AGAIN in text for who, text in log if who == "5 號")
     follow_up_problem: str | None = None
+    follow_up_reply: str | None = None
+    follow_up_conclusions: list[str] = []
     if s.follow_up:
         # 後續句不算進輪數與秒數，原本的待辦與結論也只看問完那一刻的事件
         if data["reply"].get("finished"):
@@ -184,14 +231,20 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
                 record=False,
             )
             log += [("旅客", s.follow_up.say), ("5 號", data["reply"]["message"])]
+            after = data["incident"]
+            follow_up_reply = data["reply"]["message"]
+            follow_up_conclusions = _snapshot(after)[1]
             follow_up_problem = judge_follow_up(
-                s.follow_up.expect, data["reply"], before, _snapshot(data["incident"])
+                s.follow_up.expect,
+                data["reply"],
+                before,
+                _snapshot(after),
+                expect_documents=s.expect_documents,
+                after_documents=frozenset(_applicable_documents(after)),
             )
         else:
             follow_up_problem = "對話沒有問完，沒有送後續句"
-    documents = sorted(
-        {t["document_code"] for t in incident["todos"] if t["applicable"]} - {None}
-    )
+    documents = _applicable_documents(incident)
     return Run(
         ok=s.expect_documents <= set(documents),
         documents=documents,
@@ -202,6 +255,8 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
         log=log,
         follow_up_ok=None if s.follow_up is None else follow_up_problem is None,
         follow_up_problem=follow_up_problem,
+        follow_up_reply=follow_up_reply,
+        follow_up_conclusions=follow_up_conclusions,
     )
 
 
@@ -311,6 +366,20 @@ def render_report(
                 f"| {'；'.join(problems) or '—'} |"
             )
         lines.append("")
+        corrections = [
+            s
+            for s in with_follow_up
+            if s.follow_up and s.follow_up.expect == "excluded"
+        ]
+        if corrections:
+            lines += ["### 更正類後續句的每次回覆與結論", ""]
+            for s in corrections:
+                for i, r in enumerate(results[s.name], 1):
+                    lines.append(
+                        f"- {s.name} 第 {i} 次：回覆「{r.follow_up_reply or '（沒有）'}」；"
+                        f"結論 {'、'.join(r.follow_up_conclusions) or '（沒有）'}"
+                    )
+            lines.append("")
 
     failures = [(s, i, r) for s in scenarios for i, r in enumerate(results[s.name], 1)]
     failures = [(s, i, r) for s, i, r in failures if not _passed(r)]

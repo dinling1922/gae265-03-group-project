@@ -272,3 +272,16 @@ async def test_更正之後旅客再說實際時間_以時間為準() -> None:
     assert fact(reply, "dep_act") == "23:40"
     assert fact(reply, "dep_act_date") == "2026/11/12"
     assert conclusion_of(reply) == "excluded"  # 21:40 → 23:40 約 2 小時
+
+
+async def test_模型對更正的句子亂填欄位_仍由程式依時數重新判斷() -> None:
+    # eval 實測：模型對「其實班機延誤只有兩個小時，我搞錯了」回了亂填的 dep_act
+    ctx = make_ctx(facts=CONCLUDED_WITH_TIMES, type_code="flight_delay")
+
+    reply = await agent(revise=revising(dep_act="2")).reply(
+        ctx, "其實班機延誤只有兩個小時，我搞錯了", "text", SERVICES
+    )
+
+    assert fact(reply, "delay_hours") == "2"
+    assert fact(reply, "dep_act") == "不知道"
+    assert conclusion_of(reply) == "excluded"
