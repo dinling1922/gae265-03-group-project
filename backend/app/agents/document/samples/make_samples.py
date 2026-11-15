@@ -934,8 +934,8 @@ def passport_copy(doc: pymupdf.Document) -> None:
 
 
 POLICY_BLANK = HERE / "chubb_policy_blank.pdf"
-# 真實保單的投保須知、個資告知與附的條款前兩頁（原第 2、5、6、7 頁，沒有個人資料；字型已裁成用到的字形，
-# 檔案才不超過 500KB），照原樣放在承保內容後面
+# 真實保單的投保須知、個資告知與附的條款 6 頁（原第 2、5～11 頁，沒有個人資料），原樣放在承保內容後面；
+# 字型是嵌好的，不要再裁（會變亂碼），所以這兩個檔案超過 500KB，pre-commit 與測試都已放行
 POLICY_ATTACHMENTS = HERE / "chubb_policy_attachments.pdf"
 
 
@@ -946,11 +946,12 @@ def travel_policy(doc: pymupdf.Document) -> None:
     保單號碼、保險期間、旅遊地區、保費與列印時間整段移除（不是蓋上白色方塊），
     出生日期與身分證字號原本就塗黑；這裡只把虛構資料寫回同樣的位置。
     """
-    attachments = pymupdf.open(POLICY_ATTACHMENTS)
-    _policy_cover_page(doc)
-    doc.insert_pdf(attachments, from_page=0, to_page=0)  # 旅遊保險網路投保投保人須知
-    doc.insert_pdf(pymupdf.open(POLICY_BLANK))
-    page = doc[-1]
+    # 自己畫的頁面先放在 own 裁字型；附件頁的字型原本就是裁好嵌進去的，再裁一次會變亂碼，
+    # 所以最後才照順序接在一起（main 對這份不再呼叫 subset_fonts）
+    own = pymupdf.open()
+    _policy_cover_page(own)
+    own.insert_pdf(pymupdf.open(POLICY_BLANK))
+    page = own[-1]
     page.insert_font(fontname="L", fontbuffer=font(FONT_LIGHT))
     for x, y, text in (
         (57.7, 87.5, "保單號碼：ECITWAA0000153"),
@@ -975,9 +976,14 @@ def travel_policy(doc: pymupdf.Document) -> None:
     page.insert_text(
         (24, page.rect.height - 12), FOOTER, fontname="L", fontsize=6.5, color=GRAY
     )
-    _policy_advanced_page(doc)
-    _policy_receipt_page(doc)
-    doc.insert_pdf(attachments, from_page=1)  # 個資告知與附的條款前兩頁
+    _policy_advanced_page(own)
+    _policy_receipt_page(own)
+    own.subset_fonts()
+    attachments = pymupdf.open(POLICY_ATTACHMENTS)
+    doc.insert_pdf(own, from_page=0, to_page=0)  # 封面
+    doc.insert_pdf(attachments, from_page=0, to_page=0)  # 旅遊保險網路投保投保人須知
+    doc.insert_pdf(own, from_page=1)  # 承保內容、進階型續頁、保險費收據
+    doc.insert_pdf(attachments, from_page=1)  # 個資告知與附的條款 6 頁
 
 
 # 進階型多出來的商品（CHUBB05～08）與保障內容，金額同方案資料（保額 200 萬）
@@ -1141,6 +1147,7 @@ SAMPLE_FILES = {
     "med_policy": travel_policy,
 }
 LOCKED = {"ticket_locked"}
+NO_SUBSET = {"med_policy"}  # 附件頁的字型已經裁好，travel_policy 自己處理
 MEDICAL = [name for name in SAMPLE_FILES if name.startswith("med_")]
 
 
@@ -1296,7 +1303,8 @@ def main(only_medical: bool = False) -> None:
             continue
         doc = pymupdf.open()
         build(doc)
-        doc.subset_fonts()  # 再裁成這一份實際用到的字
+        if name not in NO_SUBSET:
+            doc.subset_fonts()  # 再裁成這一份實際用到的字
         out = HERE / f"{name}.pdf"
         if name in LOCKED:
             doc.save(
