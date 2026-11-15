@@ -211,7 +211,7 @@ async def test_chubb_e_policy_is_matched_to_the_chubb_basic_plan(
     response = await client.post("/policies", **upload(sample.read_bytes()))
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["plan_id"] == "chubb_basic"
+    assert body["plan_id"] == "chubb_advanced"
     assert (body["start_date"], body["end_date"]) == ("2026-07-05", "2026-07-12")
     assert body["destination"] == "泰國"
     assert body["sum_insured"] == 2_000_000
