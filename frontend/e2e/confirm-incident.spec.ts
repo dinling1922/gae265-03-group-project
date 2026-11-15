@@ -92,3 +92,45 @@ test("沒確認就離開：首頁「我的行程」顯示描述中，點進去�
   await expect(page).toHaveURL(incidentUrl);
   await expect(page.getByTestId("confirm-dialog")).toBeVisible({ timeout: SLOW });
 });
+
+// #409：橫式矮視窗、鍵盤開著時底部動作列會被蓋住，「回到確認」搬到輸入列旁邊；直式維持在底部
+test("橫式矮視窗：「回到確認」在送出鈕旁；直式在底部動作列", async ({ page }) => {
+  const policyId = await setup(page, "landscape");
+  await describeUntilFinished(page, policyId);
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible({ timeout: SLOW });
+  await dialog.getByTestId("confirm-supplement").click();
+  await expect(dialog).toBeHidden();
+
+  const back = page.getByTestId("back-to-confirm");
+  const send = page.getByTestId("send");
+
+  // 一般（直式或桌機）高度：只有一個，在送出鈕下方的動作列
+  await expect(back).toHaveCount(1);
+  const sendBox = await send.boundingBox();
+  const normalBox = await back.boundingBox();
+  expect(normalBox && sendBox && normalBox.y > sendBox.y + sendBox.height).toBe(true);
+
+  // 橫式矮視窗：仍然只有一個，和送出鈕同一列
+  await page.setViewportSize({ width: 920, height: 419 });
+  await expect(back).toHaveCount(1);
+  const shortSend = await send.boundingBox();
+  const shortBack = await back.boundingBox();
+  expect(shortSend && shortBack).toBeTruthy();
+  if (shortSend && shortBack) {
+    const overlap =
+      Math.min(shortSend.y + shortSend.height, shortBack.y + shortBack.height) -
+      Math.max(shortSend.y, shortBack.y);
+    expect(overlap).toBeGreaterThan(0);
+  }
+  await back.click();
+  await expect(dialog).toBeVisible();
+
+  // 轉回一般高度：又回到底部動作列
+  await dialog.getByTestId("confirm-supplement").click();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect(back).toHaveCount(1);
+  const againBox = await back.boundingBox();
+  const againSend = await send.boundingBox();
+  expect(againBox && againSend && againBox.y > againSend.y + againSend.height).toBe(true);
+});
