@@ -8,6 +8,7 @@ import type { IncidentContext } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn } from "../../components/ui/buttons";
 import { PageHead } from "../../components/ui/PageHead";
+import { SHORT_LANDSCAPE_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { type ChatLine, DescribeChat, FIRST_QUESTION } from "./DescribeChat";
 import { errorText, policyMeta, tripTitle, useIncident } from "./shared";
@@ -44,6 +45,8 @@ export function ClarifyingView({
   // 剛送出、回覆還沒回來的那句話：先顯示在對話最下面，回覆回來換成真正的訊息
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 橫式矮視窗、鍵盤開著時，底部的動作列會被鍵盤蓋住：「回到確認」搬到輸入列旁邊（#409）
+  const shortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
 
   const messages = ctx.messages ?? [];
   const last = messages.at(-1);
@@ -108,6 +111,12 @@ export function ClarifyingView({
     });
   }
 
+  const backToConfirm = confirmation === "awaiting" && !dialogOpen && (
+    <Button className={btn} onClick={() => setDialogOpen(true)} data-testid="back-to-confirm">
+      回到確認
+    </Button>
+  );
+
   return (
     <main data-page-paper className="mx-auto flex max-w-[1040px] flex-col gap-6 font-ui md:px-6">
       <PageHead
@@ -134,6 +143,7 @@ export function ClarifyingView({
         busy={busy}
         typingLabel="正在整理您的回答"
         onSend={(content, mode) => void send(content, mode)}
+        askLeading={shortLandscape ? backToConfirm : undefined}
       />
 
       <ConfirmDialog
@@ -149,11 +159,7 @@ export function ClarifyingView({
       />
 
       <ActionBar>
-        {confirmation === "awaiting" && !dialogOpen && (
-          <Button className={btn} onClick={() => setDialogOpen(true)} data-testid="back-to-confirm">
-            回到確認
-          </Button>
-        )}
+        {!shortLandscape && backToConfirm}
         <ActionBar.Push>
           <Link to="/" className={btn}>
             回首頁
