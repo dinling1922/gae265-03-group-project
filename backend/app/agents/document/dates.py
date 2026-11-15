@@ -6,6 +6,7 @@
 - 英文月份「8 Jul 2026」「08 JUL 2026」「July 8, 2026」
 - 泰國月份縮寫「8 ก.ค. 2569」
 - 泰國佛曆（年份大於 2400，減 543）、民國年（年份小於 200，加 1911）
+- 日本令和年號「令和8年7月8日」（令和元年是 2019 年）
 
 讀不出日期就回空的，由呼叫端決定（合格規範只在讀得出日期時才判斷期間）。
 """
@@ -68,6 +69,9 @@ _THAI = re.compile(
 )
 
 
+_REIWA = re.compile(r"令和\s*(\d{1,2}|元)\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日")
+
+
 def _year(y: int) -> int:
     if y > 2400:  # 泰國佛曆
         return y - 543
@@ -99,6 +103,12 @@ def dates_in(text: str) -> set[date]:
     for mon, d, y in _MON_D_Y.findall(text):
         if (m := _MONTHS.get(mon.lower())) is not None:
             found.add(_make(int(y), m, int(d)))
+    for y, m, d in _REIWA.findall(text):
+        reiwa = 1 if y == "元" else int(y)
+        try:
+            found.add(date(2018 + reiwa, int(m), int(d)))
+        except ValueError:
+            pass
     for d, mon, y in _THAI.findall(text):
         found.add(_make(int(y), _THAI_MONTHS[mon], int(d)))
     return {d for d in found if d is not None}

@@ -222,6 +222,11 @@ _MEDICAL_CONTEXT = re.compile(
     re.IGNORECASE,
 )
 
+# 兩個中日文字（含假名）之間的空白
+_CJK_GAP = re.compile(
+    r"(?<=[\u3040-\u30ff\u3400-\u9fff])[ \t\u3000]+(?=[\u3040-\u30ff\u3400-\u9fff])"
+)
+
 # 護照資料頁的機讀碼第一行：P、類別（< 或一個字母）、三碼國別，接著姓<<名
 _PASSPORT_MRZ = re.compile(r"P[A-Z<][A-Z]{3}[A-Z]+<<[A-Z<]+")
 
@@ -241,8 +246,11 @@ _COMBINED_HEADING = re.compile(
 
 
 def keyword_hits(text: str) -> dict[Kind, dict[str, int]]:
-    """每種文件的關鍵字各出現幾次（不分大小寫）；沒命中的種類不列。"""
-    lowered = text.lower()
+    """每種文件的關鍵字各出現幾次（不分大小寫）；沒命中的種類不列。
+
+    中日文字之間的空白不算：日本單據的標題常把字拉開（「診　断　書」「領　収　書」）。
+    """
+    lowered = _CJK_GAP.sub("", text.lower())
     hits: dict[Kind, dict[str, int]] = {}
     for spec in SPECS.values():
         if spec.code == "D01" and _BAGGAGE_DELAY.search(text):

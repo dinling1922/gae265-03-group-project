@@ -1,4 +1,4 @@
-"""6 號泰國醫療 demo（#233）：D13 診斷書、D14 醫療費用收據。
+"""6 號就醫 demo（#233，日本行程）：D13 診斷書、D14 醫療費用收據、D24、D25。
 
 Azure、Drive 都是假的；範例文件由 samples/make_samples.py 產生（--medical）。
 """
@@ -50,18 +50,18 @@ def medical_todos(with_code: bool = True) -> list[TodoView]:
 def medical_context(todos: list[TodoView] | None = None) -> IncidentContext:
     return IncidentContext(
         incident_id=uuid.uuid4(),
-        title="在曼谷急性腸胃炎看門診",
+        title="在東京急性腸胃炎看門診",
         description="",
         status="open",
-        destination="泰國",
+        destination="日本",
         occurred_at=datetime(2026, 7, 8, 3, 0, tzinfo=UTC),
         incident_type_code="medical",
         incident_type_name="生病或受傷就醫",
         policy=PolicySummary(
-            plan_id="chubb_basic",
-            plan_name="安達 基礎型",
+            plan_id="chubb_advanced",
+            plan_name="安達 進階型",
             start_date=date(2026, 7, 5),
-            end_date=date(2026, 7, 12),
+            end_date=date(2026, 7, 11),
             insurance_codes=[],
             coverages=[],
         ),
@@ -228,6 +228,34 @@ async def test_receipt_without_medical_words_is_not_a_medical_receipt(
     assert result.status == "failed" and not result.todo_complete
 
 
+@pytest.mark.parametrize(
+    ("text", "kind"),
+    [
+        (
+            "診　断　書\n東京デモクリニック\n受診日：2026年7月8日\n病名：急性胃腸炎",
+            "D13 診斷書",
+        ),
+        (
+            "領 収 書\nデモクリニック 診療日：2026年7月8日\n合計 ¥10,640",
+            "D14 醫療費用收據",
+        ),
+    ],
+    ids=["診断書", "領収書"],
+)
+async def test_japanese_titles_spaced_out_are_still_recognized(
+    text: str, kind: str
+) -> None:
+    # 日本單據的標題常寫成「診　断　書」，字中間有空白（照片讀字；測試用的 PDF 字型印不出假名）
+    ocr = FakeOcr([Line(t, 0.97) for t in text.splitlines()])
+    result = await agent(ocr=ocr).recognize(
+        medical_context(),
+        upload(JPEG, "IMG_0003.jpg", "image/jpeg"),
+        USER,
+        FakeGoogle(),
+    )
+    assert result.document_kind == kind
+
+
 @pytest.mark.parametrize("name", ["med_passport_copy", "med_id_card_copy"])
 async def test_identity_copies_tick_the_identity_todo(name: str) -> None:
     ctx = medical_context()
@@ -247,9 +275,10 @@ def test_identity_copies_leave_no_personal_data_after_masking(name: str) -> None
         assert secret not in out, secret
 
 
-async def test_e_policy_ticks_the_policy_todo() -> None:
+@pytest.mark.parametrize("name", ["med_policy"])
+async def test_e_policy_ticks_the_policy_todo(name: str) -> None:
     ctx = medical_context()
-    result = await agent().recognize(ctx, sample("med_policy"), USER, FakeGoogle())
+    result = await agent().recognize(ctx, sample(name), USER, FakeGoogle())
     assert result.status == "recognized"
     assert result.document_kind == "D25 保險單"
     assert result.matched_todo_id == todo_of(ctx, "D25").id
@@ -333,6 +362,8 @@ async def test_existing_flight_samples_are_not_mistaken_for_medical_documents() 
         "08/07/2569 B.E.",
         "115年7月8日",  # 民國年
         "115/07/08",
+        "令和8年7月8日",  # 日本年號
+        "2026年7月8日",
     ],
 )
 async def test_visit_date_inside_the_policy_period_passes(visit: str) -> None:

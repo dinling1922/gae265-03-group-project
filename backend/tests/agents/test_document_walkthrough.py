@@ -52,7 +52,7 @@ async def test_delay_certificate_walks_through_every_step(client: AsyncClient) -
     ]
     assert set(_states(body).values()) == {"ok"}
     assert body["saved_path"] == (
-        "好險有你 理賠文件/日本 2026-07-05～07-10/班機延誤 2026-07-10/"
+        "好險有你 理賠文件/日本 2026-07-05～07-11/班機延誤 2026-07-10/"
         "班機延誤_航空公司開立班機延誤／取消證明_1.pdf"
     )
     assert "小明" not in res.text  # 只回傳遮過的文字
@@ -292,7 +292,7 @@ async def test_real_drive_saves_to_the_users_drive(
     assert body["drive_file_url"] == "https://drive.google.com/file/d/drive-file-1/view"
     # 平台的理賠資料夾底下建「行程（測試台）→ 事故」兩層
     assert body["saved_path"] == (
-        "好險有你 理賠文件/日本（測試台） 2026-07-05～07-10/班機延誤 2026-07-10/"
+        "好險有你 理賠文件/日本（測試台） 2026-07-05～07-11/班機延誤 2026-07-10/"
         "班機延誤_航空公司開立班機延誤／取消證明_1.pdf"
     )
     created = [
