@@ -260,9 +260,9 @@ function IncidentPage() {
         body: { recipient },
       });
       if (!res.data) throw new Error(detailOf(res.error, res.response?.status));
-      setSubmission(res.data);
-      await open(ctx.incident_id);
+      await open(ctx.incident_id); // open 會清掉 submission，所以結果最後才設
       await refreshLists();
+      setSubmission(res.data);
     });
   };
 

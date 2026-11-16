@@ -88,6 +88,10 @@ const slot = (page: Page, hour: number) => page.getByTestId(`slot-${hour}`);
 // 點空時段新增、編輯、移除活動；重新整理後結果還在。
 test("新增、編輯、移除日程活動，重新整理後還在", async ({ page }) => {
   await login(page, "e2e-itinerary-activity@example.com");
+  // 手動新增活動會依地點向 Nominatim 查座標：固定回傳京都，不依賴外部服務
+  await page.route("https://nominatim.openstreetmap.org/**", (route) =>
+    route.fulfill({ json: [{ lat: "35.0116", lon: "135.7681" }] }),
+  );
   await page.goto("/compare/new");
   await fillTrip(page, "日本", 7, 11);
 
@@ -104,7 +108,7 @@ test("新增、編輯、移除日程活動，重新整理後還在", async ({ pa
   const card = slot(page, 9).getByTestId("activity-card");
   await expect(card).toContainText("進進堂早餐");
   await expect(card).toContainText("咖啡");
-  await expect(card).toContainText("沒有座標");
+  await expect(card).not.toContainText("沒有座標"); // 依地點查到座標了
   await expect(card).toContainText("1.5 小時");
   await expect(page.getByRole("tab", { name: /第 1 天/ })).toContainText("1 個活動");
 
