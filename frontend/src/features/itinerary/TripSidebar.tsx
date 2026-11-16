@@ -1,10 +1,12 @@
 import { Button } from "@base-ui/react/button";
+import { Menu } from "@base-ui/react/menu";
 import type { Destination } from "../../client/types.gen";
 import { SparkleIcon } from "../../components/icons";
-import { btnPri, btnSmDanger } from "../../components/ui/buttons";
+import { btnPri, btnSm, btnSmDanger } from "../../components/ui/buttons";
 import { Field, FieldError, FieldHint, fieldInput, fieldSelect } from "../../components/ui/Field";
 import { PageHead } from "../../components/ui/PageHead";
 import { DaysSummary } from "../compare/DaysSummary";
+import { DEMO_ITINERARIES, type DemoItinerary } from "./demoItineraries";
 import { addDays, DESTINATIONS, today, tripDays } from "./tripRules";
 
 export type TripForm = {
@@ -23,6 +25,8 @@ export function TripSidebar({
   onOpenTools,
   activityCount,
   onClear,
+  onLoadDemo,
+  demoLoading,
   nextDisabled,
   onNext,
 }: {
@@ -35,6 +39,9 @@ export function TripSidebar({
   /** 目前排了幾個活動；大於 0 才顯示「清除所有活動」。 */
   activityCount: number;
   onClear: () => void;
+  /** 選了一份範例日程（GLOSSARY「範例日程」）。 */
+  onLoadDemo: (demo: DemoItinerary) => void;
+  demoLoading: boolean;
   nextDisabled: boolean;
   onNext: () => void;
 }) {
@@ -117,6 +124,27 @@ export function TripSidebar({
         )}
         <FieldError>{saveError}</FieldError>
       </div>
+      <Menu.Root>
+        <Menu.Trigger disabled={demoLoading} data-testid="demo-menu" className={`${btnSm} w-full`}>
+          {demoLoading ? "載入中…" : "載入範例日程 ▾"}
+        </Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner sideOffset={6} className="z-50">
+            <Menu.Popup className="flex min-w-64 flex-col rounded-tile border border-line bg-white p-1.5 shadow-card">
+              {DEMO_ITINERARIES.map((demo) => (
+                <Menu.Item
+                  key={demo.id}
+                  onClick={() => onLoadDemo(demo)}
+                  data-testid={`demo-${demo.id}`}
+                  className="cursor-pointer rounded-tag px-3 py-2 t-body text-ink data-[highlighted]:bg-leaf-soft"
+                >
+                  {demo.label}
+                </Menu.Item>
+              ))}
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
       {activityCount > 0 && (
         <Button
           onClick={onClear}

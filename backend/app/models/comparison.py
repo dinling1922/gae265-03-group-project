@@ -1,14 +1,15 @@
 import uuid
 from datetime import date
+from typing import Any
 
-from sqlalchemy import ARRAY, Column, Text
+from sqlalchemy import ARRAY, JSON, Column, Text
 from sqlmodel import Field
 
 from app.models.base import BaseTable
 
 
 class Comparison(BaseTable, table=True):
-    """比較紀錄：一次「出發前：幫我選方案」的旅行規劃、排序過的在意事項與補充說明。
+    """比較紀錄：一次「出發前：幫我選方案」的旅行規劃與排序過的在意事項。
 
     與保單（policy）各自獨立：比較紀錄是「考慮買什麼」，保單是「實際買了什麼」。
     目的地與在意事項的可選值由 API 用 enum 驗證，不加資料庫 CHECK（enum 改名不用寫 migration）。
@@ -28,8 +29,9 @@ class Comparison(BaseTable, table=True):
         sa_column=Column(ARRAY(Text), nullable=False, server_default="{}"),
         description="在意事項名稱（app.domain.benefits.Concern），陣列順序就是重要程度",
     )
-    note: str = Field(
-        default="", sa_column_kwargs={"server_default": ""}, description="其他在意的事"
+    # 推薦的在意事項（spec #427）：[{concern, reason}]；null 代表還沒算，或日程、旅行規劃改了而失效
+    concern_suggestions: list[dict[str, Any]] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
     )
     # 推薦結果（ADR-0021）：存檔時天數或在意事項有變才重算。四個都是空的代表還沒推薦。
     # 保費、額度、推薦理由與比較表不存，讀取時依這兩個方案與保額重算。

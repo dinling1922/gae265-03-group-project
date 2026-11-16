@@ -19,6 +19,7 @@ import type {
   ActivityOut,
   ActivityPatch,
   ComparisonOut,
+  Concern,
   Destination,
 } from "../../client/types.gen";
 
@@ -27,6 +28,8 @@ export type TripFields = {
   city: string;
   depart_date: string;
   return_date: string;
+  /** 帶了就一併改在意事項（載入範例日程時傳空陣列重設）；沒帶就不動。 */
+  concerns?: Concern[];
 };
 
 /** 動作的結果：失敗時 code 是機器可判斷的代碼（WebMCP 工具會照它組錯誤訊息），message 是給人看的。 */
@@ -64,8 +67,8 @@ export function useItineraryActions(id: string | undefined) {
   const navigate = useNavigate();
   const path = { comparison_id: id ?? "" };
 
-  const refreshActivities = () =>
-    qc.invalidateQueries({ queryKey: listItineraryActivitiesQueryKey({ path }) });
+  const refreshActivities = (p = path) =>
+    qc.invalidateQueries({ queryKey: listItineraryActivitiesQueryKey({ path: p }) });
 
   /** 存旅行規劃。沒有 id 就建立並把網址換成日程頁；縮短日期會刪活動時，沒帶 confirmRemove 回 WOULD_REMOVE_ACTIVITIES。 */
   async function saveTrip(
@@ -90,14 +93,21 @@ export function useItineraryActions(id: string | undefined) {
     return { ok: true, data: { comparison: data, removed } };
   }
 
-  /** 批次新增；時段被佔用或日期超出範圍的那筆在 `failed`，其他照常存。 */
-  async function addActivities(activities: ActivityIn[]): Promise<ActionResult<ActivitiesCreated>> {
+  /**
+   * 批次新增；時段被佔用或日期超出範圍的那筆在 `failed`，其他照常存。
+   * `comparisonId`：在 `/compare/new` 剛由 saveTrip 建立比較紀錄時，這個 hook 還綁著舊的 undefined，要帶新 id。
+   */
+  async function addActivities(
+    activities: ActivityIn[],
+    comparisonId = id,
+  ): Promise<ActionResult<ActivitiesCreated>> {
+    const target = { comparison_id: comparisonId ?? "" };
     const { data, error, response } = await createItineraryActivities({
-      path,
+      path: target,
       body: { activities },
     });
     if (!data) return failure(error, response?.status);
-    await refreshActivities();
+    await refreshActivities(target);
     return { ok: true, data };
   }
 

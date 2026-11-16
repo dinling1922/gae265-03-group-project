@@ -108,6 +108,12 @@ class SlotTakenConflict(BaseModel):
     detail: SlotTaken
 
 
+def _itinerary_changed(session: SessionDep, comparison: Comparison) -> None:
+    """日程改了，推薦的在意事項就失效，下次進 1-2 重算（spec #427）。"""
+    comparison.concern_suggestions = None
+    session.add(comparison)
+
+
 def _out_of_range(c: Comparison, d: Date) -> str | None:
     if c.depart_date <= d <= c.return_date:
         return None
@@ -191,6 +197,8 @@ async def create_itinerary_activities(
             taken[(item.date, item.hour)] = activity.id
             session.add(activity)
             created.append(activity)
+    if created:
+        _itinerary_changed(session, comparison)
     # ponytail: 兩個請求同時搶同一個時段時，後到的會撞唯一限制回 500；有人會同時操作再處理
     await session.commit()
     return ActivitiesCreated(
@@ -239,6 +247,7 @@ async def update_itinerary_activity(
         )
     activity.sqlmodel_update(merged.model_dump())
     session.add(activity)
+    _itinerary_changed(session, comparison)
     await session.commit()
     return ActivityOut.model_validate(activity, from_attributes=True)
 
@@ -255,6 +264,7 @@ async def delete_itinerary_activity(
 ) -> Response:
     comparison = await own_comparison(session, user, comparison_id)
     await session.delete(await _own_activity(session, comparison, activity_id))
+    _itinerary_changed(session, comparison)
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -270,5 +280,6 @@ async def clear_itinerary_activities(
             col(ItineraryActivity.comparison_id) == comparison.id
         )
     )
+    _itinerary_changed(session, comparison)
     await session.commit()
     return ActivitiesCleared(removed=result.rowcount)

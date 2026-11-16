@@ -21,6 +21,7 @@ import { useToast } from "../../components/ui/Toast";
 import { ActivityDialog, type ActivityForm, type ActivityTarget } from "./ActivityDialog";
 import { BANNER_PHOTOS, creditHref, photoSrc } from "./bannerPhotos";
 import { DayTabs, Timeline } from "./DayTimeline";
+import { type DemoItinerary, demoActivities, demoTrip } from "./demoItineraries";
 import { geocode } from "./geocode";
 import { MapPanel } from "./MapPanel";
 import { mapStops, useMapView } from "./mapView";
@@ -179,6 +180,9 @@ function Itinerary({
   const toast = useToast();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [clearOpen, setClearOpen] = useState(false);
+  // 載入範例日程：已有活動時先等使用者在 ClearDialog 確認，pendingDemo 是等確認的那份
+  const [pendingDemo, setPendingDemo] = useState<DemoItinerary | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
   // agent 要清除活動時，畫面上開確認視窗等使用者按；這裡存等待中的結果（沒人等時是 null）
   const clearAsk = useRef<((approved: boolean) => void) | null>(null);
   function closeClear(approved: boolean) {
@@ -246,6 +250,55 @@ function Itinerary({
     if (result.ok) setClearOpen(false);
   }
 
+  /** 清除活動 → 存旅行規劃（在意事項也重設）→ 批次新增；失敗就停在那一步並顯示原因，已完成的不回復。 */
+  async function loadDemo(demo: DemoItinerary) {
+    clearTimeout(timer.current); // 等待中的自動存檔不要在載入途中又送一次
+    setDemoLoading(true);
+    try {
+      if (comparison && activities.length > 0) {
+        const cleared = await actions.clearActivities();
+        if (!cleared.ok) return toast.show(cleared.message);
+      }
+      const saved = await actions.saveTrip({ ...demoTrip(demo), concerns: [] });
+      if (!saved.ok) return toast.show(saved.message);
+      const c = saved.data.comparison;
+      setSaveError(null);
+      setForm({
+        destination: c.destination,
+        city: c.city,
+        depart: c.depart_date,
+        returnDate: c.return_date,
+      });
+      // 在 /compare/new 剛建立時，actions 還綁著舊的 undefined id，要帶新 id
+      const added = await actions.addActivities(demoActivities(demo, c.depart_date), c.id);
+      if (!added.ok) return toast.show(added.message);
+      if (added.data.failed[0]) toast.show(added.data.failed[0].message);
+    } finally {
+      setDemoLoading(false);
+    }
+  }
+
+  function pickDemo(demo: DemoItinerary) {
+    if (activities.length === 0) return void loadDemo(demo);
+    setPendingDemo(demo);
+    setClearOpen(true);
+  }
+
+  function cancelClear() {
+    closeClear(false);
+    setPendingDemo(null);
+  }
+
+  function confirmClear() {
+    if (pendingDemo) {
+      const demo = pendingDemo;
+      setPendingDemo(null);
+      setClearOpen(false);
+      void loadDemo(demo);
+    } else if (clearAsk.current) closeClear(true);
+    else void clearAll();
+  }
+
   async function removeActivity(a: ActivityOut) {
     const result = await actions.removeActivity(a.id);
     setActionError(result.ok ? null : result.message);
@@ -265,6 +318,8 @@ function Itinerary({
         onOpenTools={() => setToolsOpen(true)}
         activityCount={activities.length}
         onClear={() => setClearOpen(true)}
+        onLoadDemo={pickDemo}
+        demoLoading={demoLoading}
         nextDisabled={!valid || saving}
         onNext={() => void goNext()}
       />
@@ -343,9 +398,10 @@ function Itinerary({
       <ActivityDialog target={target} onClose={() => setTarget(null)} onSubmit={submitActivity} />
       <ClearDialog
         count={clearOpen ? activities.length : null}
+        demo={pendingDemo}
         error={actionError}
-        onCancel={() => closeClear(false)}
-        onConfirm={() => (clearAsk.current ? closeClear(true) : void clearAll())}
+        onCancel={cancelClear}
+        onConfirm={confirmClear}
       />
       <ShortenDialog
         activities={toRemove}
@@ -424,11 +480,14 @@ function TripBanner({ comparison }: { comparison: ComparisonOut }) {
 /** 縮短日期會刪活動：列出會移除的活動，確認後才帶 confirm_remove 存檔。 */
 function ClearDialog({
   count,
+  demo,
   error,
   onCancel,
   onConfirm,
 }: {
   count: number | null;
+  /** 載入範例日程前的確認：有值時文字改成會載入這份範例。 */
+  demo: DemoItinerary | null;
   error: string | null;
   onCancel: () => void;
   onConfirm: () => void;
@@ -437,14 +496,20 @@ function ClearDialog({
     <DialogShell
       open={count !== null}
       onOpenChange={(open) => !open && onCancel()}
-      title={`將移除全部 ${count ?? 0} 個活動`}
-      description="這趟旅行排好的活動會全部刪除，無法復原；目的地與日期不變。"
+      title={
+        demo ? `載入範例日程會清除現有的 ${count ?? 0} 個活動` : `將移除全部 ${count ?? 0} 個活動`
+      }
+      description={
+        demo
+          ? `「${demo.label}」會取代目前的旅行規劃、所有活動與已選的在意事項，無法復原。`
+          : "這趟旅行排好的活動會全部刪除，無法復原；目的地與日期不變。"
+      }
       testId="clear-dialog"
       actions={
         <>
           <Dialog.Close className={btn}>取消</Dialog.Close>
           <Button className={btnPri} onClick={onConfirm} data-testid="clear-confirm">
-            確認清除
+            {demo ? "確認載入" : "確認清除"}
           </Button>
         </>
       }

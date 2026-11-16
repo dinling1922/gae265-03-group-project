@@ -4,12 +4,13 @@
 保費、額度、推薦理由與比較表在讀取時重算。
 """
 
+import logging
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal, Self
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import (
     AfterValidator,
@@ -25,6 +26,12 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.domain.benefits import Concern
+from app.domain.concern_suggestions import (
+    Suggester,
+    Suggestion,
+    get_concern_suggester,
+    validated,
+)
 from app.domain.destinations import Destination
 from app.domain.plans import get_plan
 from app.domain.recommendation import (
@@ -38,6 +45,7 @@ from app.domain.recommendation import (
 from app.models import Comparison, ItineraryActivity, PlanBenefit, PlanPremium
 
 router = APIRouter(tags=["comparisons"])
+logger = logging.getLogger(__name__)
 
 # 使用者在台灣：「今天」以台灣日期為準，不看伺服器時區
 TAIPEI = ZoneInfo("Asia/Taipei")
@@ -57,7 +65,6 @@ class ComparisonIn(BaseModel):
     concerns: Annotated[list[Concern], AfterValidator(_check_unique)] = Field(
         default=[], max_length=3, description="依重要程度排序，最多 3 項、不重複"
     )
-    note: str = Field(default="", max_length=200, description="其他在意的事")
 
     @model_validator(mode="after")
     def _check_dates(self, info: ValidationInfo) -> Self:
@@ -86,7 +93,6 @@ class ComparisonPatch(BaseModel):
     depart_date: date | None = None
     return_date: date | None = None
     concerns: list[Concern] | None = None
-    note: str | None = None
     confirm_remove: bool = Field(
         default=False,
         description="縮短日期會刪除日程活動時，帶 true 表示使用者已同意；沒帶會回 409",
@@ -108,7 +114,6 @@ class ComparisonOut(BaseModel):
     depart_date: date
     return_date: date
     concerns: list[Concern]
-    note: str
     created_at: datetime
     updated_at: datetime
     removed_activity_count: int = Field(
@@ -476,6 +481,11 @@ async def update_comparison(
         )
     for activity in outside:
         await session.delete(activity)
+    trip_fields = {"destination", "city", "depart_date", "return_date"}
+    if merged.model_dump(include=trip_fields) != comparison.model_dump(
+        include=trip_fields
+    ):
+        comparison.concern_suggestions = None  # 旅行規劃改了：推薦的在意事項重算
     comparison.sqlmodel_update(merged.model_dump())
     changed = (trip_days(comparison), comparison.concerns) != before
     # 舊紀錄有在意事項卻沒推薦（推薦功能上線前存的）也補算
@@ -488,3 +498,38 @@ async def update_comparison(
     out = await _out(session, comparison)
     out.removed_activity_count = len(outside)
     return out
+
+
+@router.post("/comparisons/{comparison_id}/concern-suggestions")
+async def suggest_concerns(
+    session: SessionDep,
+    user: CurrentUser,
+    comparison_id: uuid.UUID,
+    suggest: Annotated[Suggester, Depends(get_concern_suggester)],
+) -> list[Suggestion]:
+    """依旅遊日程推薦 3 項在意事項（spec #427），依關聯強度排序。
+
+    有存好的結果就直接回傳；日程是空的回空陣列、不呼叫 LLM。
+    LLM 失敗或輸出不合格時回空陣列、不存，下次進來再試。
+    """
+    comparison = await own_comparison(session, user, comparison_id)
+    if comparison.concern_suggestions is not None:
+        return [Suggestion.model_validate(s) for s in comparison.concern_suggestions]
+    activities = (
+        await session.exec(
+            select(ItineraryActivity)
+            .where(ItineraryActivity.comparison_id == comparison.id)
+            .order_by(col(ItineraryActivity.date), col(ItineraryActivity.hour))
+        )
+    ).all()
+    if not activities:
+        return []
+    try:
+        suggestions = validated(await suggest(comparison, activities))
+    except Exception:  # LLM 失敗不該擋住 1-2：沒有推薦區塊而已
+        logger.exception("推薦在意事項失敗（comparison %s）", comparison.id)
+        return []
+    comparison.concern_suggestions = [s.model_dump(mode="json") for s in suggestions]
+    session.add(comparison)
+    await session.commit()
+    return suggestions
