@@ -12,7 +12,7 @@ status: accepted
 - **建立時機**：`/compare/new` 是空白的日程頁，資料庫還沒有資料；目的地與日期都有值的那一刻（人填表或 agent 呼叫 `set_trip_details`）建立比較紀錄，網址以 replace 換成 `/compare/$id/itinerary`，之後的修改即時存檔。不在進入頁面時建立，避免產生空的比較紀錄。`/compare/$id/background` 導向 `/compare/$id/itinerary`。
 - **拿掉年齡**：`comparison.age` 只用於驗證、存檔與結果頁標題，推薦與保費都不看，用 migration 刪除欄位。
 - **縮短日期**：範圍外的日程活動在同一個 transaction 刪除；人改時跳確認視窗，agent 改時工具先回錯誤列出會移除的活動，使用者同意後帶 `confirm_remove` 才執行（只靠工具說明，agent 不一定會照做）。
-- **agent 由瀏覽器提供**：網站只註冊 WebMCP 工具、不呼叫 LLM 來排日程；地點與座標由 agent 給，人工新增的活動沒有座標、不上地圖。
+- **agent 由瀏覽器提供**：網站只註冊 WebMCP 工具、不呼叫 LLM 來排日程；agent 新增活動時自己給地點與座標；人工新增或改地點時，前端存檔前用 OSM Nominatim 依地點查座標，查不到就沒有座標、不上地圖。
 
 ## Considered Options
 
