@@ -40,7 +40,7 @@ export function TripSidebar({
 }) {
   const { destination, city, depart, returnDate } = form;
   return (
-    <aside className="flex flex-col gap-5 border-line p-4 md:sticky md:top-4 min-[768px]:row-span-2 md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-auto md:border-r md:p-6 min-[1091px]:row-span-1">
+    <aside className="flex flex-col gap-5 border-line p-4 md:sticky md:top-4 min-[768px]:row-span-2 md:max-h-[calc(100vh-2rem)] md:self-start md:overflow-auto md:border-r md:p-6 min-[860px]:row-span-1">
       <PageHead crumb="出發前：幫我選方案 · 1／3" title="規劃旅遊日程" />
       <p className="m-0 t-caption text-muted">填好目的地和日期，剩下的細節可以交給 agent。</p>
       <div className="flex flex-col gap-4">

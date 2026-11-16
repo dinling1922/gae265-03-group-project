@@ -255,7 +255,7 @@ function Itinerary({
     <div
       data-page-paper
       data-page-wide
-      className="relative left-1/2 grid w-screen -translate-x-1/2 grid-cols-1 font-ui min-[768px]:grid-cols-[minmax(250px,305px)_minmax(0,1fr)] min-[1091px]:grid-cols-[minmax(255px,305px)_minmax(390px,1fr)_minmax(345px,440px)] min-[1250px]:grid-cols-[minmax(290px,335px)_minmax(430px,1fr)_minmax(365px,455px)]"
+      className="relative left-1/2 grid w-screen -translate-x-1/2 grid-cols-1 font-ui min-[768px]:grid-cols-[minmax(250px,305px)_minmax(0,1fr)] min-[860px]:grid-cols-[minmax(220px,260px)_minmax(300px,1fr)_minmax(300px,380px)] min-[1091px]:grid-cols-[minmax(255px,305px)_minmax(390px,1fr)_minmax(345px,440px)] min-[1250px]:grid-cols-[minmax(290px,335px)_minmax(430px,1fr)_minmax(365px,455px)]"
     >
       <TripSidebar
         form={form}
@@ -323,7 +323,7 @@ function Itinerary({
         )}
       </main>
 
-      <aside className="border-line p-4 min-[768px]:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[1091px]:col-start-3 min-[1091px]:flex min-[1091px]:flex-col min-[1091px]:pb-0 min-[1091px]:border-t-0 min-[1091px]:border-l">
+      <aside className="border-line p-4 min-[768px]:p-6 min-[768px]:col-start-2 min-[768px]:border-t min-[860px]:col-start-3 min-[860px]:flex min-[860px]:flex-col min-[860px]:pb-0 min-[860px]:border-t-0 min-[860px]:border-l">
         {comparison && dates.length > 0 && (
           <MapPanel
             dates={dates}

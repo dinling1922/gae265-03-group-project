@@ -119,14 +119,14 @@ export function MapPanel({
     on ? "border-brand bg-leaf-soft text-brand" : "border-line text-muted";
 
   return (
-    <div data-testid="map-panel" className="flex flex-col gap-3 min-[1091px]:flex-1">
+    <div data-testid="map-panel" className="flex flex-col gap-3 min-[860px]:flex-1">
       <div>
         <p className="m-0 t-label text-muted">地圖</p>
         <h2 className="m-0 t-section-title text-heading">日程地圖</h2>
         <p className="m-0 t-caption text-muted">一站一站照順序走</p>
       </div>
       {/* 寬螢幕：標題捲走後，從「全部天數」起固定（頂端與中間欄的橫幅對齊），只有最下面的清單捲動 */}
-      <div className="flex flex-col gap-3 min-[1091px]:sticky min-[1091px]:top-6 min-[1091px]:h-[calc(100vh-3rem)]">
+      <div className="flex flex-col gap-3 min-[860px]:sticky min-[860px]:top-6 min-[860px]:h-[calc(100vh-3rem)]">
         <div className="flex shrink-0 flex-col gap-3">
           <div className="flex flex-wrap gap-1.5">
             <Button
@@ -184,7 +184,7 @@ export function MapPanel({
             {scope === "day" ? "這一天的順序" : "整趟的順序"}
           </h3>
         </div>
-        <div className="flex flex-col gap-3 min-[1091px]:min-h-32 min-[1091px]:flex-1 min-[1091px]:overflow-y-auto">
+        <div className="flex flex-col gap-3 min-[860px]:min-h-32 min-[860px]:flex-1 min-[860px]:overflow-y-auto">
           <ol className="m-0 flex list-none flex-col gap-2 p-0" data-testid="stop-list">
             {stops.map((s) => {
               const selected = s.activity.id === selectedId;
