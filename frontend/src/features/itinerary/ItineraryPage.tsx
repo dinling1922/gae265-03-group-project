@@ -21,6 +21,7 @@ import { useToast } from "../../components/ui/Toast";
 import { ActivityDialog, type ActivityForm, type ActivityTarget } from "./ActivityDialog";
 import { BANNER_PHOTOS, creditHref, photoSrc } from "./bannerPhotos";
 import { DayTabs, Timeline } from "./DayTimeline";
+import { geocode } from "./geocode";
 import { MapPanel } from "./MapPanel";
 import { mapStops, useMapView } from "./mapView";
 import { ToolsDialog } from "./ToolsDialog";
@@ -221,10 +222,17 @@ function Itinerary({
   const [actionError, setActionError] = useState<string | null>(null);
 
   async function submitActivity(t: ActivityTarget, f: ActivityForm): Promise<string | null> {
+    // 地點填了就查座標上地圖；編輯時地點沒改就保留原座標，改了而查不到就清掉舊座標
+    const old = t.kind === "edit" ? t.activity : null;
+    const moved = !old || f.location !== old.location;
+    const coords = moved ? await geocode(f.location, comparison?.city) : null;
     const result =
       t.kind === "add"
-        ? await actions.addActivities([{ date: t.date, hour: t.hour, ...f }])
-        : await actions.changeActivity(t.activity.id, f);
+        ? await actions.addActivities([{ date: t.date, hour: t.hour, ...f, ...coords }])
+        : await actions.changeActivity(t.activity.id, {
+            ...f,
+            ...(moved && (coords ?? { latitude: null, longitude: null })),
+          });
     if (!result.ok) return result.message;
     // 批次裡唯一的一筆失敗（時段剛好被佔用）：留在視窗顯示原因
     if ("failed" in result.data && result.data.failed[0]) return result.data.failed[0].message;

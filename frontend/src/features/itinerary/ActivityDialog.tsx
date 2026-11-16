@@ -26,7 +26,7 @@ function hours(n: number): string {
   return `${n} 小時`;
 }
 
-/** 新增／編輯活動。座標不在這裡填：自己新增的活動沒有座標，請 agent 補上。 */
+/** 新增／編輯活動。座標不在這裡填：送出時由 ItineraryPage 依地點查。 */
 export function ActivityDialog({
   target,
   onClose,
@@ -165,7 +165,7 @@ function ActivityFormBody({
           </select>
         </Field>
       </div>
-      <FieldHint>自己新增的活動沒有座標，不會出現在地圖上；可以請 agent 補上。</FieldHint>
+      <FieldHint>儲存時會依地點自動查座標；查不到的活動不會出現在地圖上。</FieldHint>
       <FieldError>{error}</FieldError>
       <div className="flex flex-wrap justify-end gap-3">
         <Dialog.Close className={btn}>取消</Dialog.Close>
