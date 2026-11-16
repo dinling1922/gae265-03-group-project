@@ -86,26 +86,26 @@ SCENARIOS: dict[Scenario, SampleIncident] = {
         type_name="班機延誤",
         destination="日本",
         occurred_at=datetime(2026, 7, 10, 9, 0, tzinfo=UTC),
-        plan_id="fubon_advanced",
-        plan_name="富邦 進階型（展示）",
+        plan_id="chubb_advanced",
+        plan_name="安達 進階型（展示）",
         start=date(2026, 7, 5),
-        end=date(2026, 7, 10),
+        end=date(2026, 7, 11),
         todos={
             "D01": ("on_site", "請航空公司開立班機延誤／取消證明"),
             "D02": ("on_site", "機票及登機證，或航空業者出具的搭機證明"),
             "D10": ("after_return", "填寫理賠申請書"),
         },
     ),
-    # 泰國行程、急性腸胃炎看門診不住院（#233 泰國醫療 demo：D13、D14、D24、D25、D10）
+    # 同一趟日本行程的第二個事件：在東京急性腸胃炎看門診不住院（#233：D13、D14、D24、D25、D10）
     "medical": SampleIncident(
-        title="在曼谷急性腸胃炎看門診",
+        title="在東京急性腸胃炎看門診",
         type_name="生病或受傷就醫",
-        destination="泰國",
+        destination="日本",
         occurred_at=datetime(2026, 7, 8, 3, 0, tzinfo=UTC),
-        plan_id="chubb_basic",
-        plan_name="安達 基礎型（展示）",
+        plan_id="chubb_advanced",
+        plan_name="安達 進階型（展示）",
         start=date(2026, 7, 5),
-        end=date(2026, 7, 12),
+        end=date(2026, 7, 11),
         todos={
             "D13": ("on_site", "請醫院開立診斷書"),
             "D14": ("on_site", "保留醫療費用收據正本"),
@@ -168,16 +168,16 @@ SAMPLES: dict[str, str] = {
     "photo_delay_glare": "📷 延誤證明（反光蓋住時間）",
     "photo_ticket_blurry": "📷 電子機票（拍糊了）",
     "photo_claim_form": "📷 理賠申請書（手寫，拍照）",
-    # 泰國醫療 demo（事故選「生病就醫」時用；med_ 開頭的前端會分開列）
-    "med_certificate": "診斷證明書（曼谷診所）",
-    "med_receipt": "醫療費用收據（曼谷診所）",
+    # 日本行程的就醫事件（事故選「生病就醫」時用；med_ 開頭的前端會分開列）
+    "med_certificate": "診斷書（東京診所）",
+    "med_receipt": "領收書（東京診所）",
     "med_certificate_no_diagnosis": "⚠️ 診斷證明書（沒寫病名）",
     "med_receipt_no_amount": "⚠️ 醫療費用收據（沒寫金額）",
     "photo_med_receipt": "📷 手機拍醫療費用收據",
     "med_passport_copy": "台灣護照影本（受益人身分證明）",
     "med_id_card_copy": "身分證正反面影本（受益人身分證明）",
-    "med_policy": "電子保單（安達）",
-    "med_claim_form": "理賠申請書（安達，手寫，醫療）",
+    "med_policy": "安達進階型電子保單（日本行程）",
+    "med_claim_form": "理賠申請書（安達，手寫，兩個事件）",
 }
 SAMPLES_DIR = Path(__file__).parent / "samples"
 

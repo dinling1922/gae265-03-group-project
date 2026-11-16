@@ -201,19 +201,19 @@ async def test_without_a_known_code_table_it_falls_back_to_product_names(
 
 
 @pytest.mark.usefixtures("user", "catalog_loaded")
-async def test_chubb_e_policy_is_matched_to_the_chubb_basic_plan(
+async def test_chubb_e_policy_is_matched_to_the_chubb_advanced_plan(
     client: AsyncClient,
 ) -> None:
-    """安達網路投保的電子保單（6 號泰國醫療 demo 的範例，個資已換成虛構資料）。"""
+    """安達網路投保的電子保單（6 號日本行程 demo 的範例，個資已換成虛構資料）。"""
     from pathlib import Path
 
     sample = Path(__file__).parent.parent / "app/agents/document/samples/med_policy.pdf"
     response = await client.post("/policies", **upload(sample.read_bytes()))
     assert response.status_code == 201, response.text
     body = response.json()
-    assert body["plan_id"] == "chubb_basic"
-    assert (body["start_date"], body["end_date"]) == ("2026-07-05", "2026-07-12")
-    assert body["destination"] == "泰國"
+    assert body["plan_id"] == "chubb_advanced"
+    assert (body["start_date"], body["end_date"]) == ("2026-07-05", "2026-07-11")
+    assert body["destination"] == "日本"
     assert body["sum_insured"] == 2_000_000
 
 

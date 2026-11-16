@@ -64,6 +64,18 @@ CHUBB = [
     CatalogInsurance(12, "CHUBB02", "安達產物旅行平安保險傷害醫療保險"),
     CatalogInsurance(13, "CHUBB03", "安達產物旅行平安保險食物中毒慰問保險金附加條款"),
     CatalogInsurance(14, "CHUBB04", "安達產物海外突發疾病健康保險(乙型)"),
+    CatalogInsurance(15, "CHUBB05", "安達產物個人海外旅行不便保險(C)"),
+    CatalogInsurance(16, "CHUBB06", "安達產物個人海外旅行綜合保險"),
+    CatalogInsurance(
+        17,
+        "CHUBB07",
+        "安達產物個人海外旅行不便保險旅程取消費用傳染病及檢疫給付附加條款",
+    ),
+    CatalogInsurance(
+        18,
+        "CHUBB08",
+        "安達產物個人海外旅行不便保險旅程更改費用傳染病及檢疫給付附加條款",
+    ),
 ]
 
 
@@ -84,7 +96,7 @@ def test_alias_is_exact_and_does_not_widen_other_names():
     assert "CHUBB02" not in chubb_codes("安達產物旅行平安保險傷害醫療給付附加條款")
 
 
-def test_chubb_e_policy_sample_matches_the_basic_plan():
+def test_chubb_e_policy_sample_matches_the_advanced_plan():
     from pathlib import Path
 
     from app.domain.plans import load_plans
@@ -93,4 +105,4 @@ def test_chubb_e_policy_sample_matches_the_basic_plan():
     sample = Path(__file__).parents[2] / "app/agents/document/samples/med_policy.pdf"
     text = "\n".join(p.text for p in PdfTextExtractor().extract(sample.read_bytes()))
     plan = match_plan([i.code for i in match_insurances(text, CHUBB)], load_plans())
-    assert plan is not None and plan.id == "chubb_basic"
+    assert plan is not None and plan.id == "chubb_advanced"

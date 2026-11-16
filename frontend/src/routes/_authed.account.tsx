@@ -4,6 +4,8 @@ import { authConfigOptions } from "../client/@tanstack/react-query.gen";
 import { UserIcon } from "../components/icons";
 import { btn } from "../components/ui/buttons";
 import { PageHead } from "../components/ui/PageHead";
+import { DeleteMyDataPanel } from "../features/account/DeleteMyDataPanel";
+import { MyPoliciesPanel } from "../features/account/MyPoliciesPanel";
 import { GoogleGrantPanel } from "../features/google/GoogleGrantPanel";
 
 export const Route = createFileRoute("/_authed/account")({
@@ -46,6 +48,8 @@ function AccountPage() {
       {config?.google_login && user.login_provider === "google" && (
         <GoogleGrantPanel next="/account" />
       )}
+      <MyPoliciesPanel />
+      <DeleteMyDataPanel />
       {/* 登出在共用 header */}
       <Link to="/" className={btn}>
         回首頁

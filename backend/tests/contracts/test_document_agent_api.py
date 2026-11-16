@@ -168,3 +168,32 @@ async def test_存檔失敗_不留檔案_待辦不勾(
     assert all(d.storage_path == "" for d in documents)
     assert (await delay_todo(client, incident_id))["is_done"] is False
     assert_no_personal(response.text, caplog.text)
+
+
+async def test_行程有兩個事件_行程頁上傳不再被擋_對到兩個事件時請使用者選(
+    client: AsyncClient,
+    policy: Policy,
+    drive: FakeDrive,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """6 號有行程版（recognize_trip）後，多個事件的行程也能用行程頁的上傳框（ADR-0029）。"""
+    from app.api.routes import trip_documents
+
+    monkeypatch.setattr(trip_documents, "get_google_access", FakeGoogle)
+    first, second = await start(client, policy), await start(client, policy)
+    delay_todos = {(await delay_todo(client, i))["id"] for i in (first, second)}
+
+    response = await client.post(
+        f"/policies/{policy.id}/documents",
+        files={"file": ("證明.pdf", pdf(DELAY_TEXT), "application/pdf")},
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    # 兩個事件都有延誤證明的待辦：不猜，列出兩項讓使用者選，檔案先存著
+    assert body["recognition_status"] == "needs_review"
+    assert set(body["candidate_todo_ids"]) == delay_todos
+    assert body["stored"] is True
+
+    rejected = await client.post(f"/policies/{policy.id}/documents/{body['id']}/reject")
+    assert rejected.status_code == 200, rejected.text
+    assert drive.files == {}  # 選「都不是」：雲端的檔案也刪掉

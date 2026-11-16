@@ -16,6 +16,7 @@ from app.api.routes import (
     ingest,
     insurances,
     itinerary,
+    me,
     plan_premiums,
     plans,
     policies,
@@ -37,6 +38,7 @@ def build_api_router(environment: str, dev_login: bool = False) -> APIRouter:
     router.include_router(plans.router)
     router.include_router(plan_premiums.router)
     router.include_router(policies.router)
+    router.include_router(me.router)
     router.include_router(comparisons.router)
     router.include_router(itinerary.router)
     router.include_router(scenarios.router)

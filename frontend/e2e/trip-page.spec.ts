@@ -182,6 +182,38 @@ test("上傳文件：辨識通過自動打勾，完成度同步更新", async ({
   await expect(page.getByTestId("todos").getByText("AI 已打勾").first()).toBeVisible();
 });
 
+test("刪除已上傳的文件：先確認，刪掉後完成度退回、待辦回到待上傳", async ({ page }) => {
+  const { policyId } = await setup(page, "delete-doc", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const pill = page.getByText(/待辦 \d+／\d+/);
+  await expect(pill).toBeVisible();
+  const done0 = Number(((await pill.textContent()) ?? "").match(/待辦 (\d+)／/)?.[1]);
+
+  await page.getByTestId("doc-file").setInputFiles(pdf("延誤證明.pdf"));
+  await expect(pill).toHaveText(new RegExp(`待辦 ${done0 + 1}／`), { timeout: SLOW });
+  const row = page
+    .getByTestId("todos")
+    .getByRole("listitem")
+    .filter({ hasText: "AI 已打勾" })
+    .first();
+  await expect(row.getByTestId("todo-files")).toBeAttached();
+
+  // 按「刪除」先跳確認；選「保留」什麼都不變
+  await row.getByTestId("todo-toggle").click();
+  await row.getByTestId("todo-file-delete").click();
+  const dialog = page.getByTestId("delete-document-dialog");
+  await expect(dialog).toContainText("Google Drive");
+  await dialog.getByRole("button", { name: "保留" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(pill).toHaveText(new RegExp(`待辦 ${done0 + 1}／`));
+
+  await row.getByTestId("todo-file-delete").click();
+  await page.getByTestId("delete-document-confirm").click();
+  await expect(pill).toHaveText(new RegExp(`待辦 ${done0}／`), { timeout: SLOW });
+  await expect(page.getByTestId("todos").getByText("AI 已打勾")).toHaveCount(0);
+  await expect(page.getByTestId("todo-file-delete")).toHaveCount(0);
+});
+
 test("多個事故：文件對得到多個事故時要選，選單帶事故名稱，選好後檢查並打勾", async ({ page }) => {
   const { policyId } = await setup(page, "ambiguous", ["班機延誤了六小時", "班機取消了"]);
   await page.goto(`/trip/${policyId}`);
@@ -242,7 +274,10 @@ test("所有事故都不符保障：可以結案，結案後鎖住並說明沒�
   await page.getByTestId("close-confirm").click();
 
   await expect(page.getByTestId("send-closed")).toHaveText("此行程已結案");
-  await expect(page.getByTestId("send-box-gmail")).toBeHidden();
+  // 直接結案沒有信也沒有文件：兩個按鈕保留但反灰
+  await expect(page.getByRole("button", { name: "到 Gmail 查看" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "下載全部文件" })).toBeVisible();
+  await expect(page.getByTestId("send-box-gmail")).toHaveCount(0);
   await expect(page.getByTestId("locked-note")).toContainText("重新建立行程");
   await expect(page.getByText("已結案", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("close-trip")).toHaveCount(0);
@@ -268,6 +303,8 @@ test("自己處理結案後：送件區說明沒建草稿，連結沒有的維�
 
   await page.goto(`/trip/${policyId}`);
   await expect(page.getByTestId("send-closed")).toContainText("未在你的 Gmail 建立草稿");
+  // 沒建草稿就沒有 Gmail 連結：按鈕保留但反灰
+  await expect(page.getByRole("button", { name: "到 Gmail 查看" })).toBeVisible();
   await expect(page.getByTestId("send-box-gmail")).toHaveCount(0);
 });
 
@@ -331,6 +368,75 @@ test("手機：問答面板占下半、沒有遮罩，上方待辦仍可捲動�
 
   await page.getByTestId("qa-close").click();
   await expect(panel).toBeHidden();
+});
+
+test("手機：只有一個事故時，選中的事故卡也有「問答」，能打開、收起、再打開；桌機沒有（#422）", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "single-mobile", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const panel = page.getByRole("region", { name: "問答" });
+  const ask = page.getByTestId("trip-incident").getByTestId("incident-ask-mobile");
+  await expect(panel).toBeHidden();
+
+  await expect(ask).toBeVisible();
+  await ask.click();
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("qa-title")).toContainText("班機");
+
+  await page.getByTestId("qa-close").click();
+  await expect(panel).toBeHidden();
+  await ask.click();
+  await expect(panel).toBeVisible();
+
+  // 桌機：右欄固定顯示，沒有這個鈕
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(ask).toBeHidden();
+  await expect(panel).toBeVisible();
+});
+
+test("手機：有兩個事故時，選中的事故卡也有「問答」（#422）", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "two-mobile", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const cards = page.getByTestId("trip-incident");
+  await expect(cards.nth(0).getByTestId("incident-ask-mobile")).toBeVisible();
+  await expect(cards.nth(1).getByTestId("incident-ask-mobile")).toHaveCount(0);
+  await expect(cards.nth(1).getByTestId("incident-ask")).toBeVisible();
+});
+
+test("手機橫式矮視窗：問答面板是貼右的整高欄位，輸入框看得到、不蓋住說明文字（#410）", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 920, height: 337 });
+  const { policyId } = await setup(page, "landscape", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const panel = page.getByRole("region", { name: "問答" });
+  await page.getByTestId("trip-incident").nth(1).getByTestId("incident-ask").click();
+  await expect(panel).toBeVisible();
+
+  const box = await panel.boundingBox();
+  if (!box) throw new Error("找不到問答面板");
+  expect(box.x).toBeGreaterThan(920 * 0.4); // 貼右，不是整排寬
+  expect(box.x + box.width).toBeCloseTo(920, 0);
+  expect(box.y).toBeCloseTo(0, 0);
+  expect(box.height).toBeGreaterThanOrEqual(337 - 2); // 整高，不是 50dvh
+
+  const input = await page.getByTestId("message").boundingBox();
+  const caption = await page.getByText("回答由 AI 依條款整理").boundingBox();
+  if (!input || !caption) throw new Error("找不到輸入框或說明文字");
+  expect(input.y).toBeGreaterThanOrEqual(0);
+  expect(input.y + input.height).toBeLessThanOrEqual(337); // 輸入框在可見範圍內
+  expect(input.y + input.height).toBeLessThanOrEqual(caption.y + 1); // 沒有蓋到說明文字
+
+  // 直式同一頁還是下方滑出的面板
+  await page.setViewportSize({ width: 390, height: 800 });
+  const portrait = await panel.boundingBox();
+  if (!portrait) throw new Error("直式找不到問答面板");
+  expect(portrait.x).toBeCloseTo(0, 0);
+  expect(portrait.width).toBeCloseTo(390, 0);
+  expect(portrait.y).toBeGreaterThan(800 * 0.4);
 });
 
 // 設計者 11/14 的調整：不符保障與資訊不足分開標示、結案後說明。5 號的假實作產不出「資訊不足」，
@@ -407,11 +513,165 @@ test("建立草稿結案：送件區提醒草稿還沒寄出要到 Gmail 寄出"
   expect(drafted.status(), await drafted.text()).toBe(201);
 
   await page.goto(`/trip/${policyId}`);
-  await expect(page.getByTestId("send-draft-note")).toHaveText(
-    "草稿還沒寄出的話，請到 Gmail 寄出。",
-  );
+  await expect(page.getByTestId("send-closed")).toContainText("已在你的 Gmail 建立草稿");
+  await expect(page.getByTestId("send-draft-note")).toHaveCount(0);
   await expect(page.getByTestId("locked-note").getByTestId("new-trip")).toHaveAttribute(
     "href",
     "/incident/new",
   );
+});
+
+// #385：左欄捲到哪個事故的狀況總結，右欄問答就換成那個事故（閱讀線在視窗上緣下方約 48px）。
+// 事故卡的 data-selected 標示選中的是哪一張。
+async function selectedIndex(page: Page) {
+  return page
+    .getByTestId("trip-incident")
+    .evaluateAll((cards) => cards.findIndex((c) => c.getAttribute("data-selected") === "true"));
+}
+
+// 把第 index 張事故卡的上緣捲到視窗上緣下方 30px（過了閱讀線）
+async function scrollCardToTop(page: Page, index: number) {
+  await page.evaluate((i) => {
+    const card = document.querySelectorAll('[data-testid="trip-incident"]')[i];
+    window.scrollBy(0, (card?.getBoundingClientRect().top ?? 0) - 30);
+  }, index);
+}
+
+async function selectByAsk(page: Page, index: number) {
+  await page.getByTestId("trip-incident").nth(index).getByTestId("incident-ask").click();
+  await expect.poll(() => selectedIndex(page)).toBe(index);
+  await page.waitForTimeout(1500); // 等自動捲動結束
+}
+
+test("捲動自動切換：選中下方事故後往上捲到上方事故的狀況總結，問答換成上方事故", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId, incidentIds } = await setup(page, "scroll-up", [
+    "班機延誤了六小時",
+    "行李遺失了被偷",
+  ]);
+  await page.goto(`/trip/${policyId}`);
+  await expect(page.getByTestId("trip-incident")).toHaveCount(2);
+  await selectByAsk(page, 1);
+  const lower = (await page.getByTestId("qa-title").textContent()) ?? "";
+
+  await scrollCardToTop(page, 0);
+
+  await expect.poll(() => selectedIndex(page)).toBe(0);
+  await expect(page.getByTestId("qa-title")).not.toHaveText(lower);
+  await expect(page.getByTestId("trip-incident").nth(0)).toHaveAttribute(
+    "data-incident-id",
+    incidentIds[0] ?? "",
+  );
+});
+
+test("捲動自動切換：選中下方事故後直接跳回最上方，問答換成第一個事故", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "scroll-top", ["班機延誤了六小時", "行李遺失了被偷"]);
+  await page.goto(`/trip/${policyId}`);
+  await selectByAsk(page, 1);
+
+  // 閱讀線在第一張卡片之上（頁面最上方）：沒有卡片壓在線上，也要取第一張
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  await expect.poll(() => selectedIndex(page)).toBe(0);
+});
+
+test("捲動自動切換：輸入框有字時捲到另一個事故，問答不換，字還在", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "scroll-draft", ["班機延誤了六小時", "行李遺失了被偷"]);
+  await page.goto(`/trip/${policyId}`);
+  await selectByAsk(page, 1);
+  await page.getByTestId("message").fill("打到一半的問題");
+
+  await scrollCardToTop(page, 0);
+  await page.waitForTimeout(1000);
+
+  expect(await selectedIndex(page)).toBe(1);
+  await expect(page.getByTestId("message")).toHaveValue("打到一半的問題");
+});
+
+test("捲動自動切換：捲到理賠待辦區，問答維持原本的事故", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "scroll-todos", ["班機延誤了六小時", "行李遺失了被偷"]);
+  await page.goto(`/trip/${policyId}`);
+  await selectByAsk(page, 1);
+
+  await page.getByRole("region", { name: "理賠待辦" }).scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 200));
+  await page.waitForTimeout(1000);
+
+  expect(await selectedIndex(page)).toBe(1);
+});
+
+test("捲動自動切換：按下方事故的「問答」，捲動結束後選中的仍是它，不被途中經過的卡片搶走", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "scroll-click", [
+    "班機延誤了六小時",
+    "班機取消了",
+    "行李遺失了被偷",
+  ]);
+  await page.goto(`/trip/${policyId}`);
+  const cards = page.getByTestId("trip-incident");
+  await expect(cards).toHaveCount(3);
+
+  await cards.nth(2).getByTestId("incident-ask").click();
+  const seen = new Set<number>();
+  for (let i = 0; i < 20; i++) {
+    seen.add(await selectedIndex(page));
+    await page.waitForTimeout(100);
+  }
+
+  expect(await selectedIndex(page)).toBe(2);
+  expect([...seen]).not.toContain(1); // 途中沒有切到中間那張
+});
+
+test("捲動自動切換：只有一個事故，捲動不改變問答", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "scroll-one", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const title = (await page.getByTestId("qa-title").textContent()) ?? "";
+
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(500);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(500);
+
+  await expect(page.getByTestId("qa-title")).toHaveText(title);
+  expect(await selectedIndex(page)).toBe(0);
+});
+
+test("捲動自動切換：等回覆時捲到另一個事故，問答不換", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const { policyId } = await setup(page, "scroll-busy", ["班機延誤了六小時", "行李遺失了被偷"]);
+  await page.goto(`/trip/${policyId}`);
+  await selectByAsk(page, 1);
+  // 5 號回覆慢 4 秒：這段時間 busy／asking 為真
+  await page.route("**/api/v1/incidents/*/messages", async (route) => {
+    if (route.request().method() === "POST") await new Promise((r) => setTimeout(r, 4000));
+    await route.continue();
+  });
+  await page.getByTestId("message").fill("要準備什麼文件？");
+  await page.getByTestId("send").click();
+
+  await scrollCardToTop(page, 0);
+  await page.waitForTimeout(1000);
+
+  expect(await selectedIndex(page)).toBe(1);
+});
+
+test("捲動自動切換：手機問答面板拉開時，捲動不換問答", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "scroll-mobile", ["班機延誤了六小時", "行李遺失了被偷"]);
+  await page.goto(`/trip/${policyId}`);
+  await selectByAsk(page, 1);
+  await expect(page.getByRole("region", { name: "問答" })).toBeVisible();
+
+  await scrollCardToTop(page, 0);
+  await page.waitForTimeout(1000);
+
+  expect(await selectedIndex(page)).toBe(1);
 });

@@ -23,7 +23,7 @@ import { ClaimLetter } from "../package/ClaimLetter";
 import { DraftQuestionDialog } from "../package/DraftQuestionDialog";
 import { fillProblems } from "../package/fillRules";
 import { GmailResultDialog, gmailHref } from "../package/GmailResultDialog";
-import { type ClosedLinks, useClosedLinks } from "./closedLinks";
+import { type ClosedAs, type ClosedLinks, closedText, useClosedLinks } from "./closedLinks";
 import { card, errorText, policyMeta, tripTitle, useIncident } from "./shared";
 
 /** ask：問要不要幫忙寄；preview：預覽信、填空格與收件者。結案後不看這個，看結果。 */
@@ -34,12 +34,6 @@ type Intent = "preview" | "send" | "draft";
 
 /** 收件者的 email 格式：有 @，@ 後面有點，中間沒有空白。 */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const RESULT_TEXT: Record<string, string> = {
-  sent: "已用你的 Gmail 寄給保險公司。",
-  drafted: "已在你的 Gmail 建立草稿，請到 Gmail 修改後自己寄出。",
-  self_submitted: "沒有建立草稿，請自己寄給保險公司。",
-};
 
 /**
  * 導向 Google 授權會整頁離開，回來時要接得上：已填的空格、收件者與走到哪一步
@@ -333,7 +327,6 @@ export function SubmitFlow({
     if (intent === "draft") setAskingDraft(true);
   }
 
-  const closedText = result ? RESULT_TEXT[result.status] : undefined;
   const gmailKind =
     result?.status === "sent" || result?.status === "drafted" ? result.status : null;
   // 結案後的連結：重新整理後 result 沒了，改用送件紀錄重新組的 Gmail 連結；Drive 是行程資料夾
@@ -342,7 +335,13 @@ export function SubmitFlow({
     gmailKind ??
     (links.closedAs === "sent" || links.closedAs === "drafted" ? links.closedAs : null);
   const closedGmailUrl = result?.gmail_url ?? links.gmailUrl;
-  const driveUrl = links.driveUrl;
+  // 結案方式：這次送件的結果，重新整理後改用送件紀錄；行程直接結案（沒有送件）時是 null
+  const closedAs: ClosedAs | null =
+    result?.status === "sent" || result?.status === "drafted" || result?.status === "self_submitted"
+      ? result.status
+      : links.closedAs;
+  // 沒上傳文件就沒有要下載的資料夾，「下載全部文件」維持反灰（和理賠頁送件區一致）
+  const driveUrl = source.hasDocuments ? links.driveUrl : null;
   const meta = source.meta;
   const preview = step === "preview" && !closed;
 
@@ -469,11 +468,10 @@ export function SubmitFlow({
         <>
           <section className={`${card} flex flex-col gap-3`} aria-label="送件結果">
             <p className="m-0 t-lead text-heading" data-testid="closed">
-              {closedText ?? `這個${source.noun}已結案。`}此{source.noun}
-              已結案，不能再新增狀況或修改。
+              {closedAs ? closedText(closedAs, source.hasDocuments) : `此${source.noun}已結案。`}
             </p>
             <p className="m-0 t-caption text-muted" data-testid="closed-banner">
-              這筆理賠已結案，只能查看。
+              此{source.noun}已結案，只能查看，不能再新增狀況或修改。
             </p>
             <div className="flex flex-wrap gap-3">
               {/* 寄出或建立草稿的才有 Gmail 連結；拿不到結案方式時維持反灰 */}

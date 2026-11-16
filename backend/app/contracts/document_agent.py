@@ -155,9 +155,10 @@ class DocumentRechecker(Protocol):
 
 @runtime_checkable
 class DocumentDiscarder(Protocol):
-    """選配（契約 v2.11，規格 v3.7 第 3 點 C）：刪掉一份還沒確認的「需要你確認」文件在雲端的檔案。
+    """選配（契約 v2.11，規格 v3.7 第 3 點 C）：刪掉一份文件在雲端的檔案。
 
-    使用者選「都不是」，或沒選就離開（下次打開行程時清掉）時呼叫；永久刪除，不放垃圾桶。
+    使用者選「都不是」、沒選就離開（下次打開行程時清掉），或在待辦清單刪除已上傳的文件（v2.17，
+    任何辨識結果、含已確認與已改名的）時呼叫；永久刪除，不放垃圾桶。
     刪掉或本來就不在回 True；沒有授權、雲端失敗回 False（平台照樣把資料庫的紀錄拿掉）。
     """
 
@@ -203,7 +204,7 @@ class TripDocumentRechecker(Protocol):
 
 @runtime_checkable
 class TripDocumentDiscarder(Protocol):
-    """選配（契約 v2.13）：行程版的 `DocumentDiscarder.discard`。"""
+    """選配（契約 v2.13）：行程版的 `DocumentDiscarder.discard`；v2.17 起也用於刪除已上傳的文件。"""
 
     async def discard_trip(
         self,

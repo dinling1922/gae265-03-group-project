@@ -355,7 +355,7 @@ export function PolicyStep({
               <div className="flex flex-col gap-3">
                 <FileDrop
                   title="上傳保單"
-                  description="PDF（文字型），10 MB 內。個資會先移除再讀取，原檔不保存。"
+                  description="PDF（文字型），10 MB 內。個資會先移除再讀取，原檔不保存；只留下方案與保險期間等整理結果，可隨時到「我的帳號」刪除。"
                 >
                   <FilePickButton
                     label={uploading ? "讀取中…" : "選擇保單檔案"}

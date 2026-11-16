@@ -132,7 +132,7 @@ const FLIGHT_PHASES: Phase[] = [
   },
   { label: "回國後整理", groups: [CLAIM_FORM] },
 ];
-// 泰國醫療 demo（#233）：急性腸胃炎看門診、不住院，所以沒有住院證明（D15）
+// 同一趟日本行程的就醫事件（#233）：急性腸胃炎看門診、不住院，所以沒有住院證明（D15）
 const MEDICAL_GROUP = "生病或受傷就醫 · 2026/07/08";
 const MEDICAL_PHASES: Phase[] = [
   {
@@ -170,16 +170,16 @@ const MEDICAL_PHASES: Phase[] = [
 const SCENARIOS: Record<Scenario, { label: string; trip: string; phases: Phase[] }> = {
   flight_delay: {
     label: "班機延誤（日本）",
-    trip: "日本 2026/07/05～07/10 · 富邦 進階型（展示）",
+    trip: "日本 2026/07/05～07/11 · 安達 進階型（展示）",
     phases: FLIGHT_PHASES,
   },
   medical: {
-    label: "生病就醫（泰國）",
-    trip: "泰國 2026/07/05～07/12 · 安達 基礎型（展示）",
+    label: "生病就醫（日本）",
+    trip: "日本 2026/07/05～07/11 · 安達 進階型（展示）",
     phases: MEDICAL_PHASES,
   },
 };
-// 範例文件依事件分開列：med_ 開頭的是泰國醫療 demo
+// 範例文件依事件分開列：med_ 開頭的是就醫事件
 const sampleFits = (name: string, scenario: Scenario) =>
   name.includes("med_") === (scenario === "medical");
 
@@ -610,7 +610,7 @@ function DocumentWalkthroughPage() {
           </Button>
           <p className="text-sm text-gray-700">或把檔案拖到這個藍色框裡；可以一次選好幾份</p>
           <p className="text-sm font-semibold text-red-700">
-            範例文件在桌面「團隊專題／6號範例文件」資料夾（班機延誤 01～24、泰國醫療 31～41）
+            範例文件在桌面「團隊專題／6號範例文件」資料夾（班機延誤 01～24、日本就醫 31～41）
           </p>
         </div>
         <input

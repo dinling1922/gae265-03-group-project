@@ -41,7 +41,7 @@ export function DialogShell({
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-scrim" />
         <Dialog.Popup
           data-testid={testId}
-          className={`fixed z-40 flex max-h-[90vh] flex-col gap-3.5 overflow-auto bg-white p-5.5 shadow-dialog md:p-7 ${position}`}
+          className={`fixed z-40 flex max-h-[90dvh] flex-col gap-3.5 overflow-auto bg-white p-5.5 shadow-dialog md:p-7 ${position}`}
         >
           <Dialog.Title className="m-0 t-dialog-title text-heading">{title}</Dialog.Title>
           {description && (

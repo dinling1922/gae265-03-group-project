@@ -131,6 +131,7 @@ export function AskBar({
   inputLabel,
   inputTestId,
   submitTestId,
+  leading,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -144,6 +145,8 @@ export function AskBar({
   inputLabel?: string;
   inputTestId?: string;
   submitTestId?: string;
+  /** 放在字數與送出鈕之間的東西（例如矮視窗時搬上來的「回到確認」）。 */
+  leading?: ReactNode;
 }) {
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -165,6 +168,7 @@ export function AskBar({
       <span className="mr-auto whitespace-nowrap t-caption text-muted tabular-nums md:mr-0">
         {value.length}/{maxLength}
       </span>
+      {leading}
       <Button
         type="submit"
         disabled={disabled || !value.trim()}

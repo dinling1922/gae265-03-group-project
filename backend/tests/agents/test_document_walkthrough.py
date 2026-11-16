@@ -52,7 +52,7 @@ async def test_delay_certificate_walks_through_every_step(client: AsyncClient) -
     ]
     assert set(_states(body).values()) == {"ok"}
     assert body["saved_path"] == (
-        "好險有你 理賠文件/日本 2026-07-05～07-10/班機延誤 2026-07-10/"
+        "好險有你 理賠文件/日本 2026-07-05～07-11/班機延誤 2026-07-10/"
         "班機延誤_航空公司開立班機延誤／取消證明_1.pdf"
     )
     assert "小明" not in res.text  # 只回傳遮過的文字
@@ -160,7 +160,10 @@ async def test_every_sample_can_be_downloaded_and_walked(
         photo = s["name"].startswith("photo_")
         kind = "image/jpeg" if photo else "application/pdf"
         assert got.headers["content-type"] == kind
-        assert len(got.content) < 500 * 1024  # pre-commit 擋大檔
+        if (
+            s["name"] != "med_policy"
+        ):  # 假保單附真實條款，字型不能再裁，放行（.pre-commit-config.yaml）
+            assert len(got.content) < 500 * 1024  # pre-commit 擋大檔
         name = f"{s['name']}.{'jpg' if photo else 'pdf'}"
         scenario = "medical" if "med_" in s["name"] else "flight_delay"
         body = (
@@ -292,7 +295,7 @@ async def test_real_drive_saves_to_the_users_drive(
     assert body["drive_file_url"] == "https://drive.google.com/file/d/drive-file-1/view"
     # 平台的理賠資料夾底下建「行程（測試台）→ 事故」兩層
     assert body["saved_path"] == (
-        "好險有你 理賠文件/日本（測試台） 2026-07-05～07-10/班機延誤 2026-07-10/"
+        "好險有你 理賠文件/日本（測試台） 2026-07-05～07-11/班機延誤 2026-07-10/"
         "班機延誤_航空公司開立班機延誤／取消證明_1.pdf"
     )
     created = [

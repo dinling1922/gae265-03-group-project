@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { createIncident } from "../client";
-import { listPoliciesOptions } from "../client/@tanstack/react-query.gen";
+import { listPoliciesOptions, listTripsOptions } from "../client/@tanstack/react-query.gen";
 import { ActionBar } from "../components/ui/ActionBar";
 import { btn, lnk } from "../components/ui/buttons";
 import { PageHead } from "../components/ui/PageHead";
@@ -25,6 +25,9 @@ function DescribePage() {
   const navigate = useNavigate();
   const policies = useQuery(listPoliciesOptions());
   const policy = policies.data?.find((p) => p.id === policyId);
+  // 行程已經有事件時，這是行程頁的「新狀況」：不跳 2-2g 確認彈窗（規格 v3.10）；第一次描述才要確認
+  const trips = useQuery(listTripsOptions());
+  const hasTrip = trips.data?.some((t) => t.policy_id === policyId && t.incident_count > 0);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   // 剛送出、事件還沒建好的那句話：先顯示在對話裡，換頁後由追問頁的訊息接手
@@ -38,7 +41,8 @@ function DescribePage() {
     setError(null);
     const res = await createIncident({
       path: { policy_id: policyId },
-      body: { description: content },
+      // 第一次描述的事件要等使用者在確認彈窗按確認才進行程（#345）
+      body: { description: content, require_confirmation: !hasTrip },
     });
     if (!res.data) {
       setPending(null);
@@ -52,7 +56,7 @@ function DescribePage() {
     });
   }
 
-  if (policies.isPending) return <p className="font-ui">載入中…</p>;
+  if (policies.isPending || trips.isPending) return <p className="font-ui">載入中…</p>;
   if (!policy) {
     return (
       <main data-page-paper className="mx-auto flex max-w-[1040px] flex-col gap-4 font-ui md:px-6">
