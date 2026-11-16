@@ -88,6 +88,10 @@ const slot = (page: Page, hour: number) => page.getByTestId(`slot-${hour}`);
 // 點空時段新增、編輯、移除活動；重新整理後結果還在。
 test("新增、編輯、移除日程活動，重新整理後還在", async ({ page }) => {
   await login(page, "e2e-itinerary-activity@example.com");
+  // 手動新增活動會依地點向 Nominatim 查座標：固定回傳京都，不依賴外部服務
+  await page.route("https://nominatim.openstreetmap.org/**", (route) =>
+    route.fulfill({ json: [{ lat: "35.0116", lon: "135.7681" }] }),
+  );
   await page.goto("/compare/new");
   await fillTrip(page, "日本", 7, 11);
 
@@ -104,7 +108,7 @@ test("新增、編輯、移除日程活動，重新整理後還在", async ({ pa
   const card = slot(page, 9).getByTestId("activity-card");
   await expect(card).toContainText("進進堂早餐");
   await expect(card).toContainText("咖啡");
-  await expect(card).toContainText("沒有座標");
+  await expect(card).not.toContainText("沒有座標"); // 依地點查到座標了
   await expect(card).toContainText("1.5 小時");
   await expect(page.getByRole("tab", { name: /第 1 天/ })).toContainText("1 個活動");
 
@@ -235,7 +239,7 @@ test("舊網址 /compare/$id/background 導向日程頁", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("規劃旅遊日程");
 });
 
-// 整條 wizard：1-2 選的在意事項與補充說明在上一步、下一步、重新整理之間都留著，最後到 1-3。
+// 整條 wizard：1-2 選的在意事項在上一步、下一步、重新整理之間都留著，最後到 1-3。
 test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，最後到推薦方案", async ({ page }) => {
   await login(page, "e2e-compare-concerns@example.com");
 
@@ -247,7 +251,6 @@ test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，
   await expect(page.getByText("這趟旅行你最擔心什麼？依重要程度點選，最多 3 項。")).toBeVisible();
   await page.getByRole("button", { name: /^突然生病就醫/ }).click();
   await page.getByRole("button", { name: /^班機延誤/ }).click();
-  await page.getByLabel("其他在意的事（選填）").fill("會去滑雪");
 
   await page.getByRole("button", { name: "上一步" }).click();
   await expect(page).toHaveURL(/\/itinerary$/);
@@ -265,7 +268,6 @@ test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，
     await expect(page.getByRole("button", { name: /^班機延誤/ })).toHaveAccessibleName(
       "班機延誤 第 2 順位",
     );
-    await expect(page.getByLabel("其他在意的事（選填）")).toHaveValue("會去滑雪");
   }
 
   await page.getByRole("button", { name: "下一步" }).click();
@@ -273,8 +275,8 @@ test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("推薦方案與比較表");
 });
 
-// 依點選順序編號；取消後後面往前補；選滿 3 項其他不能點；沒選不能下一步；補充說明最多 200 字。
-test("1-2 的點選順序、取消補位、最多 3 項與補充說明字數", async ({ page }) => {
+// 依點選順序編號；取消後後面往前補；選滿 3 項其他不能點；沒選不能下一步。
+test("1-2 的點選順序、取消補位、最多 3 項", async ({ page }) => {
   await login(page, "e2e-compare-concerns-rules@example.com");
   await page.goto("/compare/new");
   await fillTrip(page, "美國", 7, 10);
@@ -313,12 +315,6 @@ test("1-2 的點選順序、取消補位、最多 3 項與補充說明字數", a
   await card("證件遺失").click();
   await card("信用卡盜刷").click();
   await expect(next).toBeDisabled();
-
-  const note = page.getByLabel("其他在意的事（選填）");
-  await expect(page.getByText("（0/200）")).toBeVisible();
-  await note.fill("滑".repeat(201));
-  await expect(note).toHaveValue("滑".repeat(200));
-  await expect(page.getByText("（200/200）")).toBeVisible();
 });
 
 const noOverflow = (page: Page) =>
@@ -390,4 +386,70 @@ test("城市結尾有空白時只存一次，不會無限重送", async ({ page 
   await expect(page.getByTestId("trip-banner")).toContainText("New York，日本");
   await page.waitForTimeout(1500); // 自動存檔的等待是 0.5 秒：多等幾輪看有沒有重送
   expect(patches).toBe(1);
+});
+
+// 推薦的在意事項（spec #427）：LLM 結果用 page.route 固定，不打真的 LLM。
+const SUGGESTIONS = [
+  { concern: "信用卡盜刷", reason: "D3 心齋橋藥妝大採購，刷卡次數多" },
+  { concern: "突然生病就醫", reason: "D1 黑門市場吃生蠔，生食容易吃壞肚子" },
+  { concern: "不小心弄傷別人或弄壞東西", reason: "D2 租和服，可能弄壞租借品" },
+];
+
+const stubSuggestions = (page: Page) =>
+  page.route("**/api/v1/comparisons/*/concern-suggestions", (route) =>
+    route.fulfill({ json: SUGGESTIONS }),
+  );
+
+test("1-2 還沒選在意事項時，依推薦順序預先勾選並顯示理由；沒有「其他在意的事」", async ({
+  page,
+}) => {
+  await stubSuggestions(page);
+  await login(page, "e2e-concern-suggestions@example.com");
+  await page.goto("/compare/new");
+  await fillTrip(page, "日本", 7, 11);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page).toHaveURL(/\/concerns$/);
+
+  const box = page.getByTestId("concern-suggestions");
+  await expect(box).toContainText("依你的日程推薦");
+  await expect(box.getByRole("listitem")).toHaveText(
+    SUGGESTIONS.map((s) => `${s.concern}：${s.reason}`),
+  );
+  for (const [i, s] of SUGGESTIONS.entries()) {
+    await expect(
+      page.getByRole("button", { name: new RegExp(`^${s.concern}`) }),
+    ).toHaveAccessibleName(`${s.concern} 第 ${i + 1} 順位`);
+  }
+  await expect(page.getByLabel("其他在意的事（選填）")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "下一步" })).toBeEnabled();
+});
+
+test("1-2 已經選過在意事項時，推薦不覆蓋，只顯示理由", async ({ page }) => {
+  await login(page, "e2e-concern-suggestions-keep@example.com");
+  await page.goto("/compare/new");
+  const id = await fillTrip(page, "日本", 7, 11);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page).toHaveURL(/\/concerns$/);
+  await page.getByRole("button", { name: /^班機延誤/ }).click();
+  await page.getByRole("button", { name: "上一步" }).click();
+  await expect(page).toHaveURL(/\/itinerary$/);
+
+  await stubSuggestions(page);
+  await page.goto(`/compare/${id}/concerns`);
+  await expect(page.getByTestId("concern-suggestions").getByRole("listitem")).toHaveCount(3);
+  await expect(page.getByRole("button", { name: /^班機延誤/ })).toHaveAccessibleName(
+    "班機延誤 第 1 順位",
+  );
+  await expect(page.locator('button[aria-pressed="true"]')).toHaveCount(1);
+});
+
+test("1-2 推薦回空陣列時不顯示推薦區塊", async ({ page }) => {
+  await login(page, "e2e-concern-suggestions-empty@example.com");
+  await page.goto("/compare/new");
+  await fillTrip(page, "日本", 7, 11);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page).toHaveURL(/\/concerns$/);
+  await expect(page.getByTestId("concern-suggestions-loading")).toHaveCount(0);
+  await expect(page.getByTestId("concern-suggestions")).toHaveCount(0);
+  await expect(page.locator('button[aria-pressed="true"]')).toHaveCount(0);
 });

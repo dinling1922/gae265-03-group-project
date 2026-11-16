@@ -60,7 +60,7 @@ async def test_created_comparison_reads_back_the_same_fields(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["concerns"] == []
-    assert body["note"] == ""
+    assert "note" not in body  # 「其他在意的事」已移除（#427）
     assert body["updated_at"]
 
     read = await client.get(f"/comparisons/{body['id']}")
@@ -77,12 +77,11 @@ async def test_patch_changes_only_the_given_fields_and_keeps_concern_order(
 
     response = await client.patch(
         f"/comparisons/{created['id']}",
-        json={"concerns": ["證件遺失", "班機延誤", "行李延誤"], "note": "會去滑雪"},
+        json={"concerns": ["證件遺失", "班機延誤", "行李延誤"]},
     )
     assert response.status_code == 200, response.text
     patched = response.json()
     assert patched["concerns"] == ["證件遺失", "班機延誤", "行李延誤"]
-    assert patched["note"] == "會去滑雪"
     assert patched["updated_at"] > created["updated_at"]
     for key in (
         "id",
@@ -130,7 +129,6 @@ def days_later(n: int) -> str:
         ({"concerns": ["班機延誤", "行李延誤", "證件遺失", "信用卡盜刷"]}, None),
         ({"concerns": ["班機延誤", "班機延誤"]}, "在意事項不能重複。"),
         ({"concerns": ["東西弄丟"]}, None),
-        ({"note": "字" * 201}, None),
     ],
 )
 @pytest.mark.usefixtures("user")
@@ -154,7 +152,7 @@ async def test_boundary_values_are_accepted(client: AsyncClient) -> None:
     for overrides in (
         {"depart_date": days_later(0), "return_date": days_later(3)},
         {"depart_date": days_later(0), "return_date": days_later(9)},
-        {"concerns": ["班機延誤", "行李延誤", "證件遺失"], "note": "字" * 200},
+        {"concerns": ["班機延誤", "行李延誤", "證件遺失"]},
     ):
         response = await client.post("/comparisons", json=trip(**overrides))
         assert response.status_code == 201, (overrides, response.text)

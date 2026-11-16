@@ -138,7 +138,7 @@ async def test_concern_rename_migration_clears_recommendation(
     # 清空後下一次存檔會依新的對照重算出推薦
     await load_plan_data(session, read_plan_data())
     app.dependency_overrides[current_user] = lambda: user
-    patched = await client.patch(f"/comparisons/{comparison.id}", json={"note": "x"})
+    patched = await client.patch(f"/comparisons/{comparison.id}", json={"city": "大阪"})
     assert patched.status_code == 200, patched.text
     assert patched.json()["concerns"] == comparison.concerns
     assert patched.json()["recommendation"]["recommended"]["plan_code"]

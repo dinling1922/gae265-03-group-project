@@ -271,7 +271,6 @@ const seedComparison = (
     return_date: `2026-12-0${n + 4}`,
     city: "",
     concerns,
-    note: "",
     created_at: at,
     updated_at: at,
     recommendation: mockRecommendation(concerns),
@@ -450,7 +449,6 @@ const handlers = [
     const comparison: ComparisonOut = {
       city: "",
       concerns: [],
-      note: "",
       ...body,
       id: crypto.randomUUID(),
       created_at: now,
