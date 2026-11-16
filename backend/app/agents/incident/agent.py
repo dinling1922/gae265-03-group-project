@@ -167,6 +167,11 @@ UNSURE_MESSAGE = (
 )
 # Jev 低信心時反問、判斷無關時回固定訊息（spec #128）；兩者都不記任何狀況
 GATE_MESSAGES = {"unrelated": UNRELATED_MESSAGE, "unsure": UNSURE_MESSAGE}
+# 已經有事故類型（問答中）旅客說的句子，守門判成無關：不能說「沒有可以申請理賠的項目」，
+# 那會讓旅客以為結論被推翻。只回「是」這類句子也會走到這裡（#426）。判成不確定的仍回反問。
+NOT_UNDERSTOOD_MESSAGE = (
+    "這句話我沒有看懂。要更正內容，可以直接告訴我哪裡不對；也可以直接問我條款的問題。"
+)
 NEW_SITUATION_MESSAGE = (
     "偵測到新狀況。請按左側的「＋有新狀況」，我會幫您另外整理；"
     "如果是要更正這次的內容，可以直接告訴我哪裡不對。"
@@ -375,9 +380,22 @@ def _clock_times_fix(text: str, known: dict[str, str]) -> dict[str, str]:
     實際起飛時間被更正、而實際起飛日期不是明確的日期（記的是「不知道」或沒記）時，日期預設為
     事故當天；說「隔天」的由 `_with_relative_date` 接著蓋掉（#382）。
     """
-    answers = stated_clock_times(text)
-    if "dep_act" in answers and parse_date(known.get(ACTUAL_DATE_KEY)) is None:
-        planned = known.get(PLANNED_DATE_KEY)
+    return _default_actual_date(known, stated_clock_times(text))
+
+
+def _default_actual_date(
+    known: dict[str, str], answers: dict[str, str]
+) -> dict[str, str]:
+    """取出了實際起飛時間、實際起飛日期卻缺（記的是「不知道」或沒記）：預設為事故當天。
+
+    程式取出的與模型取出的共用；已經有日期的不覆蓋，答案裡有日期（旅客明講或模型取出）的照用（#433）。
+    """
+    if (
+        "dep_act" in answers
+        and ACTUAL_DATE_KEY not in answers
+        and parse_date(known.get(ACTUAL_DATE_KEY)) is None
+    ):
+        planned = answers.get(PLANNED_DATE_KEY) or known.get(PLANNED_DATE_KEY)
         if parse_date(planned):
             answers[ACTUAL_DATE_KEY] = str(planned)
     return answers
@@ -606,6 +624,10 @@ class IncidentAgentV1:
         answers = _with_explicit_date(
             ctx, state["text"], dict(result.answers), fields, current=False
         )
+        if any(f.key == ACTUAL_DATE_KEY for f in fields):
+            answers = _default_actual_date(
+                known, answers
+            )  # 模型取出的時間也補日期（#433）
         answers = _with_relative_date(state["text"], known, answers, fields)
         updates = _apply_changes(fields, answers, known)
         if not updates and type_code == flow.FLIGHT_DELAY:
@@ -613,6 +635,8 @@ class IncidentAgentV1:
                 updates = [fix]
         if not updates:
             verdict = await self._classify(ctx, state["masked"])
+            if verdict == "unrelated":
+                return {"reply": IncidentReply(message=NOT_UNDERSTOOD_MESSAGE)}
             if verdict in GATE_MESSAGES:
                 return {"reply": IncidentReply(message=GATE_MESSAGES[verdict])}
         return {"known": known, "updates": updates, "type_code": type_code}

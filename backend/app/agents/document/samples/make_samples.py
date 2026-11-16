@@ -1,7 +1,7 @@
 """產生 /dev 文件辨識測試台的範例文件（只在開發者的 Mac 上跑，產出的 PDF 一起 commit）。
 
     cd backend && uv run python -m app.agents.document.samples.make_samples
-    cd backend && uv run python -m app.agents.document.samples.make_samples --medical  # 只重做泰國醫療那幾份
+    cd backend && uv run python -m app.agents.document.samples.make_samples --medical  # 只重做醫療那幾份
 
 版面參考真實的航空公司文件與電子機票收據，資料全部是虛構的：旅客「陳怡君」、
 航空公司「福爾摩沙天空航空」都不存在，每頁底部都印「測試範例（資料虛構）」。
@@ -627,237 +627,134 @@ def ticket_locked(doc: pymupdf.Document) -> None:
     e_ticket(doc)
 
 
-# 泰國醫療 demo：旅客在曼谷吃壞肚子，到診所看門診（#233）。
-# 版面參考泰國醫院開給外國病患的單據：泰文＋英文雙語、表頭有院所地址、電話、稅號與
-# 醫療機構執照號碼，病患用 HN（病歷號）與護照號碼辨識，日期西元與佛曆（B.E.）並列，
-# 金額寫 THB／บาท 並附泰文大寫金額。診所、地址、醫師、號碼全部虛構（名稱帶 DEMO）。
-TEAL = (0.0, 0.42, 0.45)
-# Thonburi 的聲調符號會讓 pymupdf 讀回時斷行，Sukhumvit Set 不會
-FONT_THAI = "/System/Library/Fonts/Supplemental/SukhumvitSet.ttc"
-THAI_REGULAR, THAI_BOLD = 2, 5  # SukhumvitSet-Text、SukhumvitSet-Bold
-CLINIC_TH = "คลินิกเวชกรรมเดโม อินเตอร์เนชั่นแนล"
-CLINIC_EN = "DEMO INTERNATIONAL CLINIC BANGKOK"
-CLINIC_LINES = (
-    "99/9 ถนนเดโม แขวงเดโม เขตเดโม กรุงเทพฯ 10000",
-    "99/9 Demo Road, Demo District, Bangkok 10000, Thailand",
-    "Tel. +66 (0)2 000 0000   Clinic Licence No. 00000000000",
+# 日本行程 demo：旅客在東京吃壞肚子，到診所看門診（#233）。診所是虛構的。
+# 日本給外國旅客的單據多半是日英並列；日期用西曆（2026年7月8日），金額用円。
+# 字型用 macOS 內建的日文字型（凸版文久ゴシック）：同一個漢字，中文字型的字形一看就像中文。
+FONT_JA = next(
+    Path("/System/Library/AssetsV2").glob("**/ToppanBunkyuGothicPr6N.ttc"),
+    Path("ToppanBunkyuGothicPr6N.ttc"),
 )
-DOCTOR_TH = "นพ.สมชาย เดโม"
-DOCTOR_EN = "Dr. Somchai Demo, M.D."
-DOCTOR_LICENSE = "ว.00000"
-PATIENT = "MS CHEN YICHUN"
-HN = "69-000153"
+JA_BOLD, JA_REGULAR = 0, 1  # Demibold、Regular
+TEAL = (0.0, 0.42, 0.45)
+CLINIC_CORP = "医療法人社団 デモ会"
+CLINIC_JA = "東京デモ国際クリニック"
+CLINIC_EN = "TOKYO DEMO INTERNATIONAL CLINIC"
+CLINIC_LINES = (
+    "〒100-0000 東京都千代田区デモ町1-2-3",
+    "1-2-3 Demo-cho, Chiyoda-ku, Tokyo 100-0000, Japan",
+    "TEL 03-0000-0000　内科・小児科　Internal Medicine / Pediatrics",
+)
 
 
-def thai_text(
-    s: Sheet,
-    x: float,
-    y: float,
-    t: str,
-    size: float = 10,
-    bold: bool = False,
-    color: tuple[float, float, float] = (0, 0, 0),
-) -> None:
-    """泰文＋英文都用 Sukhumvit Set 寫（要先 clinic_header 嵌入字型）。"""
-    s.page.insert_text(
-        (x, y), t, fontname="TB" if bold else "TH", fontsize=size, color=color
-    )
+class JaSheet(Sheet):
+    """日文單據：一般與粗體換成日文字型（欄位、印章、頁尾都跟著用）。"""
+
+    def __init__(self, doc: pymupdf.Document, width: float = 595, height: float = 842):
+        self.page = doc.new_page(width=width, height=height)
+        self.page.insert_font(fontname="L", fontbuffer=font(FONT_JA, JA_REGULAR))
+        self.page.insert_font(fontname="B", fontbuffer=font(FONT_JA, JA_BOLD))
 
 
-def clinic_header(s: Sheet, title_th: str, title_en: str) -> None:
-    s.page.insert_font(fontname="TH", fontbuffer=font(FONT_THAI, THAI_REGULAR))
-    s.page.insert_font(fontname="TB", fontbuffer=font(FONT_THAI, THAI_BOLD))
+def clinic_header(s: Sheet, title_ja: str, title_en: str) -> None:
     w = s.page.rect.width
     s.box((0, 0, w, 6), fill=TEAL, color=None)
     # 虛構診所的標誌：圓形裡一個十字
-    s.page.draw_circle((40, 42), 16, color=None, fill=TEAL)
-    s.page.draw_rect(pymupdf.Rect(37, 32, 43, 52), color=None, fill=(1, 1, 1))
-    s.page.draw_rect(pymupdf.Rect(30, 39, 50, 45), color=None, fill=(1, 1, 1))
-    thai_text(s, 64, 34, CLINIC_TH, size=13, bold=True, color=TEAL)
-    thai_text(s, 64, 48, CLINIC_EN, size=9.5, bold=True, color=TEAL)
-    for i, t in enumerate(CLINIC_LINES):
-        thai_text(s, 64, 61 + i * 10, t, size=7, color=GRAY)
-    s.line(24, 96, w - 24, 96, width=1)
-    for t, y, size in ((title_th, 120, 15), (title_en, 138, 12)):
-        thai_text(s, (w - _width(t, size)) / 2, y, t, size=size, bold=True)
-
-
-def _width(t: str, size: float) -> float:
-    """標題置中用：用嵌入的泰文粗體量寬度。"""
-    return pymupdf.Font(fontbuffer=font(FONT_THAI, THAI_BOLD)).text_length(
-        t,
-        fontsize=size,  # pyright: ignore[reportArgumentType]  pymupdf 的型別檔寫 int，實際收小數
-    )
-
-
-def labeled(
-    s: Sheet,
-    x: float,
-    y: float,
-    label_th: str,
-    line_en: str,
-    w: float = 515,
-    h: float = 24,
-) -> float:
-    """一列：左邊泰文欄名（小字），右邊整行「English label: value」。"""
-    s.box((x, y, x + w, y + h))
-    s.box((x, y, x + 140, y + h), fill=(0.94, 0.97, 0.97))
-    thai_text(s, x + 6, y + 15, label_th, size=8, color=GRAY)
-    thai_text(s, x + 148, y + 16, line_en, size=10)
-    return y + h
+    s.page.draw_circle((40, 44), 16, color=None, fill=TEAL)
+    s.page.draw_rect(pymupdf.Rect(37, 34, 43, 54), color=None, fill=(1, 1, 1))
+    s.page.draw_rect(pymupdf.Rect(30, 41, 50, 47), color=None, fill=(1, 1, 1))
+    s.text(64, 26, CLINIC_CORP, size=7.5, color=GRAY)
+    s.text(64, 42, CLINIC_JA, size=14, bold=True, color=TEAL)
+    s.text(64, 55, CLINIC_EN, size=8.5, bold=True, color=TEAL)
+    for i, line in enumerate(CLINIC_LINES):
+        s.text(64, 68 + i * 10, line, size=7, color=GRAY)
+    s.line(24, 106, w - 24, 106)
+    tw = len(title_ja) * 20 + (len(title_ja) - 1) * 10
+    # 日本的單據標題常把字距拉開（「診　断　書」）
+    s.text((w - tw) / 2, 136, "　".join(title_ja), size=20, bold=True)
+    ew = pymupdf.get_text_length(title_en, fontsize=10)
+    s.text((w - ew) / 2, 152, title_en, size=10, color=GRAY)
 
 
 def medical_certificate(doc: pymupdf.Document, with_diagnosis: bool) -> None:
-    s = Sheet(doc)
-    clinic_header(s, "ใบรับรองแพทย์", "MEDICAL CERTIFICATE")
-    thai_text(s, 40, 162, "Certificate No.: MC69-000153", size=8.5, color=GRAY)
-    thai_text(s, 400, 162, f"HN: {HN}", size=8.5, color=GRAY)
-    thai_text(
-        s,
-        40,
-        186,
-        f"ข้าพเจ้า {DOCTOR_TH} ใบอนุญาตประกอบวิชาชีพเวชกรรมเลขที่ {DOCTOR_LICENSE}"
-        " ได้ทำการตรวจร่างกายผู้ป่วยรายนี้",
-        size=9.5,
-    )
-    thai_text(
-        s,
-        40,
-        201,
-        f"I, {DOCTOR_EN}, Medical Licence No. {DOCTOR_LICENSE[2:]},"
-        " certify that I have examined the patient below.",
-        size=9.5,
-    )
+    """診断書（D13）：日英並列。with_diagnosis=False 拿掉病名那一列（不合格範例）。"""
+    s = JaSheet(doc)
+    clinic_header(s, "診断書", "MEDICAL CERTIFICATE")
+    s.text(40, 178, "No. MC-20260708-0153", size=8.5, color=GRAY)
     items = [
-        ("ชื่อ-นามสกุล", f"Patient name: {PATIENT}"),
-        ("เพศ / อายุ", "Sex / Age: Female / 34 years"),
-        ("สัญชาติ", "Nationality: Taiwanese"),
-        ("เลขที่หนังสือเดินทาง", "Passport No.: X00000000"),
-        ("วันที่ตรวจ", "Date of visit: 08/07/2026 (08/07/2569 B.E.)"),
-        (
-            "อาการสำคัญ",
-            "Chief complaint: Watery diarrhoea, vomiting, abdominal pain for 1 day",
-        ),
-        ("ผลการตรวจร่างกาย", "Physical examination: Mild dehydration, BT 37.8 C"),
+        ("氏名 / Name", "Patient name: CHEN YICHUN 様"),
+        ("生年月日 / Date of birth", "1992年3月14日生（34歳）"),
+        ("国籍 / Nationality", "台湾 Taiwan（旅行者）"),
+        ("受診日 / Date of visit", "受診日：2026年7月8日（水）"),
     ]
     if with_diagnosis:
-        items.append(("การวินิจฉัยโรค", "Diagnosis: Acute gastroenteritis (ICD-10 A09)"))
+        items.append(("病名 / Diagnosis", "病名：急性胃腸炎（Acute gastroenteritis）"))
     items += [
-        (
-            "การรักษา",
-            "Treatment: Outpatient care, oral rehydration salts, antiemetic",
-        ),
-        ("ความเห็นแพทย์", "Recommendation: Rest for 2 days (08/07/2026 - 09/07/2026)"),
-        ("วันที่ออกใบรับรอง", "Date of issue: 08/07/2026"),
+        ("症状 / Symptoms", "嘔吐と下痢があり、軽い脱水がみられました"),
+        ("治療 / Treatment", "外来にて点滴を行い、内服薬を処方しました"),
+        ("備考 / Remarks", "約2日間の自宅安静を要するものと認めます"),
     ]
-    y = 220
-    for label_th, line_en in items:
-        y = labeled(s, 40, y, label_th, line_en)
-    y += 50
+    y = rows(s, 40, 190, items)
+    s.text(40, y + 30, "上記のとおり診断いたします。", size=10.5)
+    s.text(
+        40,
+        y + 46,
+        "I hereby certify that the above is true and correct.",
+        size=8,
+        color=GRAY,
+    )
+    s.text(300, y + 84, "発行日：2026年7月8日", size=9.5)
+    s.text(300, y + 100, f"{CLINIC_CORP}　{CLINIC_JA}", size=9)
+    s.text(300, y + 120, "医師　Physician：", size=10)
     s.page.insert_font(fontname="H", fontbuffer=font(FONT_HAND))
-    s.page.insert_text((360, y), "Somchai", fontname="H", fontsize=15, color=INK)
-    s.line(330, y + 6, 540, y + 6)
-    thai_text(s, 330, y + 20, f"({DOCTOR_TH})  {DOCTOR_EN}", size=8.5)
-    thai_text(
-        s, 330, y + 33, f"Attending physician  Licence No. {DOCTOR_LICENSE}", size=8
+    s.page.insert_text(
+        (400, y + 122), "デモ 太郎", fontname="H", fontsize=14, color=INK
     )
-    s.stamp(130, y + 10, "DEMO", "BANGKOK", "08.07.2026")
-    thai_text(
-        s,
-        40,
-        y + 80,
-        "หมายเหตุ: ใบรับรองแพทย์นี้ใช้ได้เมื่อมีตราประทับของสถานพยาบาล",
-        size=7.5,
-        color=GRAY,
-    )
-    thai_text(
-        s,
-        40,
-        y + 92,
-        "Remark: Not valid without the clinic seal and the physician's signature.",
-        size=7.5,
-        color=GRAY,
-    )
+    s.stamp(500, y + 165, "DEMO", "東京", "2026.07.08")
     s.footer()
 
 
 def medical_receipt(doc: pymupdf.Document, with_amount: bool) -> None:
-    s = Sheet(doc, 420, 595)
-    clinic_header(s, "ใบเสร็จรับเงิน", "RECEIPT")
-    thai_text(s, 330, 126, "ต้นฉบับ / ORIGINAL", size=7.5, bold=True, color=TEAL)
-    thai_text(
+    """領収書（D14）：日英並列的自費診療收據。with_amount=False 拿掉所有金額（不合格範例）。"""
+    s = JaSheet(doc, 420, 595)
+    clinic_header(s, "領収書", "RECEIPT")
+    y = rows(
         s,
-        24,
-        152,
-        "Tax ID / เลขประจำตัวผู้เสียภาษี: 0-0000-00000-00-0  (Head office)",
-        size=7.5,
-        color=GRAY,
+        20,
+        170,
+        [
+            ("Receipt No.", "領収書番号：R-20260708-0153"),
+            ("Patient", "Patient name: CHEN YICHUN 様"),
+            ("Date", "診療日：2026年7月8日（水）"),
+            ("Department", "診療科：内科（外来）"),
+            ("Payment", "区分：自費（保険外診療）"),
+        ],
+        w=380,
     )
-    info = (
-        ("เลขที่", "Receipt No.: RC69-000153"),
-        ("วันที่", "Date: 08/07/2026 (08/07/2569 B.E.)"),
-        ("ชื่อผู้ป่วย", f"Patient: {PATIENT}   HN: {HN}"),
-        ("แผนก", "Department: General Medicine (OPD)"),
-        ("สิทธิการรักษา", "Payer: Self-pay (foreign patient)"),
-    )
-    y = 162
-    for label_th, line_en in info:
-        y = labeled(s, 20, y, label_th, line_en, w=380, h=21)
-    y += 22
-    thai_text(s, 24, y, "No.", size=8, bold=True)
-    thai_text(s, 48, y, "รายการ / Description", size=8, bold=True)
+    y += 26
+    s.text(24, y, "項目 Description", size=9, bold=True)
     if with_amount:
-        thai_text(s, 300, y, "จำนวนเงิน (บาท)", size=8, bold=True)
-        thai_text(s, 300, y + 10, "Amount (THB)", size=8, bold=True)
-    y += 16
+        s.text(320, y, "金額（円）", size=9, bold=True)
+    y += 8
     s.line(20, y, 400, y)
-    y += 16
-    items = (
-        ("ค่าบริการทางการแพทย์", "Doctor consultation fee", "800.00"),
-        ("ค่ายาและเวชภัณฑ์", "Medicine and medical supplies", "450.00"),
-        ("ค่าใบรับรองแพทย์", "Medical certificate fee", "200.00"),
+    y += 18
+    lines = (
+        ("初診料 First visit fee", "2,880"),
+        ("処置料（点滴）Treatment / IV", "3,200"),
+        ("投薬料 Medicine", "1,560"),
+        ("文書料（診断書）Medical certificate fee", "3,000"),
     )
-    for i, (th, en, price) in enumerate(items, 1):
-        thai_text(s, 26, y, str(i), size=9)
-        thai_text(s, 48, y, th, size=9)
-        thai_text(s, 48, y + 11, en, size=8.5, color=GRAY)
+    for item, price in lines:
+        s.text(24, y, item, size=9.5)
         if with_amount:
-            thai_text(s, 400 - 24 - _width(price, 9), y, price, size=9)
-        y += 28
-    s.line(20, y - 10, 400, y - 10)
+            s.text(340, y, price, size=9.5)
+        y += 20
+    s.line(20, y - 8, 400, y - 8)
     if with_amount:
-        thai_text(s, 200, y + 6, "รวมทั้งสิ้น / Total: THB 1,450.00", size=10.5, bold=True)
-        thai_text(s, 24, y + 24, "(หนึ่งพันสี่ร้อยห้าสิบบาทถ้วน)", size=8.5)
-        thai_text(
-            s,
-            24,
-            y + 35,
-            "(One thousand four hundred fifty baht only)",
-            size=8.5,
-            color=GRAY,
-        )
-    thai_text(s, 24, y + 54, "ชำระโดย / Payment method: Credit card", size=8.5)
-    thai_text(
-        s,
-        24,
-        y + 66,
-        "ค่ารักษาพยาบาลได้รับยกเว้นภาษีมูลค่าเพิ่ม / Medical services are VAT exempt.",
-        size=7,
-        color=GRAY,
-    )
-    thai_text(
-        s,
-        24,
-        y + 76,
-        "โปรดเก็บใบเสร็จรับเงินนี้ไว้เป็นหลักฐาน / Please keep this receipt for insurance claims.",
-        size=7,
-        color=GRAY,
-    )
-    s.page.insert_font(fontname="H", fontbuffer=font(FONT_HAND))
-    s.page.insert_text((290, y + 112), "Nok", fontname="H", fontsize=13, color=INK)
-    s.line(250, y + 118, 396, y + 118)
-    thai_text(s, 268, y + 130, "ผู้รับเงิน / Cashier", size=8)
-    s.stamp(110, y + 125, "DEMO", "BANGKOK", "08.07.2026")
+        s.text(24, y + 10, "合計 Total：¥10,640", size=12, bold=True)
+        s.text(24, y + 28, "お支払い方法：クレジットカード（Credit card）", size=8.5)
+    s.text(24, y + 48, "上記の金額を正に領収いたしました。", size=9)
+    s.text(24, y + 62, "お大事になさってください。Get well soon.", size=8, color=GRAY)
+    s.stamp(340, y + 100, "DEMO", "領収", "2026.07.08")
     s.footer()
 
 
@@ -940,7 +837,7 @@ POLICY_ATTACHMENTS = HERE / "chubb_policy_attachments.pdf"
 
 
 def travel_policy(doc: pymupdf.Document) -> None:
-    """保險單（D25）：安達網路投保的「旅行平安綜合保險保險單」進階型，填上 demo 的虛構資料（泰國）。
+    """保險單（D25）：安達網路投保的「旅行平安綜合保險保險單」進階型，填上 demo 的虛構資料（日本）。
 
     底稿是組員提供的真實保單第 3 頁，產生 chubb_policy_blank.pdf 時已把原本的姓名、
     保單號碼、保險期間、旅遊地區、保費與列印時間整段移除（不是蓋上白色方塊），
@@ -959,11 +856,11 @@ def travel_policy(doc: pymupdf.Document) -> None:
         (
             57.7,
             111.6,
-            "保險期間：自05-Jul-2026 00時00分至12-Jul-2026 24時00分止， 共8天",
+            "保險期間：自05-Jul-2026 00時00分至11-Jul-2026 24時00分止， 共7天",
         ),
         (57.7, 123.6, "被保險人： 陳怡君 等1人"),
-        (57.7, 135.8, "旅遊地區：泰國"),
-        (468.3, 135.8, "總保險費：NT$700"),
+        (57.7, 135.8, "旅遊地區：日本"),
+        (468.3, 135.8, "總保險費：NT$658"),
         (57.7, 319.8, "陳怡君 等1 人"),
     ):
         page.insert_text((x, y), text, fontname="L", fontsize=10)
@@ -1078,9 +975,9 @@ def _policy_receipt_page(doc: pymupdf.Document) -> None:
     for y, label, value in (
         (92, "保單號碼", "ECITWAA0000153"),
         (112, "被保險人", "陳怡君 等1 人"),
-        (132, "保險期間", "05-Jul-2026 00時00分至12-Jul-2026 24時00分止，共8天"),
+        (132, "保險期間", "05-Jul-2026 00時00分至11-Jul-2026 24時00分止，共7天"),
         (152, "繳款人", "陳怡君"),
-        (172, "總保費", "NT$700.-"),
+        (172, "總保費", "NT$658.-"),
     ):
         page.insert_text((57.7, y), label, fontname="L", fontsize=9)
         page.insert_text((150, y), value, fontname="L", fontsize=9)
@@ -1278,7 +1175,7 @@ PHOTO_FILES = {
     "photo_claim_form": lambda: noisy(
         shadow(on_table(_page_image("claim_form", dpi=200), tilt=0.04), 0.3), 24
     ),
-    # 手機拍診所收據：斜拍＋陰影，字還清楚（泰國醫療 demo）
+    # 手機拍診所收據：斜拍＋陰影，字還清楚（東京診所，醫療 demo）
     "photo_med_receipt": lambda: noisy(
         shadow(on_table(_page_image("med_receipt"), tilt=0.05), 0.35), 25
     ),
@@ -1296,7 +1193,7 @@ def make_photos(names: list[str] | None = None) -> None:
 
 
 def main(only_medical: bool = False) -> None:
-    """產生全部範例；only_medical 只重做泰國醫療那幾份，其他已 commit 的檔案不動。"""
+    """產生全部範例；only_medical 只重做醫療那幾份，其他已 commit 的檔案不動。"""
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     for name, build in SAMPLE_FILES.items():
         if only_medical and name not in MEDICAL:

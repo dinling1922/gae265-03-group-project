@@ -28,6 +28,7 @@ from app.models.insurance import (
     InsuranceRule,
     RuleEmbedding,
 )
+from app.models.itinerary import ItineraryActivity
 from app.models.plan_data import PlanBenefit, PlanPremium
 from app.models.policy import Policy, PolicyAddon
 from app.models.reminder import ReminderLetter
@@ -52,6 +53,7 @@ __all__ = [
     "Insurance",
     "ExcludedRule",
     "InsuranceRule",
+    "ItineraryActivity",
     "Message",
     "MessageCitation",
     "PlanBenefit",

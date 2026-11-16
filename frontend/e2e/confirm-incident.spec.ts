@@ -92,3 +92,44 @@ test("沒確認就離開：首頁「我的行程」顯示描述中，點進去�
   await expect(page).toHaveURL(incidentUrl);
   await expect(page.getByTestId("confirm-dialog")).toBeVisible({ timeout: SLOW });
 });
+
+// #409：橫式矮視窗、鍵盤開著時底部動作列會被蓋住，「回到確認」搬到輸入列旁邊；直式維持在底部
+test("橫式矮視窗：「回到確認」在送出鈕旁；直式在底部動作列", async ({ page }) => {
+  const policyId = await setup(page, "landscape");
+  await describeUntilFinished(page, policyId);
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible({ timeout: SLOW });
+  await dialog.getByTestId("confirm-supplement").click();
+  await expect(dialog).toBeHidden();
+
+  const back = page.getByTestId("back-to-confirm");
+  const send = page.getByTestId("send");
+
+  // 改視窗大小後，按鈕會換位置（元件重新渲染），所以用 poll 等位置穩定，不直接讀一次
+  async function layout(): Promise<"below" | "same-row" | "other"> {
+    const s = await send.boundingBox();
+    const b = await back.boundingBox();
+    if (!s || !b) return "other";
+    if (b.y > s.y + s.height) return "below";
+    const overlap = Math.min(s.y + s.height, b.y + b.height) - Math.max(s.y, b.y);
+    return overlap > 0 ? "same-row" : "other";
+  }
+
+  // 一般（直式或桌機）高度：只有一個，在送出鈕下方的動作列
+  await expect(back).toHaveCount(1);
+  await expect.poll(layout).toBe("below");
+
+  // 橫式矮視窗：仍然只有一個，和送出鈕同一列
+  await page.setViewportSize({ width: 920, height: 419 });
+  await expect.poll(layout).toBe("same-row");
+  await expect(back).toHaveCount(1);
+  await back.click();
+  await expect(dialog).toBeVisible();
+
+  // 轉回一般高度：又回到底部動作列
+  await dialog.getByTestId("confirm-supplement").click();
+  await expect(dialog).toBeHidden();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(layout).toBe("below");
+  await expect(back).toHaveCount(1);
+});

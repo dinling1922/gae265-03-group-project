@@ -33,6 +33,7 @@ export function DescribeChat({
   logFooter,
   typing,
   typingLabel,
+  askLeading,
 }: {
   lines: ChatLine[];
   quickReplies: string[];
@@ -55,6 +56,8 @@ export function DescribeChat({
   typing?: boolean;
   /** 輸入中泡泡旁邊寫正在做的事（例如「正在確認狀況」）；沒給就只有三個點。 */
   typingLabel?: string;
+  /** 放在提問列字數與送出鈕之間的東西（矮視窗時把底部動作列的按鈕搬上來）。 */
+  askLeading?: ReactNode;
 }) {
   const showTyping = typing ?? busy;
   return (
@@ -107,6 +110,7 @@ export function DescribeChat({
         inputName="content"
         inputTestId="message"
         submitTestId="send"
+        leading={askLeading}
       />
     </section>
   );

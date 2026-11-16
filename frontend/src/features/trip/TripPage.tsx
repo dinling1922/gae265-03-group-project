@@ -18,6 +18,15 @@ import { useReminderPolling } from "./useReminderPolling";
 import { useTrip } from "./useTrip";
 
 const H2 = "m-0 t-section-title text-heading";
+// 手機橫式（高度 500px 以下）：問答面板改成貼右的整高欄位。下方滑出 50dvh 在橫式只剩約 170px，
+// 聊天區被壓到 58px、內容溢出蓋住說明文字，輸入框要在面板裡再捲（#410）
+// Tailwind 只認原始碼裡寫完整的 class 名稱，不能用變數拼接
+const QA_SIDE_PANEL =
+  "max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:inset-y-0 max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:left-auto max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:right-0 max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:h-auto max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:w-[min(45vw,460px)] max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:rounded-t-none max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:rounded-l-[20px]";
+const QA_SIDE_PAGE =
+  "max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:pb-0 max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:pr-[calc(min(45vw,460px)+16px)]";
+const QA_SIDE_HANDLE = "max-lg:[@media(orientation:landscape)_and_(max-height:500px)]:hidden";
+
 // 捲動自動切換（#385）：閱讀線在視窗上緣下方這麼多 px（按「問答」時卡片對齊在 24px，留一點餘地）；
 // 程式觸發的捲動最多等這麼久（ms）才放開自動切換
 const READING_LINE = 48;
@@ -243,7 +252,7 @@ export function TripPage({
     <main
       data-page-paper
       className={`mx-auto flex flex-col gap-6 font-ui md:px-6 ${wideMain} ${
-        qaOpen && !locked ? "max-lg:pb-[52dvh]" : ""
+        qaOpen && !locked ? `max-lg:pb-[52dvh] ${QA_SIDE_PAGE}` : ""
       }`}
     >
       <p className="t-label m-0 text-muted">出事了：幫我處理理賠</p>
@@ -387,14 +396,14 @@ export function TripPage({
         {!locked && selected && (
           <section
             id="trip-qa"
-            className={`flex flex-col gap-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:h-[50dvh] max-lg:overflow-y-auto max-lg:rounded-t-[20px] max-lg:bg-paper max-lg:px-4 max-lg:pt-2 max-lg:pb-5 max-lg:shadow-dialog ${
+            className={`flex flex-col gap-4 lg:sticky lg:top-6 lg:col-start-2 lg:row-start-1 max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-40 max-lg:h-[50dvh] max-lg:overflow-y-auto max-lg:rounded-t-[20px] max-lg:bg-paper max-lg:px-4 max-lg:pt-2 max-lg:pb-5 max-lg:shadow-dialog ${QA_SIDE_PANEL} ${
               qaOpen ? "" : "max-lg:hidden"
             }`}
             aria-label="問答"
           >
             <span
               aria-hidden="true"
-              className="mx-auto mt-1 block h-[5px] w-11 rounded-sm bg-line lg:hidden"
+              className={`mx-auto mt-1 block h-[5px] w-11 rounded-sm bg-line lg:hidden ${QA_SIDE_HANDLE}`}
             />
             <div className="flex items-center gap-3">
               <h2 className={H2} data-testid="qa-title">
@@ -422,7 +431,7 @@ export function TripPage({
               typingLabel="正在查閱條款"
               onSend={(content) => void ask(content)}
               maxLength={300}
-              minHeight={180}
+              minHeight={96}
               tall
               fill
               logFooter={

@@ -246,10 +246,8 @@ async def test_when_recommendation_is_recomputed(
     url = f"/comparisons/{body['id']}"
     await client.patch(url, json={"alternative_sum_insured": 10_000_000})
 
-    # 只改補充說明、目的地、年齡：推薦與已選保額不變
-    r = await client.patch(
-        url, json={"note": "會去滑雪", "age": 50, "destination": "韓國"}
-    )
+    # 只改目的地、年齡：推薦與已選保額不變
+    r = await client.patch(url, json={"age": 50, "destination": "韓國"})
     assert r.json()["recommendation"]["alternative"]["sum_insured"] == 10_000_000
 
     # 改在意事項：重新推薦，保額回到推薦保額；同一請求的保額被忽略

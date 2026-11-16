@@ -32,7 +32,6 @@ def trip(**overrides: object) -> dict:
         "destination": "日本",
         "depart_date": depart.isoformat(),
         "return_date": (depart + timedelta(days=4)).isoformat(),
-        "age": 30,
     }
     return body | overrides
 
@@ -61,7 +60,7 @@ async def test_created_comparison_reads_back_the_same_fields(
     assert created.status_code == 201, created.text
     body = created.json()
     assert body["concerns"] == []
-    assert body["note"] == ""
+    assert "note" not in body  # 「其他在意的事」已移除（#427）
     assert body["updated_at"]
 
     read = await client.get(f"/comparisons/{body['id']}")
@@ -78,18 +77,26 @@ async def test_patch_changes_only_the_given_fields_and_keeps_concern_order(
 
     response = await client.patch(
         f"/comparisons/{created['id']}",
-        json={"concerns": ["證件遺失", "班機延誤", "行李延誤"], "note": "會去滑雪"},
+        json={"concerns": ["證件遺失", "班機延誤", "行李延誤"]},
     )
     assert response.status_code == 200, response.text
     patched = response.json()
     assert patched["concerns"] == ["證件遺失", "班機延誤", "行李延誤"]
-    assert patched["note"] == "會去滑雪"
     assert patched["updated_at"] > created["updated_at"]
-    for key in ("id", "destination", "depart_date", "return_date", "age", "created_at"):
+    for key in (
+        "id",
+        "destination",
+        "depart_date",
+        "return_date",
+        "city",
+        "created_at",
+    ):
         assert patched[key] == created[key], key
 
-    response = await client.patch(f"/comparisons/{created['id']}", json={"age": 45})
-    assert response.json()["age"] == 45
+    response = await client.patch(
+        f"/comparisons/{created['id']}", json={"city": "京都"}
+    )
+    assert response.json()["city"] == "京都"
     assert (await client.get(f"/comparisons/{created['id']}")).json() == response.json()
     assert response.json()["concerns"] == ["證件遺失", "班機延誤", "行李延誤"]
 
@@ -118,12 +125,10 @@ def days_later(n: int) -> str:
             {"depart_date": days_later(1), "return_date": days_later(11)},
             "旅遊天數最長 10 天。",
         ),
-        ({"age": 14}, "年齡請填 15～80 的整數。"),
-        ({"age": 81}, "年齡請填 15～80 的整數。"),
+        ({"city": "城" * 31}, None),
         ({"concerns": ["班機延誤", "行李延誤", "證件遺失", "信用卡盜刷"]}, None),
         ({"concerns": ["班機延誤", "班機延誤"]}, "在意事項不能重複。"),
         ({"concerns": ["東西弄丟"]}, None),
-        ({"note": "字" * 201}, None),
     ],
 )
 @pytest.mark.usefixtures("user")
@@ -145,9 +150,9 @@ async def test_invalid_trip_is_rejected_on_create_and_patch(
 @pytest.mark.usefixtures("user")
 async def test_boundary_values_are_accepted(client: AsyncClient) -> None:
     for overrides in (
-        {"depart_date": days_later(0), "return_date": days_later(3), "age": 15},
-        {"depart_date": days_later(0), "return_date": days_later(9), "age": 80},
-        {"concerns": ["班機延誤", "行李延誤", "證件遺失"], "note": "字" * 200},
+        {"depart_date": days_later(0), "return_date": days_later(3)},
+        {"depart_date": days_later(0), "return_date": days_later(9)},
+        {"concerns": ["班機延誤", "行李延誤", "證件遺失"]},
     ):
         response = await client.post("/comparisons", json=trip(**overrides))
         assert response.status_code == 201, (overrides, response.text)
@@ -171,7 +176,7 @@ async def test_patch_without_changing_a_past_depart_date_still_succeeds(
     assert response.status_code == 200, response.text
     response = await client.patch(
         f"/comparisons/{created['id']}",
-        json={"depart_date": comparison.depart_date.isoformat(), "age": 31},
+        json={"depart_date": comparison.depart_date.isoformat(), "city": "京都"},
     )
     assert response.status_code == 200, response.text
 
@@ -211,7 +216,7 @@ async def test_requires_login(client: AsyncClient) -> None:
     assert (await client.post("/comparisons", json=trip())).status_code == 401
     assert (await client.get(f"/comparisons/{some_id}")).status_code == 401
     assert (
-        await client.patch(f"/comparisons/{some_id}", json={"age": 40})
+        await client.patch(f"/comparisons/{some_id}", json={"city": "京都"})
     ).status_code == 401
 
 
@@ -225,11 +230,13 @@ async def test_someone_elses_comparison_is_not_found(
     app.dependency_overrides[current_user] = lambda: other
 
     assert (await client.get(f"/comparisons/{created['id']}")).status_code == 404
-    response = await client.patch(f"/comparisons/{created['id']}", json={"age": 40})
+    response = await client.patch(
+        f"/comparisons/{created['id']}", json={"city": "京都"}
+    )
     assert response.status_code == 404
 
     app.dependency_overrides[current_user] = lambda: user
-    assert (await client.get(f"/comparisons/{created['id']}")).json()["age"] == 30
+    assert (await client.get(f"/comparisons/{created['id']}")).json()["city"] == ""
 
 
 async def test_openapi_lists_destinations_and_concerns_as_enums(
@@ -268,7 +275,6 @@ async def _saved(
         destination="日本",
         depart_date=depart,
         return_date=depart + timedelta(days=4),
-        age=30,
         created_at=created_at,
         recommended_plan_code=rec,
         recommended_sum_insured=rec_sum,
@@ -374,7 +380,7 @@ async def test_recent_lists_by_last_edit_newest_first_with_unrecommended_as_null
     }
 
     # 改過第一筆之後它排到最前面
-    await client.patch(f"/comparisons/{first['id']}", json={"age": 40})
+    await client.patch(f"/comparisons/{first['id']}", json={"city": "京都"})
     ids = [r["id"] for r in (await client.get("/comparisons/recent")).json()]
     assert ids == [first["id"], third["id"], second["id"]]
 
@@ -474,3 +480,12 @@ async def test_recent_only_lists_own_comparisons(
 
 async def test_recent_requires_login(client: AsyncClient) -> None:
     assert (await client.get("/comparisons/recent")).status_code == 401
+
+
+@pytest.mark.usefixtures("user")
+async def test_city_is_optional_and_age_is_gone(client: AsyncClient) -> None:
+    body = (await client.post("/comparisons", json=trip())).json()
+    assert body["city"] == ""
+    assert "age" not in body
+    created = (await client.post("/comparisons", json=trip(city="京都"))).json()
+    assert created["city"] == "京都"
