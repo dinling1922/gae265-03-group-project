@@ -309,6 +309,8 @@ function tripOf(policyId: string): TripOut | null {
     can_submit: !locked && active.length > 0 && active.every((t) => t.is_done),
     can_close: false,
     submission: { status: first.closedAs ?? null, gmail_url: null },
+    // 假資料模式不寄提醒信：沒有寄送進度，行程頁只顯示提醒信說明
+    reminder_rounds: [],
   };
 }
 

@@ -8,6 +8,7 @@ from app.domain.reminder.rules import (
     missing_uploads,
     next_reminder_at,
     sync_round,
+    track_pause,
 )
 from app.models import IncidentTodo
 
@@ -21,6 +22,7 @@ class Todo:
     applicable: bool = True
     status: str = "pending"
     created_at: datetime = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)
+    updated_at: datetime = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)
 
 
 START = datetime(2026, 7, 11, 9, 0, tzinfo=UTC)
@@ -147,6 +149,47 @@ def test_新狀況新增需上傳的待辦_開新的一輪並歸零() -> None:
     )
 
 
+def test_第一次掃描時已有多個事故的待辦_以最早的建立時間開始() -> None:
+    fresh = ReminderState(started_at=None, sent_count=0, last_sent_at=None)
+    todos = [
+        Todo("行李延誤證明", created_at=START + 60 * timedelta(seconds=1)),
+        Todo("班機取消證明", created_at=START),
+    ]
+    assert sync_round(fresh, todos).started_at == START
+
+
+def test_第一封寄出前新增事故_算在同一輪_起點不變() -> None:
+    state = ReminderState(started_at=START, sent_count=0, last_sent_at=None)
+    todos = [
+        Todo("班機取消證明", created_at=START),
+        Todo("行李延誤證明", created_at=START + 20 * 60 * 60 * timedelta(seconds=1)),
+    ]
+    assert sync_round(state, todos) == state
+    assert due(state) == START + DAY
+
+
+def test_第一封寄出前併進來的待辦_寄信後不算新增_不開新的一輪() -> None:
+    merged = START + 20 * 60 * 60 * timedelta(seconds=1)  # 第一封寄出前新增的事故
+    first = START + DAY
+    state = ReminderState(started_at=START, sent_count=1, last_sent_at=first)
+    todos = [
+        Todo("班機取消證明", created_at=START),
+        Todo("醫療費用收據", created_at=merged),
+    ]
+    assert sync_round(state, todos) == state
+
+
+def test_第一封寄出後才新增的待辦_開新的一輪() -> None:
+    first = START + DAY
+    added = first + 60 * timedelta(seconds=1)
+    state = ReminderState(started_at=START, sent_count=1, last_sent_at=first)
+    todos = [
+        Todo("班機取消證明", created_at=START),
+        Todo("行李延誤證明", created_at=added),
+    ]
+    assert sync_round(state, todos).started_at == added
+
+
 def test_沒有需上傳的待辦就不開始計時() -> None:
     fresh = ReminderState(started_at=None, sent_count=0, last_sent_at=None)
     todos = [Todo("通知保險公司", requires_upload=False, created_at=START)]
@@ -162,3 +205,71 @@ def test_新增的待辦不需上傳或不適用_不算新的一輪() -> None:
         Todo("行李延誤證明", applicable=False, created_at=later),
     ]
     assert sync_round(state, todos) == state
+
+
+def test_文件都齊全_掃描記下暫停時間() -> None:
+    state = ReminderState(started_at=START, sent_count=0, last_sent_at=None)
+    scan = START + 2 * 60 * 60 * timedelta(seconds=1)
+
+    paused = track_pause(state, [Todo("住宿收據", status="done")], scan)
+
+    assert paused.paused_at == scan
+    # 已經暫停就不再更新
+    assert track_pause(paused, [Todo("住宿收據", status="done")], scan + DAY) == paused
+
+
+def test_過了第一封的時間才取消勾選_第一封從取消勾選起算_24_小時() -> None:
+    paused_at = START + 2 * 60 * 60 * timedelta(seconds=1)
+    unchecked = START + 2 * DAY
+    state = ReminderState(
+        started_at=START, sent_count=0, last_sent_at=None, paused_at=paused_at
+    )
+
+    resumed = track_pause(state, [Todo("住宿收據", updated_at=unchecked)], unchecked)
+
+    assert (resumed.paused_at, resumed.resumed_at) == (None, unchecked)
+    assert due(resumed) == unchecked + DAY
+
+
+def test_第一封的時間還沒到就取消勾選_照原本的時間寄() -> None:
+    unchecked = START + 2 * 60 * 60 * timedelta(seconds=1)
+    state = ReminderState(
+        started_at=START, sent_count=0, last_sent_at=None, paused_at=START
+    )
+
+    resumed = track_pause(state, [Todo("住宿收據", updated_at=unchecked)], unchecked)
+
+    assert due(resumed) == START + DAY
+
+
+def test_寄過一封後_過了第二封的時間才取消勾選_第二封從取消勾選起算_3_天() -> None:
+    first = START + DAY
+    unchecked = first + 5 * DAY
+    state = ReminderState(
+        started_at=START,
+        sent_count=1,
+        last_sent_at=first,
+        resumed_at=unchecked,
+    )
+
+    assert due(state) == unchecked + 3 * DAY
+
+
+def test_沒在暫停時缺文件_不記恢復時間() -> None:
+    state = ReminderState(started_at=START, sent_count=0, last_sent_at=None)
+
+    assert track_pause(state, [Todo("住宿收據")], START + DAY) == state
+
+
+def test_新的一輪清掉暫停與恢復時間() -> None:
+    state = ReminderState(
+        started_at=START,
+        sent_count=1,
+        last_sent_at=START + DAY,
+        resumed_at=START + 5 * DAY,
+    )
+    later = START + 6 * DAY
+
+    restarted = sync_round(state, [Todo("行李延誤證明", created_at=later)])
+
+    assert (restarted.started_at, restarted.resumed_at) == (later, None)

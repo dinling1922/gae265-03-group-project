@@ -78,6 +78,17 @@ class Policy(BaseTable, table=True):
     last_reminded_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    reminder_paused_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description="掃描看到這一輪需上傳的文件都齊全的時間；又缺文件時清掉（ADR-0031）",
+    )
+    reminder_resumed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description="文件齊全後又缺文件（取消勾選、刪掉文件）的時間；"
+        "下一封已經過了預計時間就從這裡重新起算；新的一輪清掉（ADR-0031）",
+    )
     closed_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),

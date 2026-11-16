@@ -29,16 +29,26 @@ def sample(**overrides: object) -> LetterInput:
     return LetterInput(**values)  # pyright: ignore[reportArgumentType]
 
 
-def test_主旨寫出行程名稱與還缺幾份() -> None:
+def test_主旨寫出行程名稱_不寫份數_同一輪的主旨才會相同() -> None:
     letter = build_letter(sample())
-    assert letter.subject == "【好險有你】日本 2026/07/05～07/10 還缺 2 份理賠文件"
+    assert letter.subject == "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+
+
+def test_重新提醒時主旨寫出原因() -> None:
+    letter = build_letter(
+        sample(restart="11/21 新增事故「行李延誤 · 2026/11/21」重新提醒")
+    )
+    assert letter.subject == (
+        "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+        "（11/21 新增事故「行李延誤 · 2026/11/21」重新提醒）"
+    )
 
 
 def test_純文字內文照規格的範本() -> None:
     assert build_letter(sample()).text == (
         "王小明你好，\n"
         "\n"
-        "你的行程「日本 2026/07/05～07/10」還有以下理賠文件尚未上傳：\n"
+        "你的行程「日本 2026/07/05～07/10」還有 2 份理賠文件尚未上傳：\n"
         "\n"
         "班機取消 · 2026/07/10\n"
         "・航空公司開立的班機取消證明\n"

@@ -2751,6 +2751,76 @@ export type RecommendationOut = {
 };
 
 /**
+ * ReminderLetterOut
+ */
+export type ReminderLetterOut = {
+    /**
+     * Planned At
+     *
+     * 依規則預計寄出的時間
+     */
+    planned_at: string;
+    /**
+     * Sent At
+     *
+     * 實際寄出時間（和信件的 Date 標頭相同）；還沒寄或不再寄是 null
+     */
+    sent_at: string | null;
+};
+
+/**
+ * ReminderRoundOut
+ *
+ * 提醒信的一輪（ADR-0031）：起點、因為哪個事故開始、3 封的預計與實際寄出時間。
+ */
+export type ReminderRoundOut = {
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Ended At
+     *
+     * 這一輪結束的時間；還沒寄的信從此不再寄。還在進行是 null
+     */
+    ended_at: string | null;
+    /**
+     * End Reason
+     *
+     * new_round 有新的一輪；completed 需上傳的文件都齊全（含自行勾選）；closed 行程結案。還在進行是 null
+     */
+    end_reason: 'new_round' | 'completed' | 'closed' | null;
+    /**
+     * 第一輪、或只因為共同文件開始的一輪是 null
+     */
+    trigger: ReminderTriggerOut | null;
+    /**
+     * Letters
+     *
+     * 固定 3 封
+     */
+    letters: Array<ReminderLetterOut>;
+};
+
+/**
+ * ReminderTriggerOut
+ */
+export type ReminderTriggerOut = {
+    /**
+     * Incident
+     *
+     * 事故在信裡的名稱「事故類型 · 發生日」
+     */
+    incident: string;
+    /**
+     * Kind
+     *
+     * new_incident 新增了這個事故；new_situation 原本的事故有新狀況（例如補問後多了要上傳的文件）
+     */
+    kind: 'new_incident' | 'new_situation';
+};
+
+/**
  * RestoreIn
  */
 export type RestoreIn = {
@@ -3932,6 +4002,12 @@ export type TripOut = {
      */
     can_close: boolean;
     submission: SubmissionStatusOut;
+    /**
+     * Reminder Rounds
+     *
+     * 提醒信的每一輪（含一封都還沒寄就被取代的），舊的在前（ADR-0031）；兩次掃描之間就被取代的輪次和下一輪合成一輪。只寄給 Google 驗證過的信箱，前端只對 Google 登入的使用者顯示
+     */
+    reminder_rounds: Array<ReminderRoundOut>;
 };
 
 /**

@@ -55,6 +55,7 @@ def sample_mail(to: str) -> OutgoingMail:
         to=to,
         letter=letter,
         message_id=message_id(uuid.uuid4(), utc_now(), 1, settings.MAIL_FROM),
+        sent_at=utc_now(),
     )
 
 
@@ -76,7 +77,9 @@ def test_透過_SMTP_寄到_Mailpit_主旨_寄件者與_Message_ID_都正確(
     ).json()["messages"]
     assert len(found) == 1
     detail = httpx.get(f"{MAILPIT_API}/message/{found[0]['ID']}").json()
-    assert detail["Subject"] == "【好險有你】日本 2026/07/05～07/10 還缺 2 份理賠文件"
+    assert (
+        detail["Subject"] == "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+    )
     assert detail["From"] == {"Name": "好險有你", "Address": "no-reply@example.com"}
     assert [t["Address"] for t in detail["To"]] == ["traveler@example.com"]
     assert f"<{detail['MessageID']}>" == mail.message_id

@@ -2,8 +2,10 @@
 
 import smtplib
 from dataclasses import dataclass
+from datetime import datetime
 from email.headerregistry import Address
 from email.message import EmailMessage
+from email.utils import format_datetime
 from typing import Protocol
 
 from app.core.config import settings
@@ -15,6 +17,10 @@ class OutgoingMail:
     to: str
     letter: Letter
     message_id: str
+    # 寄出時間：寫進 Date 標頭，和行程頁顯示的寄出時間相同（收件匣顯示的就是這個時間）
+    sent_at: datetime
+    # 同一輪前一封的 Message-ID；第 1 封是 None
+    in_reply_to: str | None = None
 
 
 class Mailer(Protocol):
@@ -31,6 +37,10 @@ def to_message(mail: OutgoingMail) -> EmailMessage:
     message["From"] = Address(settings.MAIL_FROM_NAME, username, domain)
     message["To"] = mail.to
     message["Message-ID"] = mail.message_id
+    message["Date"] = format_datetime(mail.sent_at)
+    if mail.in_reply_to:
+        message["In-Reply-To"] = mail.in_reply_to
+        message["References"] = mail.in_reply_to
     message.set_content(mail.letter.text)
     message.add_alternative(mail.letter.html, subtype="html")
     return message

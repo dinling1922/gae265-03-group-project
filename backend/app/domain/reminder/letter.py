@@ -21,6 +21,8 @@ class LetterInput:
     groups: list[MissingGroup]
     company: str
     upload_url: str
+    # 重新提醒的原因，例如「11/21 新增事故「行李延誤 · 2026/11/21」重新提醒」；第一輪是 None
+    restart: str | None = None
 
 
 @dataclass(frozen=True)
@@ -48,15 +50,18 @@ def message_id(
 
 
 def build_letter(data: LetterInput) -> Letter:
+    """主旨不放份數：同一輪的主旨相同，收件匣才會收成同一串；份數放在內文。"""
     count = sum(len(g.documents) for g in data.groups)
-    subject = f"【好險有你】{data.trip_name} 還缺 {count} 份理賠文件"
+    subject = f"【好險有你】{data.trip_name} 還有理賠文件尚未上傳"
+    if data.restart:
+        subject += f"（{data.restart}）"
     groups = "\n\n".join(
         "\n".join([g.label, *(f"・{d}" for d in g.documents)]) for g in data.groups
     )
     text = (
         f"{data.user_name or ''}你好，\n"
         "\n"
-        f"你的行程「{data.trip_name}」還有以下理賠文件尚未上傳：\n"
+        f"你的行程「{data.trip_name}」還有 {count} 份理賠文件尚未上傳：\n"
         "\n"
         f"{groups}\n"
         "\n"
@@ -79,10 +84,11 @@ def _html(data: LetterInput) -> str:
         for g in data.groups
     )
     url = escape(data.upload_url, quote=True)
+    count = sum(len(g.documents) for g in data.groups)
     return (
         '<div style="font-family:sans-serif;line-height:1.6">'
         f"<p>{escape(data.user_name or '')}你好，</p>"
-        f"<p>你的行程「{escape(data.trip_name)}」還有以下理賠文件尚未上傳：</p>"
+        f"<p>你的行程「{escape(data.trip_name)}」還有 {count} 份理賠文件尚未上傳：</p>"
         f"{groups}"
         f"<p>上傳完成後，我們可以協助你把文件寄給{escape(data.company)}，"
         "或者你自己處理就好將文件儲存至Gmail草稿。<br>"

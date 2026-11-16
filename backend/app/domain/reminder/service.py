@@ -1,9 +1,7 @@
 """掃描到期的保單並寄提醒信（ADR-0031）。規則在 `rules.py`，信件內容在 `letter.py`。"""
 
-import re
 import uuid
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from sqlmodel import col, select
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -18,27 +16,24 @@ from app.domain.reminder.letter import (
     trip_name,
 )
 from app.domain.reminder.mailer import Mailer, OutgoingMail
+from app.domain.reminder.rounds import (
+    incident_labels,
+    previous_round_last_sent,
+    round_trigger,
+    sent_letters,
+    taipei_day,
+    trigger_text,
+)
 from app.domain.reminder.rules import (
     ReminderState,
     missing_uploads,
     next_reminder_at,
     sync_round,
+    track_pause,
 )
 from app.domain.reminder.store import policy_todos
-from app.models import (
-    Identity,
-    Incident,
-    IncidentFact,
-    IncidentTodo,
-    IncidentType,
-    Policy,
-    User,
-)
+from app.models import Identity, IncidentTodo, Policy, ReminderLetter, User
 
-TAIPEI = ZoneInfo("Asia/Taipei")
-# 還沒判斷出事故類型時的名稱；和理賠頁一致（UploadBox、TodoList）
-UNTYPED_INCIDENT_LABEL = "這次事故"
-_FACT_DATE = re.compile(r"^\d{4}[/-]\d{1,2}[/-]\d{1,2}$")
 # 整個行程共用的文件（共同文件，ADR-0029）在信裡這一組的標題；和行程頁一致
 TRIP_GROUP_LABEL = "共同文件"
 
@@ -49,12 +44,16 @@ def _state(policy: Policy) -> ReminderState:
         sent_count=policy.reminder_count,
         last_sent_at=policy.last_reminded_at,
         closed=policy.closed_at is not None,
+        paused_at=policy.reminder_paused_at,
+        resumed_at=policy.reminder_resumed_at,
     )
 
 
 def _apply(policy: Policy, state: ReminderState) -> None:
     policy.reminder_started_at = state.started_at
     policy.reminder_count = state.sent_count
+    policy.reminder_paused_at = state.paused_at
+    policy.reminder_resumed_at = state.resumed_at
 
 
 def _next_at(state: ReminderState) -> datetime | None:
@@ -77,59 +76,31 @@ async def _verified_email(session: AsyncSession, user: User) -> str | None:
     return user.email if verified else None
 
 
-def _incident_date(incident: Incident, fact_date: str | None) -> str | None:
-    """發生日：先用 occurred_at，沒有就用整理出的事故日期（和理賠頁的 `dateOf` 一致）。"""
-    if incident.occurred_at is not None:
-        return f"{incident.occurred_at.astimezone(TAIPEI):%Y/%m/%d}"
-    if fact_date and _FACT_DATE.match(fact_date):
-        return fact_date.replace("-", "/")
-    return None
-
-
 async def _letter_input(
-    session: AsyncSession, policy: Policy, user: User, missing: list[IncidentTodo]
+    session: AsyncSession,
+    policy: Policy,
+    user: User,
+    todos: list[IncidentTodo],
+    started_at: datetime,
 ) -> LetterInput:
-    rows = (
-        await session.exec(
-            select(Incident, IncidentType.name)
-            .join(
-                IncidentType,
-                col(Incident.incident_type_id) == col(IncidentType.id),
-                isouter=True,
-            )
-            .where(Incident.policy_id == policy.id)
-            .order_by(col(Incident.created_at))
-        )
-    ).all()
-    incidents = [incident for incident, _ in rows]
-    type_names = {incident.id: name for incident, name in rows}
-    fact_dates = {
-        f.incident_id: f.value
-        for f in (
-            await session.exec(
-                select(IncidentFact).where(
-                    col(IncidentFact.incident_id).in_([i.id for i in incidents]),
-                    IncidentFact.fact_key == "date",
-                )
-            )
-        ).all()
-    }
+    """信件內容；`todos` 是這張保單目前的待辦（`policy_todos`），`started_at` 是這一輪的起點。"""
+    missing = missing_uploads(todos)
+    labelled = await incident_labels(session, policy.id)
+    incidents = [incident for incident, _ in labelled]
+    labels = {incident.id: label for incident, label in labelled}
     groups: list[MissingGroup] = []
     first_incident: uuid.UUID | None = None
     for incident in incidents:
-        todos = sorted(
+        items = sorted(
             (t for t in missing if t.incident_id == incident.id),
             key=lambda t: t.sort_order,
         )
-        if not todos:
+        if not items:
             continue
         first_incident = first_incident or incident.id
-        # 和理賠頁一樣用事故類型名稱；title 沒帶時是使用者描述的前 50 字，不放進信裡
-        label = type_names[incident.id] or UNTYPED_INCIDENT_LABEL
-        day = _incident_date(incident, fact_dates.get(incident.id))
-        if day:
-            label += f" · {day}"
-        groups.append(MissingGroup(label=label, documents=[t.title for t in todos]))
+        groups.append(
+            MissingGroup(label=labels[incident.id], documents=[t.title for t in items])
+        )
     trip_todos = [t for t in missing if t.incident_id is None]
     if trip_todos:
         groups.append(
@@ -141,6 +112,12 @@ async def _letter_input(
     target = first_incident or (incidents[-1].id if incidents else None)
     base = (settings.PUBLIC_BASE_URL or "http://localhost:5173").rstrip("/")
     plan = get_plan(policy.plan_id)
+    # 這一輪之前還有一輪（一定寄過信），就是重新提醒：主旨寫出因為哪個事故（和行程頁的說法一致）
+    since = previous_round_last_sent(await sent_letters(session, policy.id), started_at)
+    restart = None
+    if since is not None:
+        trigger = round_trigger(todos, labelled, started_at, since)
+        restart = f"{taipei_day(started_at)} {trigger_text(trigger)}重新提醒"
     return LetterInput(
         user_name=user.name,
         trip_name=trip_name(policy.destination, policy.start_date, policy.end_date),
@@ -148,6 +125,7 @@ async def _letter_input(
         company=(plan.company if plan and plan.company else "保險公司"),
         upload_url=f"{base}/trip/{policy.id}"
         + (f"?incident={target}" if target else ""),
+        restart=restart,
     )
 
 
@@ -166,7 +144,7 @@ async def send_reminder(
     if policy is None:
         return False
     todos = await policy_todos(session, policy.id)
-    state = sync_round(_state(policy), todos)
+    state = track_pause(sync_round(_state(policy), todos), todos, now)
     _apply(policy, state)
     missing = missing_uploads(todos)
     at = _next_at(state)
@@ -177,7 +155,9 @@ async def send_reminder(
         return False
 
     assert state.started_at is not None
-    letter = build_letter(await _letter_input(session, policy, user, missing))
+    letter = build_letter(
+        await _letter_input(session, policy, user, todos, state.started_at)
+    )
     number = state.sent_count + 1
     mailer.send(
         OutgoingMail(
@@ -186,17 +166,34 @@ async def send_reminder(
             message_id=message_id(
                 policy.id, state.started_at, number, settings.MAIL_FROM
             ),
+            sent_at=now,
+            # 同一輪的第 2、3 封接在前一封後面，收件匣收成同一串
+            in_reply_to=message_id(
+                policy.id, state.started_at, number - 1, settings.MAIL_FROM
+            )
+            if number > 1
+            else None,
         )
     )
     policy.reminder_count = number
     policy.last_reminded_at = now
     session.add(policy)
+    session.add(
+        ReminderLetter(
+            policy_id=policy.id,
+            round_started_at=state.started_at,
+            number=number,
+            planned_at=at,
+            sent_at=now,
+        )
+    )
     await session.commit()
     return True
 
 
 async def due_policy_ids(session: AsyncSession, now: datetime) -> list[uuid.UUID]:
-    """未結案的保單中，這一輪下一封已到期、而且還缺文件的；順便更新每張保單這一輪的起點。
+    """未結案的保單中，這一輪下一封已到期、而且還缺文件的；順便更新每張保單這一輪的起點，
+    以及文件齊全（暫停）、又缺文件（恢復）的時間。
 
     這裡只挑出來，不鎖也不寄：寄信工作會鎖住保單再確認一次。
     """
@@ -215,7 +212,7 @@ async def due_policy_ids(session: AsyncSession, now: datetime) -> list[uuid.UUID
     due: list[uuid.UUID] = []
     for policy in policies:
         todos = await policy_todos(session, policy.id)
-        state = sync_round(_state(policy), todos)
+        state = track_pause(sync_round(_state(policy), todos), todos, now)
         if state != _state(policy):
             _apply(policy, state)
             session.add(policy)

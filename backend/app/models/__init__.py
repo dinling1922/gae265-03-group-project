@@ -30,6 +30,7 @@ from app.models.insurance import (
 )
 from app.models.plan_data import PlanBenefit, PlanPremium
 from app.models.policy import Policy, PolicyAddon
+from app.models.reminder import ReminderLetter
 from app.models.user import Identity, User
 
 __all__ = [
@@ -58,6 +59,7 @@ __all__ = [
     "Policy",
     "PolicyAddon",
     "PolicySubmission",
+    "ReminderLetter",
     "RuleEmbedding",
     "SQLModel",
     "TodoTemplate",

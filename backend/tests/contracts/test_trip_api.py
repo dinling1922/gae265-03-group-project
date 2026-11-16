@@ -447,3 +447,16 @@ async def test_共同待辦的範本條件不成立就不建立_成立後補建�
     }
     assert shared["D02"]["is_new"] is True and shared["D02"]["applicable"] is True
     assert shared["D10"]["is_new"] is False
+
+
+async def test_行程頁有提醒信的寄送進度_還沒寄時是目前這一輪的預計時間(
+    client: AsyncClient, policy: Policy
+) -> None:
+    await new_incident(client, policy)
+
+    body = await trip(client, policy)
+
+    [current] = body["reminder_rounds"]
+    assert current["ended_at"] is None and current["trigger"] is None
+    assert current["end_reason"] is None
+    assert [letter["sent_at"] for letter in current["letters"]] == [None, None, None]
