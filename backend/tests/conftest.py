@@ -4,6 +4,8 @@ import os
 os.environ["ENVIRONMENT"] = "test"
 # 測試一律用 fake model：環境變數優先於 .env，所以 .env 設了雲端供應商也不影響
 os.environ["LLM_PROVIDER"] = "fake"
+# 測試不送 trace 到 LangSmith：.env 打開 tracing 也不影響
+os.environ["LANGSMITH_TRACING"] = "false"
 
 from collections.abc import AsyncGenerator  # noqa: E402
 
