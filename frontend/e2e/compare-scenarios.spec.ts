@@ -17,7 +17,6 @@ async function fillTrip(page: Page) {
   await page.getByLabel("目的地").selectOption("日本");
   await page.getByLabel("出發日").fill(day(7));
   await page.getByLabel("回程日").fill(day(12));
-  await page.getByLabel("年齡").fill("30");
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page).toHaveURL(/\/compare\/[0-9a-f-]{36}\/concerns$/);
 }

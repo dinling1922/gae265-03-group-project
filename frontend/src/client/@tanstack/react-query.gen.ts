@@ -3,8 +3,8 @@
 import { type DefaultError, type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { applyPackageAction, approveIngestJob, askComparisonQuestion, authConfig, authLogout, authMe, checkBundle, closeTrip, confirmBundle, confirmIncident, confirmIncidentDocument, confirmTripDocument, createBundle, createComparison, createIncident, createIngestJob, createPlanConversation, createPolicy, createPolicyConversation, createPolicyManual, createSamplePolicy, deleteAdminInsurance, deleteAdminRule, deleteExcluded, deleteIncidentDocument, deleteMyData, deletePendingArticle, deletePolicy, deleteTripDocument, devLogin, discardPendingIncidentDocuments, discardPendingTripDocuments, editAdminRule, editPendingArticle, getBundle, getComparison, getComparisonScenarios, getConversationMessages, getDocumentDriveChoice, getDocumentSample, getIncident, getIncidentDriveFolder, getIncidentPackage, getIncidentSubmission, getIngestJob, getInsuranceRule, getPlanPremiumOptions, getPolicy, getTrip, getTripDriveFolder, getTripPackage, getTripSubmission, googleAuthorize, googleCallback, googleGrantStatus, googleLogin, googleRevoke, health, ingestBundle, listAdminRules, listAllRules, listBundles, listClaimPackageSamples, listComparisons, listConversations, listDocumentSamples, listExcluded, listIncidents, listIngestJobs, listInsuranceRules, listInsurances, listPlanBenefits, listPlanPremiums, listPlans, listPlanSumInsuredOptions, listPolicies, listRecentComparisons, listTrips, type Options, patchIncidentTodo, patchTripTodo, prepareTripPackage, quotePlans, recheckIncidentDocument, recheckTripDocument, rejectIncidentDocument, rejectTripDocument, releasePendingArticle, restoreExcluded, searchInsuranceRules, sendConversationMessage, sendIncidentMessage, streamIngestEvents, submitIncident, submitTrip, updateBundle, updateComparison, updatePolicy, uploadIncidentDocument, uploadTripDocument, walkDocumentRecognition } from '../sdk.gen';
-import type { ApplyPackageActionData, ApplyPackageActionError, ApplyPackageActionResponse, ApproveIngestJobData, ApproveIngestJobError, ApproveIngestJobResponse, AskComparisonQuestionData, AskComparisonQuestionError, AskComparisonQuestionResponse, AuthConfigData, AuthConfigResponse, AuthLogoutData, AuthLogoutResponse, AuthMeData, AuthMeResponse, CheckBundleData, CheckBundleError, CheckBundleResponse, CloseTripData, CloseTripError, CloseTripResponse, ConfirmBundleData, ConfirmBundleError, ConfirmBundleResponse, ConfirmIncidentData, ConfirmIncidentDocumentData, ConfirmIncidentDocumentError, ConfirmIncidentDocumentResponse, ConfirmIncidentError, ConfirmIncidentResponse, ConfirmTripDocumentData, ConfirmTripDocumentError, ConfirmTripDocumentResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateComparisonData, CreateComparisonError, CreateComparisonResponse, CreateIncidentData, CreateIncidentError, CreateIncidentResponse, CreateIngestJobData, CreateIngestJobError, CreateIngestJobResponse, CreatePlanConversationData, CreatePlanConversationError, CreatePlanConversationResponse, CreatePolicyConversationData, CreatePolicyConversationError, CreatePolicyConversationResponse, CreatePolicyData, CreatePolicyError, CreatePolicyManualData, CreatePolicyManualError, CreatePolicyManualResponse, CreatePolicyResponse, CreateSamplePolicyData, CreateSamplePolicyResponse, DeleteAdminInsuranceData, DeleteAdminInsuranceError, DeleteAdminInsuranceResponse, DeleteAdminRuleData, DeleteAdminRuleError, DeleteAdminRuleResponse, DeleteExcludedData, DeleteExcludedError, DeleteExcludedResponse, DeleteIncidentDocumentData, DeleteIncidentDocumentError, DeleteIncidentDocumentResponse, DeleteMyDataData, DeleteMyDataResponse, DeletePendingArticleData, DeletePendingArticleError, DeletePendingArticleResponse, DeletePolicyData, DeletePolicyError, DeletePolicyResponse, DeleteTripDocumentData, DeleteTripDocumentError, DeleteTripDocumentResponse, DevLoginData, DevLoginError, DevLoginResponse, DiscardPendingIncidentDocumentsData, DiscardPendingIncidentDocumentsError, DiscardPendingIncidentDocumentsResponse, DiscardPendingTripDocumentsData, DiscardPendingTripDocumentsError, DiscardPendingTripDocumentsResponse, EditAdminRuleData, EditAdminRuleError, EditAdminRuleResponse, EditPendingArticleData, EditPendingArticleError, EditPendingArticleResponse, GetBundleData, GetBundleError, GetBundleResponse, GetComparisonData, GetComparisonError, GetComparisonResponse, GetComparisonScenariosData, GetComparisonScenariosError, GetComparisonScenariosResponse, GetConversationMessagesData, GetConversationMessagesError, GetConversationMessagesResponse, GetDocumentDriveChoiceData, GetDocumentDriveChoiceResponse, GetDocumentSampleData, GetDocumentSampleError, GetDocumentSampleResponse, GetIncidentData, GetIncidentDriveFolderData, GetIncidentDriveFolderError, GetIncidentDriveFolderResponse, GetIncidentError, GetIncidentPackageData, GetIncidentPackageError, GetIncidentPackageResponse, GetIncidentResponse, GetIncidentSubmissionData, GetIncidentSubmissionError, GetIncidentSubmissionResponse, GetIngestJobData, GetIngestJobError, GetIngestJobResponse, GetInsuranceRuleData, GetInsuranceRuleError, GetInsuranceRuleResponse, GetPlanPremiumOptionsData, GetPlanPremiumOptionsResponse, GetPolicyData, GetPolicyError, GetPolicyResponse, GetTripData, GetTripDriveFolderData, GetTripDriveFolderError, GetTripDriveFolderResponse, GetTripError, GetTripPackageData, GetTripPackageError, GetTripPackageResponse, GetTripResponse, GetTripSubmissionData, GetTripSubmissionError, GetTripSubmissionResponse, GoogleAuthorizeData, GoogleAuthorizeError, GoogleCallbackData, GoogleCallbackError, GoogleGrantStatusData, GoogleGrantStatusResponse, GoogleLoginData, GoogleLoginError, GoogleRevokeData, GoogleRevokeResponse, HealthData, HealthResponse, IngestBundleData, IngestBundleError, IngestBundleResponse, ListAdminRulesData, ListAdminRulesError, ListAdminRulesResponse, ListAllRulesData, ListAllRulesError, ListAllRulesResponse, ListBundlesData, ListBundlesResponse, ListClaimPackageSamplesData, ListClaimPackageSamplesResponse, ListComparisonsData, ListComparisonsError, ListComparisonsResponse, ListConversationsData, ListConversationsResponse, ListDocumentSamplesData, ListDocumentSamplesResponse, ListExcludedData, ListExcludedError, ListExcludedResponse, ListIncidentsData, ListIncidentsError, ListIncidentsResponse, ListIngestJobsData, ListIngestJobsResponse, ListInsuranceRulesData, ListInsuranceRulesError, ListInsuranceRulesResponse, ListInsurancesData, ListInsurancesResponse, ListPlanBenefitsData, ListPlanBenefitsError, ListPlanBenefitsResponse, ListPlanPremiumsData, ListPlanPremiumsError, ListPlanPremiumsResponse, ListPlansData, ListPlansResponse, ListPlanSumInsuredOptionsData, ListPlanSumInsuredOptionsError, ListPlanSumInsuredOptionsResponse, ListPoliciesData, ListPoliciesResponse, ListRecentComparisonsData, ListRecentComparisonsError, ListRecentComparisonsResponse, ListTripsData, ListTripsError, ListTripsResponse, PatchIncidentTodoData, PatchIncidentTodoError, PatchIncidentTodoResponse, PatchTripTodoData, PatchTripTodoError, PatchTripTodoResponse, PrepareTripPackageData, PrepareTripPackageError, PrepareTripPackageResponse, QuotePlansData, QuotePlansError, QuotePlansResponse, RecheckIncidentDocumentData, RecheckIncidentDocumentError, RecheckIncidentDocumentResponse, RecheckTripDocumentData, RecheckTripDocumentError, RecheckTripDocumentResponse, RejectIncidentDocumentData, RejectIncidentDocumentError, RejectIncidentDocumentResponse, RejectTripDocumentData, RejectTripDocumentError, RejectTripDocumentResponse, ReleasePendingArticleData, ReleasePendingArticleError, ReleasePendingArticleResponse, RestoreExcludedData, RestoreExcludedError, RestoreExcludedResponse, SearchInsuranceRulesData, SearchInsuranceRulesError, SearchInsuranceRulesResponse, SendConversationMessageData, SendConversationMessageError, SendConversationMessageResponse, SendIncidentMessageData, SendIncidentMessageError, SendIncidentMessageResponse, StreamIngestEventsData, StreamIngestEventsError, SubmitIncidentData, SubmitIncidentError, SubmitIncidentResponse, SubmitTripData, SubmitTripError, SubmitTripResponse, UpdateBundleData, UpdateBundleError, UpdateBundleResponse, UpdateComparisonData, UpdateComparisonError, UpdateComparisonResponse, UpdatePolicyData, UpdatePolicyError, UpdatePolicyResponse, UploadIncidentDocumentData, UploadIncidentDocumentError, UploadIncidentDocumentResponse, UploadTripDocumentData, UploadTripDocumentError, UploadTripDocumentResponse, WalkDocumentRecognitionData, WalkDocumentRecognitionError, WalkDocumentRecognitionResponse } from '../types.gen';
+import { applyPackageAction, approveIngestJob, askComparisonQuestion, authConfig, authLogout, authMe, checkBundle, clearItineraryActivities, closeTrip, confirmBundle, confirmIncident, confirmIncidentDocument, confirmTripDocument, createBundle, createComparison, createIncident, createIngestJob, createItineraryActivities, createPlanConversation, createPolicy, createPolicyConversation, createPolicyManual, createSamplePolicy, deleteAdminInsurance, deleteAdminRule, deleteExcluded, deleteIncidentDocument, deleteItineraryActivity, deleteMyData, deletePendingArticle, deletePolicy, deleteTripDocument, devLogin, discardPendingIncidentDocuments, discardPendingTripDocuments, editAdminRule, editPendingArticle, getBundle, getComparison, getComparisonScenarios, getConversationMessages, getDocumentDriveChoice, getDocumentSample, getIncident, getIncidentDriveFolder, getIncidentPackage, getIncidentSubmission, getIngestJob, getInsuranceRule, getPlanPremiumOptions, getPolicy, getTrip, getTripDriveFolder, getTripPackage, getTripSubmission, googleAuthorize, googleCallback, googleGrantStatus, googleLogin, googleRevoke, health, ingestBundle, listAdminRules, listAllRules, listBundles, listClaimPackageSamples, listComparisons, listConversations, listDocumentSamples, listExcluded, listIncidents, listIngestJobs, listInsuranceRules, listInsurances, listItineraryActivities, listPlanBenefits, listPlanPremiums, listPlans, listPlanSumInsuredOptions, listPolicies, listRecentComparisons, listTrips, type Options, patchIncidentTodo, patchTripTodo, prepareTripPackage, quotePlans, recheckIncidentDocument, recheckTripDocument, rejectIncidentDocument, rejectTripDocument, releasePendingArticle, restoreExcluded, searchInsuranceRules, sendConversationMessage, sendIncidentMessage, streamIngestEvents, submitIncident, submitTrip, updateBundle, updateComparison, updateItineraryActivity, updatePolicy, uploadIncidentDocument, uploadTripDocument, walkDocumentRecognition } from '../sdk.gen';
+import type { ApplyPackageActionData, ApplyPackageActionError, ApplyPackageActionResponse, ApproveIngestJobData, ApproveIngestJobError, ApproveIngestJobResponse, AskComparisonQuestionData, AskComparisonQuestionError, AskComparisonQuestionResponse, AuthConfigData, AuthConfigResponse, AuthLogoutData, AuthLogoutResponse, AuthMeData, AuthMeResponse, CheckBundleData, CheckBundleError, CheckBundleResponse, ClearItineraryActivitiesData, ClearItineraryActivitiesError, ClearItineraryActivitiesResponse, CloseTripData, CloseTripError, CloseTripResponse, ConfirmBundleData, ConfirmBundleError, ConfirmBundleResponse, ConfirmIncidentData, ConfirmIncidentDocumentData, ConfirmIncidentDocumentError, ConfirmIncidentDocumentResponse, ConfirmIncidentError, ConfirmIncidentResponse, ConfirmTripDocumentData, ConfirmTripDocumentError, ConfirmTripDocumentResponse, CreateBundleData, CreateBundleError, CreateBundleResponse, CreateComparisonData, CreateComparisonError, CreateComparisonResponse, CreateIncidentData, CreateIncidentError, CreateIncidentResponse, CreateIngestJobData, CreateIngestJobError, CreateIngestJobResponse, CreateItineraryActivitiesData, CreateItineraryActivitiesError, CreateItineraryActivitiesResponse, CreatePlanConversationData, CreatePlanConversationError, CreatePlanConversationResponse, CreatePolicyConversationData, CreatePolicyConversationError, CreatePolicyConversationResponse, CreatePolicyData, CreatePolicyError, CreatePolicyManualData, CreatePolicyManualError, CreatePolicyManualResponse, CreatePolicyResponse, CreateSamplePolicyData, CreateSamplePolicyResponse, DeleteAdminInsuranceData, DeleteAdminInsuranceError, DeleteAdminInsuranceResponse, DeleteAdminRuleData, DeleteAdminRuleError, DeleteAdminRuleResponse, DeleteExcludedData, DeleteExcludedError, DeleteExcludedResponse, DeleteIncidentDocumentData, DeleteIncidentDocumentError, DeleteIncidentDocumentResponse, DeleteItineraryActivityData, DeleteItineraryActivityError, DeleteItineraryActivityResponse, DeleteMyDataData, DeleteMyDataResponse, DeletePendingArticleData, DeletePendingArticleError, DeletePendingArticleResponse, DeletePolicyData, DeletePolicyError, DeletePolicyResponse, DeleteTripDocumentData, DeleteTripDocumentError, DeleteTripDocumentResponse, DevLoginData, DevLoginError, DevLoginResponse, DiscardPendingIncidentDocumentsData, DiscardPendingIncidentDocumentsError, DiscardPendingIncidentDocumentsResponse, DiscardPendingTripDocumentsData, DiscardPendingTripDocumentsError, DiscardPendingTripDocumentsResponse, EditAdminRuleData, EditAdminRuleError, EditAdminRuleResponse, EditPendingArticleData, EditPendingArticleError, EditPendingArticleResponse, GetBundleData, GetBundleError, GetBundleResponse, GetComparisonData, GetComparisonError, GetComparisonResponse, GetComparisonScenariosData, GetComparisonScenariosError, GetComparisonScenariosResponse, GetConversationMessagesData, GetConversationMessagesError, GetConversationMessagesResponse, GetDocumentDriveChoiceData, GetDocumentDriveChoiceResponse, GetDocumentSampleData, GetDocumentSampleError, GetDocumentSampleResponse, GetIncidentData, GetIncidentDriveFolderData, GetIncidentDriveFolderError, GetIncidentDriveFolderResponse, GetIncidentError, GetIncidentPackageData, GetIncidentPackageError, GetIncidentPackageResponse, GetIncidentResponse, GetIncidentSubmissionData, GetIncidentSubmissionError, GetIncidentSubmissionResponse, GetIngestJobData, GetIngestJobError, GetIngestJobResponse, GetInsuranceRuleData, GetInsuranceRuleError, GetInsuranceRuleResponse, GetPlanPremiumOptionsData, GetPlanPremiumOptionsResponse, GetPolicyData, GetPolicyError, GetPolicyResponse, GetTripData, GetTripDriveFolderData, GetTripDriveFolderError, GetTripDriveFolderResponse, GetTripError, GetTripPackageData, GetTripPackageError, GetTripPackageResponse, GetTripResponse, GetTripSubmissionData, GetTripSubmissionError, GetTripSubmissionResponse, GoogleAuthorizeData, GoogleAuthorizeError, GoogleCallbackData, GoogleCallbackError, GoogleGrantStatusData, GoogleGrantStatusResponse, GoogleLoginData, GoogleLoginError, GoogleRevokeData, GoogleRevokeResponse, HealthData, HealthResponse, IngestBundleData, IngestBundleError, IngestBundleResponse, ListAdminRulesData, ListAdminRulesError, ListAdminRulesResponse, ListAllRulesData, ListAllRulesError, ListAllRulesResponse, ListBundlesData, ListBundlesResponse, ListClaimPackageSamplesData, ListClaimPackageSamplesResponse, ListComparisonsData, ListComparisonsError, ListComparisonsResponse, ListConversationsData, ListConversationsResponse, ListDocumentSamplesData, ListDocumentSamplesResponse, ListExcludedData, ListExcludedError, ListExcludedResponse, ListIncidentsData, ListIncidentsError, ListIncidentsResponse, ListIngestJobsData, ListIngestJobsResponse, ListInsuranceRulesData, ListInsuranceRulesError, ListInsuranceRulesResponse, ListInsurancesData, ListInsurancesResponse, ListItineraryActivitiesData, ListItineraryActivitiesError, ListItineraryActivitiesResponse, ListPlanBenefitsData, ListPlanBenefitsError, ListPlanBenefitsResponse, ListPlanPremiumsData, ListPlanPremiumsError, ListPlanPremiumsResponse, ListPlansData, ListPlansResponse, ListPlanSumInsuredOptionsData, ListPlanSumInsuredOptionsError, ListPlanSumInsuredOptionsResponse, ListPoliciesData, ListPoliciesResponse, ListRecentComparisonsData, ListRecentComparisonsError, ListRecentComparisonsResponse, ListTripsData, ListTripsError, ListTripsResponse, PatchIncidentTodoData, PatchIncidentTodoError, PatchIncidentTodoResponse, PatchTripTodoData, PatchTripTodoError, PatchTripTodoResponse, PrepareTripPackageData, PrepareTripPackageError, PrepareTripPackageResponse, QuotePlansData, QuotePlansError, QuotePlansResponse, RecheckIncidentDocumentData, RecheckIncidentDocumentError, RecheckIncidentDocumentResponse, RecheckTripDocumentData, RecheckTripDocumentError, RecheckTripDocumentResponse, RejectIncidentDocumentData, RejectIncidentDocumentError, RejectIncidentDocumentResponse, RejectTripDocumentData, RejectTripDocumentError, RejectTripDocumentResponse, ReleasePendingArticleData, ReleasePendingArticleError, ReleasePendingArticleResponse, RestoreExcludedData, RestoreExcludedError, RestoreExcludedResponse, SearchInsuranceRulesData, SearchInsuranceRulesError, SearchInsuranceRulesResponse, SendConversationMessageData, SendConversationMessageError, SendConversationMessageResponse, SendIncidentMessageData, SendIncidentMessageError, SendIncidentMessageResponse, StreamIngestEventsData, StreamIngestEventsError, SubmitIncidentData, SubmitIncidentError, SubmitIncidentResponse, SubmitTripData, SubmitTripError, SubmitTripResponse, UpdateBundleData, UpdateBundleError, UpdateBundleResponse, UpdateComparisonData, UpdateComparisonError, UpdateComparisonResponse, UpdateItineraryActivityData, UpdateItineraryActivityError, UpdateItineraryActivityResponse, UpdatePolicyData, UpdatePolicyError, UpdatePolicyResponse, UploadIncidentDocumentData, UploadIncidentDocumentError, UploadIncidentDocumentResponse, UploadTripDocumentData, UploadTripDocumentError, UploadTripDocumentResponse, WalkDocumentRecognitionData, WalkDocumentRecognitionError, WalkDocumentRecognitionResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -656,11 +656,108 @@ export const getComparisonOptions = (options: Options<GetComparisonData>) => que
  * Update Comparison
  *
  * 換步驟時存檔，可只帶部分欄位；也用來改卡片的保額（只改該卡片，不重新推薦）。
+ *
+ * 日期縮短而範圍外有日程活動時，沒帶 `confirm_remove: true` 回 409 並列出會刪除的活動、
+ * 什麼都不改；帶了就在同一個 transaction 刪除，回應附刪除數量（ADR-0031）。
  */
 export const updateComparisonMutation = (options?: Partial<Options<UpdateComparisonData>>): UseMutationOptions<UpdateComparisonResponse, UpdateComparisonError, Options<UpdateComparisonData>> => {
     const mutationOptions: UseMutationOptions<UpdateComparisonResponse, UpdateComparisonError, Options<UpdateComparisonData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await updateComparison({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Clear Itinerary Activities
+ *
+ * 清除這趟旅行的所有日程活動（旅行規劃本身不動）；沒有活動也回 0。
+ */
+export const clearItineraryActivitiesMutation = (options?: Partial<Options<ClearItineraryActivitiesData>>): UseMutationOptions<ClearItineraryActivitiesResponse, ClearItineraryActivitiesError, Options<ClearItineraryActivitiesData>> => {
+    const mutationOptions: UseMutationOptions<ClearItineraryActivitiesResponse, ClearItineraryActivitiesError, Options<ClearItineraryActivitiesData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await clearItineraryActivities({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listItineraryActivitiesQueryKey = (options: Options<ListItineraryActivitiesData>) => createQueryKey('listItineraryActivities', options);
+
+/**
+ * List Itinerary Activities
+ *
+ * 這趟旅行的所有日程活動，依日期、時段排序。
+ */
+export const listItineraryActivitiesOptions = (options: Options<ListItineraryActivitiesData>) => queryOptions<ListItineraryActivitiesResponse, ListItineraryActivitiesError, ListItineraryActivitiesResponse, ReturnType<typeof listItineraryActivitiesQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listItineraryActivities({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listItineraryActivitiesQueryKey(options)
+});
+
+/**
+ * Create Itinerary Activities
+ *
+ * 批次新增，最多 30 筆；時段被佔用（含同一批裡先出現的）或日期超出範圍的那筆失敗，其他照常存。
+ */
+export const createItineraryActivitiesMutation = (options?: Partial<Options<CreateItineraryActivitiesData>>): UseMutationOptions<CreateItineraryActivitiesResponse, CreateItineraryActivitiesError, Options<CreateItineraryActivitiesData>> => {
+    const mutationOptions: UseMutationOptions<CreateItineraryActivitiesResponse, CreateItineraryActivitiesError, Options<CreateItineraryActivitiesData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createItineraryActivities({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Delete Itinerary Activity
+ */
+export const deleteItineraryActivityMutation = (options?: Partial<Options<DeleteItineraryActivityData>>): UseMutationOptions<DeleteItineraryActivityResponse, DeleteItineraryActivityError, Options<DeleteItineraryActivityData>> => {
+    const mutationOptions: UseMutationOptions<DeleteItineraryActivityResponse, DeleteItineraryActivityError, Options<DeleteItineraryActivityData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteItineraryActivity({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Update Itinerary Activity
+ *
+ * 修改內容或移到其他日子與時段；可只帶部分欄位。
+ */
+export const updateItineraryActivityMutation = (options?: Partial<Options<UpdateItineraryActivityData>>): UseMutationOptions<UpdateItineraryActivityResponse, UpdateItineraryActivityError, Options<UpdateItineraryActivityData>> => {
+    const mutationOptions: UseMutationOptions<UpdateItineraryActivityResponse, UpdateItineraryActivityError, Options<UpdateItineraryActivityData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateItineraryActivity({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

@@ -106,18 +106,19 @@ async def test_concern_rename_migration_clears_recommendation(
     with Session(migrated_engine, expire_on_commit=False) as db:
         db.add(user)
         db.flush()
-        db.add(
-            Comparison(
-                user_id=user.id,
-                destination="日本",
-                depart_date=depart,
-                return_date=depart + timedelta(days=5),
-                age=30,
-                concerns=["生病或受傷就醫", "班機延誤", "行程取消或縮短"],
-                recommended_plan_code="chubb_advanced",
-                recommended_sum_insured=2_000_000,
-                alternative_plan_code="huanan_basic",
-                alternative_sum_insured=3_000_000,
+        # 舊版 schema 還有 age、沒有 city：用 SQL 直接寫，不經過現在的 model
+        db.connection().execute(
+            text(
+                "INSERT INTO comparison (id, user_id, destination, depart_date, return_date, age,"
+                " concerns, note, recommended_plan_code, recommended_sum_insured,"
+                " alternative_plan_code, alternative_sum_insured)"
+                " VALUES (gen_random_uuid(), :uid, '日本', :d, :r, 30, :c, '', 'chubb_advanced',"
+                " 2000000, 'huanan_basic', 3000000)"
+            ).bindparams(
+                uid=user.id,
+                d=depart,
+                r=depart + timedelta(days=5),
+                c=["生病或受傷就醫", "班機延誤", "行程取消或縮短"],
             )
         )
         db.commit()
