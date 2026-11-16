@@ -4,20 +4,22 @@ import type { ReactNode } from "react";
  * 標籤類（DESIGN.md 6.14）。狀態用「顏色點」，不用色塊：綠點＝可能適用／完成，
  * 珊瑚點＝不在範圍／需處理，黃點＝待確認。
  */
+// 字色不放這裡，由各色調決定（同一個元素上兩個字色 class 時，哪個生效看 CSS 順序，不看寫的順序）
 const pill =
-  "inline-flex items-center gap-1.5 rounded-chip border border-line bg-white px-3 py-0.5 t-caption-bold text-ink";
+  "inline-flex items-center gap-1.5 rounded-chip border border-line bg-white px-3 py-0.5 t-caption-bold";
 
 const dot = (color: string) => (
   <span aria-hidden="true" className={`size-2 flex-none rounded-full ${color}`} />
 );
 
-export type PillTone = "plain" | "need" | "sent" | "closed";
+export type PillTone = "plain" | "need" | "sent" | "closed" | "ended";
 
-/** Pill：預設白底框；need 前有珊瑚點、sent 前有綠點、closed 品牌色框與字。 */
+/** Pill：預設白底框；need 前有珊瑚點、sent 前有綠點、closed 品牌色框與字、ended 紅字（提醒信已結束的一輪）。 */
 export function Pill({ tone = "plain", children }: { tone?: PillTone; children: ReactNode }) {
-  const closed = tone === "closed" ? "border-brand text-brand" : "";
+  const color =
+    tone === "closed" ? "border-brand text-brand" : tone === "ended" ? "text-danger" : "text-ink";
   return (
-    <span className={`${pill} ${closed}`}>
+    <span className={`${pill} ${color}`}>
       {tone === "need" && dot("bg-coral")}
       {tone === "sent" && dot("bg-leaf")}
       {children}
