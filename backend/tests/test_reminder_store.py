@@ -143,3 +143,42 @@ async def test_不符保障的事故裡文件類的待辦不算_和行程頁反�
 
     titles = {t.title for t in await policy_todos(session, policy.id)}
     assert titles == {"不符保障的自訂待辦", "保障內的文件", "追問中的文件"}
+
+
+async def test_還沒確認的事故的待辦不算_和行程頁一樣等使用者按確認(
+    session: AsyncSession,
+) -> None:
+    policy = await make_policy(session, "a@example.com")
+    confirmed = Incident(policy_id=policy.id, title="延誤", description="延誤")
+    asking = Incident(
+        policy_id=policy.id,
+        title="追問中",
+        description="追問中",
+        confirmation="clarifying",
+    )
+    waiting = Incident(
+        policy_id=policy.id,
+        title="等確認",
+        description="等確認",
+        confirmation="awaiting",
+    )
+    session.add_all([confirmed, asking, waiting])
+    await session.flush()
+    session.add_all(
+        [
+            IncidentTodo(
+                incident_id=confirmed.id, phase="after_return", title="延誤證明"
+            ),
+            IncidentTodo(
+                incident_id=asking.id, phase="after_return", title="追問中的證明"
+            ),
+            IncidentTodo(
+                incident_id=waiting.id, phase="after_return", title="等確認的證明"
+            ),
+            IncidentTodo(policy_id=policy.id, phase="after_return", title="理賠申請書"),
+        ]
+    )
+    await session.commit()
+
+    titles = {t.title for t in await policy_todos(session, policy.id)}
+    assert titles == {"延誤證明", "理賠申請書"}
