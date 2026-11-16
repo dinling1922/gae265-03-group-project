@@ -90,7 +90,7 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
           })}
         </div>
         {suggestions.isPending ? (
-          <SuggestionsSkeleton />
+          <SuggestionsLoading />
         ) : (
           suggestions.data &&
           suggestions.data.length > 0 && <SuggestionList items={suggestions.data} />
@@ -150,18 +150,39 @@ function SuggestionList({ items }: { items: Suggestion[] }) {
   );
 }
 
-function SuggestionsSkeleton() {
+const STEPS = ["讀取你的旅遊日程", "對照 9 項在意事項", "為每一項寫出理由"];
+
+/** 等 LLM 時顯示的步驟清單：每 2.5 秒推進一步（只是示意，不代表後端進度），最後一步停著轉。 */
+function SuggestionsLoading() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setStep((n) => Math.min(n + 1, STEPS.length - 1)), 2500);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <div
+    <section
       data-testid="concern-suggestions-loading"
-      aria-label="正在依日程推薦在意事項"
       role="status"
-      className="flex animate-pulse flex-col gap-2"
+      className="flex flex-col gap-2"
     >
-      <div className="h-5 w-32 rounded bg-line" />
-      {[0, 1, 2].map((i) => (
-        <div key={i} className="h-5 w-3/4 rounded bg-line" />
-      ))}
-    </div>
+      <h3 className="m-0 t-label text-heading">正在依你的日程推薦…</h3>
+      <ol className="m-0 flex list-none flex-col gap-1 p-0 t-body">
+        {STEPS.map((label, i) => (
+          <li
+            key={label}
+            className={`flex items-center gap-2 ${i > step ? "text-muted" : "text-ink"}`}
+          >
+            {i < step ? (
+              <span className="w-4 text-center text-leaf">✓</span>
+            ) : i === step ? (
+              <span className="size-4 shrink-0 animate-spin rounded-full border-[1.5px] border-leaf border-t-transparent motion-reduce:animate-none" />
+            ) : (
+              <span className="w-4 text-center">·</span>
+            )}
+            {label}
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
