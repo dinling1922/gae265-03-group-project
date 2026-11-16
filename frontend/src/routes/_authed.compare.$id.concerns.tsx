@@ -132,6 +132,8 @@ function useSuggestions(id: string) {
       (await suggestConcerns({ path: { comparison_id: id }, signal, throwOnError: true })).data,
     retry: false,
     refetchOnWindowFocus: false,
+    // 日程改了（例如載入範例日程）再回來，不能拿上次的快取預先勾選或顯示：離開頁面就丟掉
+    gcTime: 0,
   });
 }
 
