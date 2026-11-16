@@ -308,6 +308,20 @@ def _outside_period(
 _UNDER_THRESHOLD = "延誤未滿四小時，依條款不在保障範圍；如有疑問請向保險公司確認"
 
 
+def _missing_for_delay(known: dict[str, str]) -> list[str]:
+    """算不出延誤時，實際還缺的項目（記錄是「不知道」或格式不對也算缺）；理由只列這些（#431）。"""
+    missing = []
+    if _minutes(known.get("dep_plan")) is None:
+        missing.append("原定起飛時間")
+    if _minutes(known.get("dep_act")) is None:
+        missing.append("實際起飛時間")
+    if parse_date(known.get(ACTUAL_DATE_KEY)) is None:
+        missing.append("實際起飛日期")
+    if parse_date(known.get(PLANNED_DATE_KEY)) is None:
+        missing.append("事故發生日期")  # 當作原定起飛日期
+    return missing
+
+
 def judge_flight_delay(
     known: dict[str, str], start: date | None = None, end: date | None = None
 ) -> Judgement:
@@ -323,7 +337,8 @@ def judge_flight_delay(
             delay = THRESHOLD_HOURS * 60  # 已達門檻，繼續往下判斷是否搭第一班替代班機
     if delay is None:
         return Judgement(
-            "insufficient", "需確認原定與實際的起飛時間和日期，才能算出延誤多久"
+            "insufficient",
+            f"還需要{'、'.join(_missing_for_delay(known))}，才能算出延誤多久",
         )
     if delay < 0:
         return Judgement(

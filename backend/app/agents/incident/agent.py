@@ -167,6 +167,11 @@ UNSURE_MESSAGE = (
 )
 # Jev 低信心時反問、判斷無關時回固定訊息（spec #128）；兩者都不記任何狀況
 GATE_MESSAGES = {"unrelated": UNRELATED_MESSAGE, "unsure": UNSURE_MESSAGE}
+# 已經有事故類型（問答中）旅客說的句子，守門判成無關：不能說「沒有可以申請理賠的項目」，
+# 那會讓旅客以為結論被推翻。只回「是」這類句子也會走到這裡（#426）。判成不確定的仍回反問。
+NOT_UNDERSTOOD_MESSAGE = (
+    "這句話我沒有看懂。要更正內容，可以直接告訴我哪裡不對；也可以直接問我條款的問題。"
+)
 NEW_SITUATION_MESSAGE = (
     "偵測到新狀況。請按左側的「＋有新狀況」，我會幫您另外整理；"
     "如果是要更正這次的內容，可以直接告訴我哪裡不對。"
@@ -613,6 +618,8 @@ class IncidentAgentV1:
                 updates = [fix]
         if not updates:
             verdict = await self._classify(ctx, state["masked"])
+            if verdict == "unrelated":
+                return {"reply": IncidentReply(message=NOT_UNDERSTOOD_MESSAGE)}
             if verdict in GATE_MESSAGES:
                 return {"reply": IncidentReply(message=GATE_MESSAGES[verdict])}
         return {"known": known, "updates": updates, "type_code": type_code}
