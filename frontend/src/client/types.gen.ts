@@ -720,12 +720,6 @@ export type ComparisonIn = {
      * 依重要程度排序，最多 3 項、不重複
      */
     concerns?: Array<Concern>;
-    /**
-     * Note
-     *
-     * 其他在意的事
-     */
-    note?: string;
 };
 
 /**
@@ -753,10 +747,6 @@ export type ComparisonOut = {
      * Concerns
      */
     concerns: Array<Concern>;
-    /**
-     * Note
-     */
-    note: string;
     /**
      * Created At
      */
@@ -800,10 +790,6 @@ export type ComparisonPatch = {
      * Concerns
      */
     concerns?: Array<Concern> | null;
-    /**
-     * Note
-     */
-    note?: string | null;
     /**
      * Confirm Remove
      *
@@ -3860,6 +3846,19 @@ export type SubmitIn = {
 };
 
 /**
+ * Suggestion
+ */
+export type Suggestion = {
+    concern: Concern;
+    /**
+     * Reason
+     *
+     * 點名日程活動（日期＋標題）的一句理由，40 字以內
+     */
+    reason: string;
+};
+
+/**
  * TodoApplicability
  */
 export type TodoApplicability = {
@@ -5416,6 +5415,38 @@ export type UpdateComparisonResponses = {
 };
 
 export type UpdateComparisonResponse = UpdateComparisonResponses[keyof UpdateComparisonResponses];
+
+export type SuggestConcernsData = {
+    body?: never;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/concern-suggestions';
+};
+
+export type SuggestConcernsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SuggestConcernsError = SuggestConcernsErrors[keyof SuggestConcernsErrors];
+
+export type SuggestConcernsResponses = {
+    /**
+     * Response Suggest Concerns
+     *
+     * Successful Response
+     */
+    200: Array<Suggestion>;
+};
+
+export type SuggestConcernsResponse = SuggestConcernsResponses[keyof SuggestConcernsResponses];
 
 export type ClearItineraryActivitiesData = {
     body?: never;

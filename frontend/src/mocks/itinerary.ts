@@ -1,4 +1,4 @@
-import { HttpResponse, http } from "msw";
+import { delay, HttpResponse, http } from "msw";
 import type {
   ActivitiesCreated,
   ActivitiesIn,
@@ -6,12 +6,19 @@ import type {
   ActivityFailure,
   ActivityOut,
   ActivityPatch,
+  Suggestion,
 } from "../client/types.gen";
 
 /** 假資料模式的日程活動（每筆比較紀錄一份），重新整理頁面就清空。 */
 const mockActivities = new Map<string, ActivityOut[]>();
 
 const list = (comparisonId: string) => mockActivities.get(comparisonId) ?? [];
+
+const MOCK_SUGGESTIONS: Suggestion[] = [
+  { concern: "突然生病就醫", reason: "D1 黑門市場吃生蠔，生食容易吃壞肚子" },
+  { concern: "信用卡盜刷", reason: "D3 心齋橋藥妝大採購，刷卡次數多" },
+  { concern: "不小心弄傷別人或弄壞東西", reason: "D2 租和服，可能弄壞租借品" },
+];
 
 /** 日期範圍外的活動（縮短日期時會被刪掉的那些）。 */
 export function activitiesOutside(
@@ -46,6 +53,13 @@ export const itineraryHandlers = (
     if (!rangeOf(id)) return HttpResponse.json({ detail: "找不到這筆比較紀錄" }, { status: 404 });
     const sorted = [...list(id)].sort((a, b) => a.date.localeCompare(b.date) || a.hour - b.hour);
     return HttpResponse.json<ActivityOut[]>(sorted);
+  }),
+  // 推薦的在意事項：跟後端一樣，空日程回空陣列；有活動就回固定 3 項
+  http.post("*/api/v1/comparisons/:id/concern-suggestions", async ({ params }) => {
+    const id = String(params.id);
+    if (!rangeOf(id)) return HttpResponse.json({ detail: "找不到這筆比較紀錄" }, { status: 404 });
+    await delay(600);
+    return HttpResponse.json<Suggestion[]>(list(id).length === 0 ? [] : MOCK_SUGGESTIONS);
   }),
   http.post("*/api/v1/comparisons/:id/activities", async ({ params, request }) => {
     const id = String(params.id);

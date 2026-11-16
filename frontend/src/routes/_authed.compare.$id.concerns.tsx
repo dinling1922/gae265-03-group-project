@@ -1,12 +1,13 @@
 import { Button } from "@base-ui/react/button";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { suggestConcerns } from "../client";
 import { updateComparisonMutation } from "../client/@tanstack/react-query.gen";
-import type { ComparisonOut, Concern } from "../client/types.gen";
+import type { ComparisonOut, Concern, Suggestion } from "../client/types.gen";
 import { ActionBar } from "../components/ui/ActionBar";
 import { btn, btnPri } from "../components/ui/buttons";
-import { Field, FieldError, FieldHint, fieldInput } from "../components/ui/Field";
+import { FieldError } from "../components/ui/Field";
 import { LoadingOverlay } from "../components/ui/LoadingOverlay";
 import { PageHead } from "../components/ui/PageHead";
 import { ConcernCard } from "../features/compare/ConcernCard";
@@ -31,7 +32,6 @@ const CONCERNS = Object.keys({
 } satisfies Record<Concern, 0>) as Concern[];
 
 const MAX_CONCERNS = 3;
-const MAX_NOTE = 200;
 
 /** 1-2 選擇最在意的點：進來時讀回，上一步／下一步都先存檔再換頁。 */
 function ConcernsPage() {
@@ -43,14 +43,24 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const [concerns, setConcerns] = useState(initial.concerns);
-  const [note, setNote] = useState(initial.note);
+  const suggestions = useSuggestions(id);
+  // 推薦回來時只預先勾選一次，而且只在使用者還沒選任何一項時（spec #427）
+  const prefilled = useRef(false);
+  useEffect(() => {
+    const data = suggestions.data;
+    if (!data || prefilled.current) return;
+    prefilled.current = true;
+    if (data.length === MAX_CONCERNS) {
+      setConcerns((current) => (current.length === 0 ? data.map((s) => s.concern) : current));
+    }
+  }, [suggestions.data]);
   const update = useMutation(updateComparisonMutation());
   const [goingNext, setGoingNext] = useState(false);
 
   const save = (to: "/compare/$id/itinerary" | "/compare/$id/result") => {
     setGoingNext(to === "/compare/$id/result");
     update.mutate(
-      { path: { comparison_id: id }, body: { concerns, note } },
+      { path: { comparison_id: id }, body: { concerns } },
       { onSuccess: () => void navigate({ to, params: { id } }) },
     );
   };
@@ -79,21 +89,12 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
             );
           })}
         </div>
-        <Field label="其他在意的事（選填）" htmlFor="note">
-          <textarea
-            id="note"
-            rows={3}
-            maxLength={MAX_NOTE}
-            placeholder="例：會去滑雪、帶高價相機"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            aria-describedby="note-hint"
-            className={`${fieldInput} w-full`}
-          />
-          <FieldHint id="note-hint">
-            補充說明會納入推薦考量，問答時也會參考。（{note.length}/{MAX_NOTE}）
-          </FieldHint>
-        </Field>
+        {suggestions.isPending ? (
+          <SuggestionsSkeleton />
+        ) : (
+          suggestions.data &&
+          suggestions.data.length > 0 && <SuggestionList items={suggestions.data} />
+        )}
         {update.error != null && <FieldError>存檔失敗，請再試一次。</FieldError>}
       </div>
       <ActionBar twoColumns>
@@ -120,5 +121,47 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
         <LoadingOverlay>正在比較方案…</LoadingOverlay>
       )}
     </main>
+  );
+}
+
+/** 依旅遊日程推薦的在意事項；每次進 1-2 都問後端（後端有存就不會再呼叫 LLM）。失敗就當作沒有推薦。 */
+function useSuggestions(id: string) {
+  return useQuery({
+    queryKey: ["concernSuggestions", id],
+    queryFn: async ({ signal }) =>
+      (await suggestConcerns({ path: { comparison_id: id }, signal, throwOnError: true })).data,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+function SuggestionList({ items }: { items: Suggestion[] }) {
+  return (
+    <section data-testid="concern-suggestions" className="flex flex-col gap-2">
+      <h3 className="m-0 t-label text-heading">依你的日程推薦</h3>
+      <ul className="m-0 flex list-none flex-col gap-1 p-0 t-body text-ink">
+        {items.map((s) => (
+          <li key={s.concern}>
+            <span className="font-semibold">{s.concern}</span>：{s.reason}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function SuggestionsSkeleton() {
+  return (
+    <div
+      data-testid="concern-suggestions-loading"
+      aria-label="正在依日程推薦在意事項"
+      role="status"
+      className="flex animate-pulse flex-col gap-2"
+    >
+      <div className="h-5 w-32 rounded bg-line" />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="h-5 w-3/4 rounded bg-line" />
+      ))}
+    </div>
   );
 }
