@@ -168,7 +168,7 @@ test("視窗大小改變後地圖容器重新計算尺寸", async ({ page }) => 
   expect(after.container).toBeLessThanOrEqual(800);
 });
 
-// 版面：寬螢幕三欄（表單｜日程｜地圖）、768–1090px 兩欄（地圖在日程下方）、手機單欄。
+// 版面：寬螢幕三欄（表單｜日程｜地圖）、768–859px 兩欄（地圖在日程下方）、手機單欄。
 test("日程頁的欄數隨寬度變化：三欄、兩欄、單欄", async ({ page }) => {
   await setup(page, "e2e-map-layout@example.com");
   const boxes = async () => {
@@ -188,7 +188,12 @@ test("日程頁的欄數隨寬度變化：三欄、兩欄、單欄", async ({ pa
   expect(Math.abs(b.banner.y - crumb), `橫幅 y=${b.banner.y}、左欄 y=${crumb}`).toBeLessThan(2);
   expect(Math.abs(b.map.y - crumb), `地圖 y=${b.map.y}、左欄 y=${crumb}`).toBeLessThan(2);
 
-  await page.setViewportSize({ width: 900, height: 900 });
+  await page.setViewportSize({ width: 860, height: 900 }); // 三欄最窄的寬度
+  b = await boxes();
+  expect(b.banner.x).toBeGreaterThan(b.form.x + b.form.width - 1);
+  expect(b.map.x).toBeGreaterThan(b.banner.x + b.banner.width - 1);
+
+  await page.setViewportSize({ width: 859, height: 900 });
   b = await boxes();
   expect(b.banner.x).toBeGreaterThan(b.form.x + b.form.width - 1);
   expect(b.map.y).toBeGreaterThan(b.banner.y); // 地圖在日程下方
