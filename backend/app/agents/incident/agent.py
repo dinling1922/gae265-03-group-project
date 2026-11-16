@@ -380,9 +380,22 @@ def _clock_times_fix(text: str, known: dict[str, str]) -> dict[str, str]:
     實際起飛時間被更正、而實際起飛日期不是明確的日期（記的是「不知道」或沒記）時，日期預設為
     事故當天；說「隔天」的由 `_with_relative_date` 接著蓋掉（#382）。
     """
-    answers = stated_clock_times(text)
-    if "dep_act" in answers and parse_date(known.get(ACTUAL_DATE_KEY)) is None:
-        planned = known.get(PLANNED_DATE_KEY)
+    return _default_actual_date(known, stated_clock_times(text))
+
+
+def _default_actual_date(
+    known: dict[str, str], answers: dict[str, str]
+) -> dict[str, str]:
+    """取出了實際起飛時間、實際起飛日期卻缺（記的是「不知道」或沒記）：預設為事故當天。
+
+    程式取出的與模型取出的共用；已經有日期的不覆蓋，答案裡有日期（旅客明講或模型取出）的照用（#433）。
+    """
+    if (
+        "dep_act" in answers
+        and ACTUAL_DATE_KEY not in answers
+        and parse_date(known.get(ACTUAL_DATE_KEY)) is None
+    ):
+        planned = answers.get(PLANNED_DATE_KEY) or known.get(PLANNED_DATE_KEY)
         if parse_date(planned):
             answers[ACTUAL_DATE_KEY] = str(planned)
     return answers
@@ -611,6 +624,10 @@ class IncidentAgentV1:
         answers = _with_explicit_date(
             ctx, state["text"], dict(result.answers), fields, current=False
         )
+        if any(f.key == ACTUAL_DATE_KEY for f in fields):
+            answers = _default_actual_date(
+                known, answers
+            )  # 模型取出的時間也補日期（#433）
         answers = _with_relative_date(state["text"], known, answers, fields)
         updates = _apply_changes(fields, answers, known)
         if not updates and type_code == flow.FLIGHT_DELAY:
