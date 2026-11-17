@@ -84,3 +84,13 @@ export const FOCUS_ASK_STATE = { focusAsk: true };
 export function wantsFocusAsk(state: object): boolean {
   return (state as { focusAsk?: unknown }).focusAsk === true;
 }
+
+/**
+ * 在 2-2g 按「確認」進行程頁時帶的路由 state（#449）：行程頁看到它，而且選中的事故有待辦，就捲到「理賠待辦」。
+ * 從首頁的列等其他入口用 `?incident=` 進來沒有它，行為不變。
+ */
+export const SCROLL_TO_TODOS_STATE = { scrollToTodos: true };
+
+export function wantsScrollToTodos(state: object): boolean {
+  return (state as { scrollToTodos?: unknown }).scrollToTodos === true;
+}
