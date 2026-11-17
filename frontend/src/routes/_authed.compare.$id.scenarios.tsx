@@ -251,8 +251,25 @@ function Chat({ id }: { id: string }) {
   );
 }
 
+/** 把回答裡的數字（含單位）加粗。數字由程式給，這裡只改樣式，不改內容。 */
+function boldNumbers(text: string) {
+  return text.split(/(\d[\d,]*(?:\.\d+)?\s*(?:元|次|天|萬|%|頁)?)/).map((part, i) =>
+    // 奇數項是 split 抓到的數字
+    i % 2 === 1 ? (
+      // biome-ignore lint/suspicious/noArrayIndexKey: 文字片段沒有 id，順序固定
+      <b key={i} className="font-bold text-heading">
+        {part}
+      </b>
+    ) : (
+      // biome-ignore lint/suspicious/noArrayIndexKey: 同上
+      <Fragment key={i}>{part}</Fragment>
+    ),
+  );
+}
+
 function Answer({ reply }: { reply: QuestionAnswerOut }) {
   const groups = reply.citations.filter((g) => g.citations.length > 0);
+  const basisCount = groups.reduce((sum, g) => sum + g.citations.length, 0);
   return (
     <ChatMessage from="ai" data-testid="answer">
       {reply.original_only && (
@@ -260,22 +277,37 @@ function Answer({ reply }: { reply: QuestionAnswerOut }) {
           無法產生白話說明，以下直接列出條款原文
         </p>
       )}
-      <p className="m-0 whitespace-pre-wrap t-body text-ink">{reply.answer}</p>
-      {groups.map((g) => (
-        <div key={g.plan_code} className="flex flex-col gap-1 t-caption">
-          <p className="m-0 t-caption-bold text-heading">
-            依據｜{planLabel(g.recommended)}：{g.plan_name}
-          </p>
-          {g.citations.map((c) => (
-            <details key={c.rule_id} className="rounded-tag border border-line bg-paper px-3 py-2">
-              <summary className="cursor-pointer">
-                {c.insurance_name} 第 {c.article_no} 條「{c.title}」（第 {c.page_start} 頁）
-              </summary>
-              <p className="mt-1 mb-0 whitespace-pre-wrap text-muted">{c.excerpt}</p>
-            </details>
-          ))}
-        </div>
-      ))}
+      <div className="rounded-r-tile border-l-4 border-brand bg-leaf-soft px-4 py-3">
+        <p className="m-0 mb-1 t-caption-bold tracking-widest text-leaf-text">回答</p>
+        <p className="m-0 whitespace-pre-wrap t-body text-ink">{boldNumbers(reply.answer)}</p>
+      </div>
+      {basisCount > 0 && (
+        <details data-testid="answer-basis" className="t-caption">
+          <summary className="cursor-pointer t-caption-bold text-leaf-text">
+            查看依據（{basisCount} 則條款）
+          </summary>
+          <div className="mt-2 flex flex-col gap-3">
+            {groups.map((g) => (
+              <div key={g.plan_code} className="flex flex-col gap-1">
+                <p className="m-0 t-caption-bold text-heading">
+                  依據｜{planLabel(g.recommended)}：{g.plan_name}
+                </p>
+                {g.citations.map((c) => (
+                  <details
+                    key={c.rule_id}
+                    className="rounded-tag border border-line bg-paper px-3 py-2"
+                  >
+                    <summary className="cursor-pointer">
+                      {c.insurance_name} 第 {c.article_no} 條「{c.title}」（第 {c.page_start} 頁）
+                    </summary>
+                    <p className="mt-1 mb-0 whitespace-pre-wrap text-muted">{c.excerpt}</p>
+                  </details>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
     </ChatMessage>
   );
 }

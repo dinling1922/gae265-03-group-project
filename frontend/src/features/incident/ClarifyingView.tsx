@@ -7,6 +7,7 @@ import { listIncidentsQueryKey } from "../../client/@tanstack/react-query.gen";
 import type { IncidentContext } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn } from "../../components/ui/buttons";
+import { LoadingOverlay } from "../../components/ui/LoadingOverlay";
 import { PageHead } from "../../components/ui/PageHead";
 import { SHORT_LANDSCAPE_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -26,10 +27,13 @@ export function ClarifyingView({
   id,
   ctx,
   confirmation: initialConfirmation = "clarifying",
+  focusAsk = false,
 }: {
   id: string;
   ctx: IncidentContext;
   confirmation?: string;
+  /** 從建立事故頁送出描述後進來（路由 state，#441）：輸入框自動對焦，旅客可以直接答第一題。 */
+  focusAsk?: boolean;
 }) {
   const { refresh } = useIncident(id);
   const navigate = useNavigate();
@@ -37,6 +41,8 @@ export function ClarifyingView({
   const [confirmation, setConfirmation] = useState(initialConfirmation);
   const [dialogOpen, setDialogOpen] = useState(initialConfirmation === "awaiting");
   const [confirming, setConfirming] = useState(false);
+  // 一進來就跳確認彈窗（5 號一輪就問完）時不對焦：焦點留給彈窗，不搶到它後面的輸入框
+  const [focusInput] = useState(focusAsk && initialConfirmation !== "awaiting");
   const [confirmError, setConfirmError] = useState<string | null>(null);
   // 按「還要補充或修改」後顯示的固定句；下一次送出就換成真正的對話
   const [supplementPrompt, setSupplementPrompt] = useState(false);
@@ -144,6 +150,7 @@ export function ClarifyingView({
         typingLabel="正在整理您的回答"
         onSend={(content, mode) => void send(content, mode)}
         askLeading={shortLandscape ? backToConfirm : undefined}
+        focusInput={focusInput}
       />
 
       <ConfirmDialog
@@ -157,6 +164,9 @@ export function ClarifyingView({
         }}
         onConfirm={() => void confirm()}
       />
+
+      {/* 按確認後到行程頁之間：遮住畫面，行程頁讀好才拿掉（#445）；成功後會換頁，所以不用再關 */}
+      {confirming && <LoadingOverlay>正在整理您的行程…</LoadingOverlay>}
 
       <ActionBar>
         {!shortLandscape && backToConfirm}

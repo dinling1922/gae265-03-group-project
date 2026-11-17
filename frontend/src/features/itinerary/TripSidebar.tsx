@@ -7,7 +7,7 @@ import { Field, FieldError, FieldHint, fieldInput, fieldSelect } from "../../com
 import { PageHead } from "../../components/ui/PageHead";
 import { DaysSummary } from "../compare/DaysSummary";
 import { DEMO_ITINERARIES, type DemoItinerary } from "./demoItineraries";
-import { addDays, DESTINATIONS, today, tripDays } from "./tripRules";
+import { addDays, DESTINATIONS, tripDays } from "./tripRules";
 
 export type TripForm = {
   destination: string;
@@ -91,7 +91,6 @@ export function TripSidebar({
               id="depart"
               type="date"
               value={depart}
-              min={today()}
               onChange={(e) => onChange({ depart: e.target.value })}
               className={`${fieldInput} w-full`}
             />
@@ -115,6 +114,9 @@ export function TripSidebar({
             ? `共 ${tripDays(depart, returnDate)} 天`
             : "選好兩個日期後顯示天數"}
         </DaysSummary>
+        <Button onClick={onNext} disabled={nextDisabled} className={`${btnPri} w-full`}>
+          下一步：確認旅途風險
+        </Button>
         {errors.length > 0 && (
           <ul role="alert" className="m-0 list-none space-y-1 p-0 t-caption-bold text-danger">
             {errors.map((m) => (
@@ -179,9 +181,6 @@ export function TripSidebar({
         <span aria-hidden="true" className="t-label text-brand">
           →
         </span>
-      </Button>
-      <Button onClick={onNext} disabled={nextDisabled} className={`${btnPri} w-full`}>
-        下一步：選擇在意的事
       </Button>
     </aside>
   );

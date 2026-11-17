@@ -73,3 +73,14 @@ export function tripTitle(
 export function policyMeta(planName: string, sum?: number | null): string {
   return sum == null ? planName : `${planName} · ${wan(sum)}`;
 }
+
+/**
+ * 從建立事故頁送出描述後換到追問頁時帶的路由 state（#441）：追問頁看到它就自動對焦輸入框。
+ * 直接打開、從首頁或行程頁進來都沒有。`HistoryState` 在這個專案裡沒辦法擴充型別
+ * （`@tanstack/history` 不是直接依賴），所以用一個變數帶出去、用 `wantsFocusAsk` 讀回來。
+ */
+export const FOCUS_ASK_STATE = { focusAsk: true };
+
+export function wantsFocusAsk(state: object): boolean {
+  return (state as { focusAsk?: unknown }).focusAsk === true;
+}
