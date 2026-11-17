@@ -34,7 +34,7 @@
 
 跑程式、測試或 migration 前先 `make doctor`，全部 PASS 才繼續（FAIL 附修法，通常是 `make up` 沒開）。完整清單 `make help`。
 
-- `make test`（`make test args="-k xxx"`）、`make e2e`、`make lint`、`make format`
+- `make test`（`make test args="-k xxx"`）、`make e2e`（對 docker 環境，5 號是真實實作；跑完整 e2e 請用 `make e2e-fake`，另起假 5 號的後端與前端）、`make lint`、`make format`
 - `make seed`：載入條文、方案保費、保單代碼對照、事故類型與待辦範本（不需要 Azure）；`make ingest`：解析條款 PDF 並重算向量；`make eval-retrieval`：檢索驗收；`make export-seed`：重新產生 seed 檔
 - 開發工具頁 `http://localhost:5173/dev`（API 測試台、條文瀏覽；只在非 production 有）
 - 服務是 `db`、`backend`、`frontend`、`pgadmin`，加上提醒信用的 `redis`、`worker`、`beat`、`flower`（http://localhost:5555）、`mailpit`（http://localhost:8025 看寄出的信，ADR-0031）
