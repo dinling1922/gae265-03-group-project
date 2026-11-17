@@ -20,6 +20,11 @@ DELAY_BAND_UNDER = f"未滿 {THRESHOLD_HOURS} 小時"
 FIRST_ALT_KEY = "first_alt"
 PLANNED_DATE_KEY = "date"  # 共同欄位的事故日期，當作原定起飛日期（Boris 11/07 確認）
 ACTUAL_DATE_KEY = "dep_act_date"
+# 事故日期是從實際起飛日期推定的（旅客沒說原定起飛日）：記推定出的日期，日期被改掉就不再成立（#451）。
+# 跨午夜的延誤可能推錯一天，目前不處理
+DATE_INFERRED_KEY = "date_inferred"
+DATE_INFERRED_LABEL = "依實際起飛日期推定的事故日"
+INFERRED_NOTE = "依實際起飛日期推定事故日"
 _TIME = re.compile(r"^\s*(\d{1,2})[:：](\d{2})\s*$")
 _DATE = re.compile(r"^\s*(\d{4})[/-](\d{1,2})[/-](\d{1,2})\s*$")
 
@@ -154,7 +159,15 @@ def stated_delay_hours(text: str) -> int | None:
 
 
 _CLOCK = r"([0-9]{1,2})\s*[:：]\s*([0-9]{2})"
-_PLANNED_CLOCK = re.compile(rf"(?:原定|原訂|預定)[^0-9]{{0,6}}?{_CLOCK}")
+# 原定起飛時間的線索；「原本」只在後面接時間（中間可夾日期）時才算：「原本7/11 10:30」
+_PLANNED_WORDS = r"(?:原定|原訂|預定|原本)"
+_DATE_TEXT = r"(?:\d{4}\s*[/\-年]\s*)?\d{1,2}\s*[/\-月]\s*\d{1,2}\s*[日號]?"
+_PLANNED_CLOCK = re.compile(
+    rf"{_PLANNED_WORDS}[^0-9]{{0,6}}?(?:{_DATE_TEXT}\s*)?{_CLOCK}"
+)
+_PLANNED_DATED_CLOCK = re.compile(
+    rf"{_PLANNED_WORDS}[^0-9]{{0,6}}?({_DATE_TEXT})\s*{_CLOCK}"
+)
 _ACTUAL_CLOCK = re.compile(rf"實際[^0-9]{{0,6}}?{_CLOCK}")
 # 「班機被改為 22:00 起飛」「延到 22:00 才飛」：新的起飛時間，記成實際起飛時間。
 # 「預計 22:00」不算（預計還沒發生，#394）
@@ -197,6 +210,40 @@ def stated_clock_times(text: str) -> dict[str, str]:
         "dep_act": _clock(_ACTUAL_CLOCK.search(text) or changed),
     }
     return {k: v for k, v in found.items() if v}
+
+
+def stated_planned_date(
+    text: str, year: int, start: date | None = None, end: date | None = None
+) -> str | None:
+    """旅客說原定起飛時間時一起說的日期（「原本7/11 10:30」）；事故日就是原定起飛日（#451）。
+
+    要有「原定／原訂／預定／原本」，日期後面緊接起飛時間；問句不取（同 `stated_clock_times`）。
+    沒寫年份時年份由保險期間決定（`explicit_date`）。"""
+    if any(mark in text for mark in _QUESTION_MARKS):
+        return None
+    m = _PLANNED_DATED_CLOCK.search(text)
+    return explicit_date(m.group(1), year, start, end) if m else None
+
+
+@dataclass(frozen=True)
+class DateBackfill:
+    date: str
+    inferred: bool  # True：沒有原定日期，是用實際起飛日期推定的
+
+
+def backfilled_date(known: dict[str, str], planned: str | None) -> DateBackfill | None:
+    """班機延誤的事故日期缺或不是明確的日期（記的是「不知道」）時，要回填的日期（#451）。
+
+    事故日 ＝ 原定起飛日：旅客說原定起飛時間時給了日期就用它（`planned`）；沒有，就用實際起飛日期。
+    已經有明確日期的不覆蓋；兩個都沒有回 None。"""
+    if parse_date(known.get(PLANNED_DATE_KEY)) is not None:
+        return None
+    if parse_date(planned) is not None and planned:
+        return DateBackfill(planned, inferred=False)
+    actual = parse_date(known.get(ACTUAL_DATE_KEY))
+    if actual is not None:
+        return DateBackfill(f"{actual:%Y/%m/%d}", inferred=True)
+    return None
 
 
 def parse_date(value: str | None) -> date | None:
@@ -340,6 +387,17 @@ def _missing_for_delay(known: dict[str, str]) -> list[str]:
 
 
 def judge_flight_delay(
+    known: dict[str, str], start: date | None = None, end: date | None = None
+) -> Judgement:
+    result = _judge_flight_delay(known, start, end)
+    # 事故日期是推定的：在理由裡看得出來（推定的日期被旅客改掉就不再註記）
+    inferred = known.get(DATE_INFERRED_KEY)
+    if inferred and inferred == known.get(PLANNED_DATE_KEY):
+        return Judgement(result.conclusion, f"{result.reason}；{INFERRED_NOTE}")
+    return result
+
+
+def _judge_flight_delay(
     known: dict[str, str], start: date | None = None, end: date | None = None
 ) -> Judgement:
     if outside := _outside_period(known, start, end):

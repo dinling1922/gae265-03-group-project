@@ -16,10 +16,14 @@ from app.agents.incident import flow
 from app.agents.incident.judge import (
     ACTUAL_DATE_KEY,
     CAUSE_KEY,
+    DATE_INFERRED_KEY,
+    DATE_INFERRED_LABEL,
     DELAY_BAND_KEY,
     DELAY_HOURS_KEY,
     PLANNED_DATE_KEY,
+    DateBackfill,
     align_year,
+    backfilled_date,
     explicit_date,
     judge_baggage_loss,
     judge_flight_delay,
@@ -29,6 +33,7 @@ from app.agents.incident.judge import (
     relative_actual_date,
     stated_clock_times,
     stated_delay_hours,
+    stated_planned_date,
     timed_delay_minutes,
 )
 from app.contracts import AgentServices, IncidentContext, IncidentReply
@@ -401,6 +406,43 @@ def _default_actual_date(
     return answers
 
 
+def _date_backfill(
+    ctx: IncidentContext,
+    text: str,
+    known: dict[str, str],
+    answers: dict[str, str],
+    type_code: str,
+    *,
+    asking_planned: bool = False,
+) -> DateBackfill | None:
+    """班機延誤的事故日期缺或「不知道」，這句話給了日期：回填事故日（#451）。
+
+    事故日 ＝ 原定起飛日。原定起飛時間那句有日期就用它；追問中剛問原定起飛時間（`asking_planned`）、
+    旅客回「7/11 10:30」時，句中的日期也算；沒有就用實際起飛日期（標成推定）。"""
+    if type_code != flow.FLIGHT_DELAY:
+        return None
+    start, end = ctx.policy.start_date, ctx.policy.end_date
+    year = (start or date.today()).year
+    planned = stated_planned_date(text, year, start, end)
+    if planned is None and asking_planned and "dep_plan" in answers:
+        planned = explicit_date(text, year, start, end)
+    return backfilled_date({**known, **answers}, planned)
+
+
+def _date_inferred_fact(
+    backfill: DateBackfill | None, known: dict[str, str]
+) -> list[FactUpdate]:
+    """回填的日期是用實際起飛日期推定的：另記一筆，讓結論的理由與事實看得出來（#451）。"""
+    if backfill is None or not backfill.inferred:
+        return []
+    known[DATE_INFERRED_KEY] = backfill.date
+    return [
+        FactUpdate(
+            fact_key=DATE_INFERRED_KEY, label=DATE_INFERRED_LABEL, value=backfill.date
+        )
+    ]
+
+
 def _hours_correction(text: str, known: dict[str, str]) -> list[FactUpdate]:
     """旅客更正「延誤幾小時」，而記錄的起飛時間算出不同的時數：改記旅客說的時數（#383）。
 
@@ -624,12 +666,18 @@ class IncidentAgentV1:
         answers = _with_explicit_date(
             ctx, state["text"], dict(result.answers), fields, current=False
         )
+        # 事故日期缺或「不知道」：先回填，後面的實際日期預設與「隔天」換算才有原定日期可用（#451）
+        backfill = _date_backfill(ctx, state["text"], known, answers, type_code)
+        if backfill:
+            answers[PLANNED_DATE_KEY] = backfill.date
         if any(f.key == ACTUAL_DATE_KEY for f in fields):
             answers = _default_actual_date(
                 known, answers
             )  # 模型取出的時間也補日期（#433）
         answers = _with_relative_date(state["text"], known, answers, fields)
         updates = _apply_changes(fields, answers, known)
+        if any(u.fact_key == PLANNED_DATE_KEY for u in updates):
+            updates += _date_inferred_fact(backfill, known)
         if not updates and type_code == flow.FLIGHT_DELAY:
             if fix := _stated_hours_fix(state["text"], known):
                 updates = [fix]
@@ -769,6 +817,24 @@ class IncidentAgentV1:
             if value:
                 known[f.key] = value
                 updates.append(FactUpdate(fact_key=f.key, label=f.name, value=value))
+        if backfill := _date_backfill(
+            ctx, text, known, answers, type_code, asking_planned=True
+        ):
+            # 事故日期答過「不知道」（算已回答，不會再問）：這句話給了日期就回填（#451）
+            label = next(
+                (
+                    f.name
+                    for f in flow.required_fields(ctx, type_code)
+                    if f.key == PLANNED_DATE_KEY
+                ),
+                "事故發生日期",
+            )
+            known[PLANNED_DATE_KEY] = backfill.date
+            updates = [u for u in updates if u.fact_key != PLANNED_DATE_KEY]
+            updates.append(
+                FactUpdate(fact_key=PLANNED_DATE_KEY, label=label, value=backfill.date)
+            )
+            updates += _date_inferred_fact(backfill, known)
         if not revised:
             self._give_up_on_stuck(ctx, type_code, known, updates)
         return {

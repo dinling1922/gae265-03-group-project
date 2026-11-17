@@ -185,5 +185,20 @@
     ],
     "expect_documents": ["D01", "D02"],
     "follow_up": { "say": "有關啊只是班機延誤只有兩個小時不是八個小時", "expect": "excluded" }
+  },
+  {
+    "name": "發生日期不知道、補充原定日期（#451）",
+    "plan": "fubon_advanced",
+    "sum_insured": 6000000,
+    "start_date": "2026-07-05",
+    "end_date": "2026-07-11",
+    "description": "我在成田機場，回台灣的班機延誤了",
+    "answers": [
+      ["在哪裡", "成田機場"],
+      ["預定幾點", "7/11 10:30"],
+      ["原因", "說是颱風"]
+    ],
+    "expect_documents": ["D01", "D02"],
+    "follow_up": { "say": "原本7/11 10:30，後來實際 16:45 起飛", "expect": "applicable" }
   }
 ]
