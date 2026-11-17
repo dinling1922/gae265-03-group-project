@@ -7,6 +7,7 @@ import { listIncidentsQueryKey } from "../../client/@tanstack/react-query.gen";
 import type { IncidentContext } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn } from "../../components/ui/buttons";
+import { LoadingOverlay } from "../../components/ui/LoadingOverlay";
 import { PageHead } from "../../components/ui/PageHead";
 import { SHORT_LANDSCAPE_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -163,6 +164,9 @@ export function ClarifyingView({
         }}
         onConfirm={() => void confirm()}
       />
+
+      {/* 按確認後到行程頁之間：遮住畫面，行程頁讀好才拿掉（#445）；成功後會換頁，所以不用再關 */}
+      {confirming && <LoadingOverlay>正在整理您的行程…</LoadingOverlay>}
 
       <ActionBar>
         {!shortLandscape && backToConfirm}

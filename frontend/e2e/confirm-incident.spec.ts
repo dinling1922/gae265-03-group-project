@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, tripTransition, watchTripTransition } from "./helpers";
 
 // 2-2g 現況確認彈窗（#345）：第一次描述問完才跳；「還要補充或修改」回對話、有「回到確認」；
 // 沒確認就離開，重新開啟回 2-2 再跳；確認才進行程頁。用假 5 號（問兩輪後結束）。
@@ -72,11 +72,14 @@ test("問完跳彈窗，沒有關閉鈕；補充再回到確認；確認才進�
   await page.getByTestId("back-to-confirm").click();
   await expect(dialog).toBeVisible();
 
+  await watchTripTransition(page);
   await dialog.getByTestId("confirm-yes").click();
   await expect(page).toHaveURL(new RegExp(`/trip/${policyId}\\?incident=[0-9a-f-]{36}$`), {
     timeout: SLOW,
   });
   await expect(page.getByTestId("trip-incident")).toHaveCount(1);
+  // 按確認後到行程頁之間要有載入遮罩（#445）
+  expect((await tripTransition(page)).overlay, "換頁時要有「正在整理您的行程」遮罩").toBe(true);
 });
 
 test("沒確認就離開：首頁「我的行程」顯示描述中，點進去回 2-2 再跳彈窗", async ({ page }) => {
