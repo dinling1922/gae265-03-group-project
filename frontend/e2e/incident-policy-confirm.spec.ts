@@ -1,6 +1,6 @@
 import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, uploadPolicyPdf } from "./helpers";
 
 // 2-1 建立行程：上傳保單 → 表單直接填入讀到的內容並標記（讀到／讀不到）→ 改欄位 → 下一步，進到 2-2。
 // 樣本是假的富邦官網 C 方案保單（20 個保單代碼，不含個資）。需要測試登入與已載入的條款庫、方案與保單代碼（make seed）。
@@ -22,7 +22,7 @@ test("上傳保單後表單填入讀到的內容並標記，可修改欄位，�
 
   await page.goto("/incident/new");
   await page.getByTestId("mode-upload").click();
-  await page.getByTestId("policy-file").setInputFiles(POLICY_PDF);
+  await uploadPolicyPdf(page, POLICY_PDF);
 
   // 沒填完整時不能下一步；上傳後讀到的欄位填入並標記
   const form = page.getByTestId("trip-form");
@@ -85,9 +85,7 @@ test("有報價的方案用保額下拉，讀不到的欄位標示請自行選�
 
   await page.goto("/incident/new");
   await page.getByTestId("mode-upload").click();
-  await page
-    .getByTestId("policy-file")
-    .setInputFiles(fixture("fubon-policy-advanced-no-country.pdf"));
+  await uploadPolicyPdf(page, fixture("fubon-policy-advanced-no-country.pdf"));
 
   const form = page.getByTestId("trip-form");
   await expect(form.getByTestId("confirm-plan").locator("option:checked")).toContainText("進階型");
@@ -124,7 +122,7 @@ test("改選我的保單時欄位預填，從 2-2 上一步回來仍是同一份
   // 第一份：官網 C 方案，保單上的目的地是日本
   await page.goto("/incident/new");
   await page.getByTestId("mode-upload").click();
-  await page.getByTestId("policy-file").setInputFiles(POLICY_PDF);
+  await uploadPolicyPdf(page, POLICY_PDF);
   await page.getByTestId("confirm-continue").click();
   await expect(page.getByTestId("start-form")).toBeVisible();
 
@@ -135,9 +133,7 @@ test("改選我的保單時欄位預填，從 2-2 上一步回來仍是同一份
   await expect(page.getByTestId("mode-manual")).toBeVisible();
   await expect(page.getByTestId("policy")).toHaveCount(0);
   await page.getByTestId("mode-upload").click();
-  await page
-    .getByTestId("policy-file")
-    .setInputFiles(fixture("fubon-policy-advanced-no-country.pdf"));
+  await uploadPolicyPdf(page, fixture("fubon-policy-advanced-no-country.pdf"));
   // 上傳是非同步的，讀完後表單才會填入保單的值；要等「已讀取」出現再填，不然會被蓋掉
   await expect(page.getByText("📎 fubon-policy-advanced-no-country.pdf · 已讀取")).toBeVisible();
   await page.getByTestId("confirm-destination").fill("韓國");

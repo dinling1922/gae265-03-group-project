@@ -1,4 +1,4 @@
-import type { ChangeEvent, ReactNode } from "react";
+import type { ChangeEvent, ReactNode, Ref } from "react";
 import { btnSm, btnSmPri } from "./buttons";
 
 /**
@@ -31,6 +31,7 @@ export function FilePickButton({
   disabled,
   onFiles,
   inputTestId,
+  inputRef,
   primary,
 }: {
   label: ReactNode;
@@ -39,6 +40,8 @@ export function FilePickButton({
   disabled?: boolean;
   onFiles: (files: File[]) => void;
   inputTestId?: string;
+  /** 讓別的按鈕可以代為打開選檔視窗 */
+  inputRef?: Ref<HTMLInputElement>;
   /** 主要按鈕（粗框），例如 2-3i 的「上傳理賠文件」 */
   primary?: boolean;
 }) {
@@ -55,6 +58,7 @@ export function FilePickButton({
     >
       {label}
       <input
+        ref={inputRef}
         type="file"
         accept={accept}
         multiple={multiple}
