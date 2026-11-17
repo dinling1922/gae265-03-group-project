@@ -4,10 +4,12 @@
 附件規則與寄送流程；行程版一封信涵蓋全部符合保障的事件，事故相關的空格用事故名稱區分。
 """
 
+import asyncio
 import html
 import json
 import re
 import uuid
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from email import policy
@@ -17,7 +19,6 @@ from typing import Literal
 
 from app.agents.package.google_api import (
     DriveFile,
-    DriveFileStatus,
     GoogleApi,
     GoogleApiError,
     GoogleErrorKind,
@@ -575,16 +576,15 @@ class GmailClaimPackager:
         token = await google.access_token(user, DRIVE_SCOPE)
         if token is None:
             return {}
+        statuses = await _limited(
+            documents, lambda d: api.file_status(token, d.storage_path)
+        )
         result: dict[uuid.UUID, Literal["not_found", "trashed"]] = {}
-        try:
-            for document in documents:
-                status: DriveFileStatus = await api.file_status(
-                    token, document.storage_path
-                )
-                if status != "ok":
-                    result[document.id] = status
-        except GoogleApiError:
-            return {}
+        for document, status in zip(documents, statuses, strict=True):
+            if isinstance(status, GoogleApiError):
+                return {}
+            if status != "ok":
+                result[document.id] = status
         return result
 
     async def send(
@@ -655,21 +655,25 @@ class GmailClaimPackager:
             return SendResult(status="failed", reason=_NOT_READY[mode])
         # 先取完所有附件才寄或建草稿：任一個取不到就什麼都不做（規格「寄送」）。
         # 找不到或在垃圾桶的每個都檢查完再一起列出（7-2）；授權失效、連不上就直接停
+        # 附件同時下載（最多 _PARALLEL 份），全部有結果後再照送件包的順序分類
+        fetched = await _limited(
+            package.attachments,
+            lambda a: api.fetch_file(drive_token, a.storage_path),
+        )
         files: list[DriveFile] = []
         not_found: list[str] = []
         trashed: list[str] = []
-        for attachment in package.attachments:
-            try:
-                files.append(await api.fetch_file(drive_token, attachment.storage_path))
-            except GoogleApiError as error:
-                if error.kind == "not_found":
-                    not_found.append(attachment.file_name)
-                elif error.kind == "trashed":
-                    trashed.append(attachment.file_name)
-                else:
-                    return SendResult(
-                        status="failed", reason=_reason(error, _DRIVE_ERRORS, mode)
-                    )
+        for attachment, item in zip(package.attachments, fetched, strict=True):
+            if not isinstance(item, GoogleApiError):
+                files.append(item)
+            elif item.kind == "not_found":
+                not_found.append(attachment.file_name)
+            elif item.kind == "trashed":
+                trashed.append(attachment.file_name)
+            else:
+                return SendResult(
+                    status="failed", reason=_reason(item, _DRIVE_ERRORS, mode)
+                )
         if not_found or trashed:
             return SendResult(
                 status="failed", reason=_missing_reason(not_found, trashed)
@@ -697,6 +701,29 @@ class GmailClaimPackager:
             message_id=message_id,
             gmail_url=gmail_url(user.email, "sent", message_id),
         )
+
+
+_PARALLEL = 4
+"""同時打 Drive 的上限：附件多時不一份一份等，也不一次全打出去被 Google 限流。"""
+
+
+async def _limited[T, R](
+    items: Sequence[T], call: Callable[[T], Awaitable[R]]
+) -> list[R | GoogleApiError]:
+    """對每個 item 呼叫 call，同時最多 _PARALLEL 個；照 items 的順序回傳結果。
+
+    Google 的錯誤當成結果回傳，不中途丟出，讓呼叫的人收齊每一個結果再分類。
+    """
+    gate = asyncio.Semaphore(_PARALLEL)
+
+    async def one(item: T) -> R | GoogleApiError:
+        async with gate:
+            try:
+                return await call(item)
+            except GoogleApiError as error:
+                return error
+
+    return await asyncio.gather(*(one(item) for item in items))
 
 
 def _reason(
