@@ -117,6 +117,7 @@ export function ChatDivider({ children }: { children: ReactNode }) {
 
 /**
  * 提問列（DESIGN.md 6.21）：輸入框、計數、送出（主要按鈕，輸入為空時 disabled）。
+ * `disabled`（送出中）時輸入框唯讀並套停用樣式，仍保有焦點；送出的判斷不變（`!disabled`）。
  * 手機：輸入框獨佔一行，計數靠左、按鈕靠右。
  */
 export function AskBar({
@@ -160,10 +161,12 @@ export function AskBar({
         value={value}
         maxLength={maxLength}
         placeholder={placeholder}
-        disabled={disabled}
+        // 送出中用 readOnly 不用 disabled：disabled 會讓輸入框失去焦點，回覆回來旅客得再點一次才能打字（#438）
+        readOnly={disabled}
+        aria-disabled={disabled || undefined}
         onChange={(e) => onChange(e.target.value)}
         data-testid={inputTestId}
-        className={`${fieldInput} basis-full md:min-w-0 md:flex-1 md:basis-0`}
+        className={`${fieldInput} basis-full md:min-w-0 md:flex-1 md:basis-0 ${disabled ? "bg-paper text-muted" : ""}`}
       />
       <span className="mr-auto whitespace-nowrap t-caption text-muted tabular-nums md:mr-0">
         {value.length}/{maxLength}
