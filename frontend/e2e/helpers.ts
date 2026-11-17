@@ -68,3 +68,31 @@ export async function setupClaimIncident(page: Page, name: string) {
   }
   return id;
 }
+
+type TripTransition = { overlay: boolean; cardCounts: number[] };
+
+/**
+ * 開始記錄換到行程頁的過場（#445）：有沒有出現「正在整理您的行程」載入遮罩，以及事故卡出現過哪些張數
+ * （只有舊行程的一張卡閃一下，就會多記到 1）。SPA 換頁不重新載入，記錄會一直留著；要在換頁前呼叫。
+ */
+export async function watchTripTransition(page: Page) {
+  await page.evaluate(() => {
+    const seen: TripTransition = { overlay: false, cardCounts: [] };
+    (window as Window & { __trip?: TripTransition }).__trip = seen;
+    const check = () => {
+      const status = document.querySelector('[role="status"]');
+      if (status?.textContent?.includes("正在整理您的行程")) seen.overlay = true;
+      const n = document.querySelectorAll('[data-testid="trip-incident"]').length;
+      if (n > 0 && !seen.cardCounts.includes(n)) seen.cardCounts.push(n);
+    };
+    new MutationObserver(check).observe(document.body, { childList: true, subtree: true });
+  });
+}
+
+/** `watchTripTransition` 到目前為止記到的過場。 */
+export async function tripTransition(page: Page): Promise<TripTransition> {
+  return page.evaluate(
+    () =>
+      (window as Window & { __trip?: TripTransition }).__trip ?? { overlay: false, cardCounts: [] },
+  );
+}

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, tripTransition, watchTripTransition } from "./helpers";
 
 // 行程頁的入口與導向（#360）：問完事故進行程頁並選中這個事故；`?incident=` 預設選中並展開；
 // Demo 流程「建立行程 → 事故 A → 新狀況 → 事故 B → 行程頁看兩個事故與共用待辦」。需要 make seed。
@@ -92,6 +92,8 @@ test("Demo 流程：事故 A → 有新狀況 → 事故 B，問完停在行程�
   await page.getByTestId("message").fill("班機取消了");
   await page.getByTestId("send").click();
   await replied;
+  // 從這裡開始記換頁過場（#445）：問完後要有載入遮罩，行程頁不能先出現只有舊行程的一張卡
+  await watchTripTransition(page);
   replied = reply();
   await page.getByTestId("message").fill("昨天在東京成田機場");
   await page.getByTestId("send").click();
@@ -110,6 +112,9 @@ test("Demo 流程：事故 A → 有新狀況 → 事故 B，問完停在行程�
     "true",
   );
   await expect(page.getByTestId("qa-title")).toContainText("班機");
+  const seen = await tripTransition(page);
+  expect(seen.overlay, "換頁時要有「正在整理您的行程」遮罩").toBe(true);
+  expect(seen.cardCounts, "行程頁出現過的事故卡張數：不能先閃只有 A 的一張").toEqual([2]);
   // 共用待辦各只出現一次
   await expect(page.getByTestId("todos").getByText("填寫理賠申請書")).toHaveCount(1);
 });
