@@ -18,4 +18,4 @@ def test_提醒信間隔的預設值是規格的_24_小時與_3_天() -> None:
     s = Settings(_env_file=None)  # pyright: ignore[reportCallIssue]
     assert s.REMINDER_FIRST_DELAY_SECONDS == 24 * 60 * 60
     assert s.REMINDER_INTERVAL_SECONDS == 3 * 24 * 60 * 60
-    assert s.MAIL_FROM_NAME == "好險有你"
+    assert s.MAIL_FROM_NAME == "好險有你 Tripcare"
