@@ -84,6 +84,15 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
   await chat.getByRole("button", { name: "班機延誤多久才能賠？" }).click();
   await expect(chat.getByTestId("question")).toHaveText(["班機延誤多久才能賠？"]);
   await expect(chat.getByTestId("answer")).toHaveCount(1, { timeout: 60_000 });
+  // 回答醒目地放在上面；條款依據預設收合，點開才看得到
+  await expect(chat.getByTestId("answer")).toContainText("回答");
+  const basis = chat.getByTestId("answer-basis");
+  if (await basis.count()) {
+    const first = basis.locator("details").first();
+    await expect(first).toBeHidden();
+    await basis.getByText(/^查看依據/).click();
+    await expect(first).toBeVisible();
+  }
   // 發問後常見問題仍在輸入框下方
   await expect(chat.getByRole("button", { name: "兩個方案差在哪？" })).toBeEnabled();
 
@@ -103,16 +112,24 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
   await expect(input).toHaveValue("");
   await expect(chat.getByTestId("question")).toHaveText(["班機延誤多久才能賠？", "那次推薦呢？"]);
   await expect(chat.getByTestId("answer")).toHaveCount(2, { timeout: 60_000 });
-  // 收到回答後捲到最新提問上方一點，問題與回答開頭都看得到
-  const gap = await chat
+  // 收到回答後捲到最新提問上方一點，問題與回答開頭都看得到；
+  // 依據預設收合、內容不夠長時捲不到那麼上面，那就是已經捲到底，問題與回答仍都看得到
+  const view = await chat
     .getByTestId("question")
     .last()
     .evaluate((q) => {
       const log = q.parentElement as HTMLElement;
-      return q.getBoundingClientRect().top - log.getBoundingClientRect().top;
+      const logBox = log.getBoundingClientRect();
+      const answer = log.querySelector('[data-testid="answer"]:last-of-type') as HTMLElement;
+      return {
+        gap: q.getBoundingClientRect().top - logBox.top,
+        atBottom: log.scrollTop + log.clientHeight >= log.scrollHeight - 1,
+        answerTopVisible: answer.getBoundingClientRect().top < logBox.bottom,
+      };
     });
-  expect(gap).toBeGreaterThanOrEqual(0);
-  expect(gap).toBeLessThan(40);
+  expect(view.gap).toBeGreaterThanOrEqual(0);
+  expect(view.answerTopVisible).toBe(true);
+  expect(view.gap < 40 || view.atBottom).toBe(true);
 
   // 回比較表再進來：對話區是空的
   await page.getByRole("link", { name: "回比較表" }).click();
