@@ -7,6 +7,12 @@
 		reverse_proxy backend:8000
 	}
 
+	# Flower（ADR-0031）：看提醒信的背景工作；帳號密碼由 Flower 檢查（.env 的 FLOWER_BASIC_AUTH）
+	redir /flower /flower/ 308
+	handle /flower/* {
+		reverse_proxy flower:5555
+	}
+
 	# SPA：找不到的路徑都回 index.html，深層路由重新整理不會 404
 	handle {
 		root * /srv

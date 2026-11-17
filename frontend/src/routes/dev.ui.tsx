@@ -28,6 +28,8 @@ import { DaysSummary } from "../features/compare/DaysSummary";
 import { PlanCard } from "../features/compare/PlanCard";
 import { ReasonCard } from "../features/compare/ReasonCard";
 import { MiniTable, SimulationCard, Story } from "../features/compare/ScenarioParts";
+import { ReminderNotice } from "../features/incident/ReminderNotice";
+import type { ReminderRound } from "../features/incident/ReminderProgress";
 import { UploadProgressPreview } from "../features/incident/UploadProgressPreview";
 
 export const Route = createFileRoute("/dev/ui")({
@@ -58,6 +60,84 @@ const SAMPLE_PLAN: PlanCardOut = {
 } as PlanCardOut;
 
 const panel = "space-y-3 rounded-2xl border border-line/60 bg-white p-5 shadow-card";
+
+// 提醒信寄送進度的幾種情況（時間是 UTC，畫面顯示台灣時間）
+const plan = (start: string, sent: (string | null)[]): ReminderRound["letters"] => {
+  const day = 24 * 60 * 60 * 1000;
+  let at = new Date(start).getTime() + day;
+  return sent.map((s) => {
+    const letter = { planned_at: new Date(at).toISOString(), sent_at: s };
+    at = (s ? new Date(s).getTime() : at) + 3 * day;
+    return letter;
+  });
+};
+const round = (
+  start: string,
+  sent: (string | null)[],
+  endedAt: string | null = null,
+  trigger: ReminderRound["trigger"] = null,
+  endReason: ReminderRound["end_reason"] = endedAt ? "new_round" : null,
+): ReminderRound => ({
+  started_at: start,
+  ended_at: endedAt,
+  end_reason: endReason,
+  trigger,
+  letters: plan(start, sent),
+});
+const R1 = "2026-11-16T03:37:00Z";
+const R1_SENT_1 = "2026-11-17T03:37:12Z";
+const R1_SENT_2 = "2026-11-20T03:37:40Z";
+// [說明, 各輪, 還缺幾份需上傳的文件]
+const REMINDER_ROUNDS: [string, ReminderRound[], number][] = [
+  ["還沒寄", [round(R1, [null, null, null])], 2],
+  ["第一輪寄了 2 封", [round(R1, [R1_SENT_1, R1_SENT_2, null])], 2],
+  [
+    "第一輪寄了 1 封後新增事故：第 2、3 封不再寄，新一輪重新開始",
+    [
+      round(R1, [R1_SENT_1, null, null], "2026-11-18T06:10:00Z"),
+      round("2026-11-18T06:10:00Z", [null, null, null], null, {
+        incident: "行李延誤 · 2026/11/18",
+        kind: "new_incident",
+      }),
+    ],
+    2,
+  ],
+  [
+    "第一輪寄了 2 封後新增事故，新一輪寄了 1 封後原本的事故有新狀況",
+    [
+      round(R1, [R1_SENT_1, R1_SENT_2, null], "2026-11-21T06:10:00Z"),
+      round("2026-11-21T06:10:00Z", ["2026-11-22T06:10:09Z", null, null], "2026-11-24T01:05:00Z", {
+        incident: "班機延誤 · 2026/11/20",
+        kind: "new_incident",
+      }),
+      // 不是新事故：原本的事故補問後多了要上傳的文件，寫「哪個事故」新增狀況
+      round("2026-11-24T01:05:00Z", [null, null, null], null, {
+        incident: "班機延誤 · 2026/11/16",
+        kind: "new_situation",
+      }),
+    ],
+    2,
+  ],
+  [
+    "第一輪寄了 1 封後文件都齊全：第 2、3 封不再寄",
+    [round(R1, [R1_SENT_1, null, null], "2026-11-19T02:20:00Z", null, "completed")],
+    0,
+  ],
+  [
+    "第一輪寄了 1 封後新增事故，新一輪還沒寄就行程結案",
+    [
+      round(R1, [R1_SENT_1, null, null], "2026-11-18T06:10:00Z"),
+      round(
+        "2026-11-18T06:10:00Z",
+        [null, null, null],
+        "2026-11-18T09:00:00Z",
+        { incident: "行李延誤 · 2026/11/18", kind: "new_incident" },
+        "closed",
+      ),
+    ],
+    2,
+  ],
+];
 
 /** 功能二共用元件的預覽（#215）：設計稿 DESIGN.md 第 6 節的元件，方便對照與 e2e 驗證。 */
 function UiPreview() {
@@ -129,6 +209,21 @@ function Preview() {
             顯示 Toast
           </button>
         </div>
+      </section>
+
+      <section className={panel} aria-label="提醒信說明">
+        <h2 className="t-section-title text-heading">提醒信說明（行程頁送件區上方）</h2>
+        <ReminderNotice missingUploads={2} />
+      </section>
+
+      <section className={panel} aria-label="提醒信寄送進度">
+        <h2 className="t-section-title text-heading">提醒信寄送進度（預覽，資料是示意）</h2>
+        {REMINDER_ROUNDS.map(([label, rounds, missing]) => (
+          <div key={label} className="space-y-2" data-testid="reminder-round-preview">
+            <p className="m-0 t-label text-muted">{label}</p>
+            <ReminderNotice missingUploads={missing} rounds={rounds} />
+          </div>
+        ))}
       </section>
 
       <section className={panel} aria-label="標籤">

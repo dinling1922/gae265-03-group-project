@@ -1,5 +1,40 @@
 name: gae265_03_group_project
 
+# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0031）
+x-celery-common: &celery-common
+  image: gae265_03_group_project-backend
+  # 和 backend 同一份 build 設定：image 還不存在時不會去 Docker Hub 拉，build cache 共用
+  build:
+    context: .
+    dockerfile: backend/Dockerfile
+    target: dev
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    POSTGRES_SERVER: db
+    POSTGRES_PORT: 5432
+    REDIS_URL: redis://redis:6379/0
+    # .env 沒設時寄到 compose 的 Mailpit
+    SMTP_HOST: ${SMTP_HOST:-mailpit}
+    SMTP_PORT: ${SMTP_PORT:-1025}
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    # backend 啟動時會套用 migration，等它好了才開始處理工作
+    backend:
+      condition: service_healthy
+  develop:
+    watch:
+      - action: sync+restart
+        path: ./backend/app
+        target: /app/backend/app
+        ignore:
+          - __pycache__/
+
 services:
   db:
     image: pgvector/pgvector:pg18
@@ -54,6 +89,7 @@ services:
     environment:
       POSTGRES_SERVER: db
       POSTGRES_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
       # 容器內連本機的 Ollama；Linux（含 WSL2）需要 extra_hosts 才有 host.docker.internal
       OLLAMA_BASE_URL: http://host.docker.internal:11434
     extra_hosts:
@@ -84,6 +120,47 @@ services:
           path: ./backend/pyproject.toml
         - action: rebuild
           path: ./uv.lock
+
+  # 背景工作（ADR-0031）：Redis 只當佇列，不保存資料；狀態都在 Postgres
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *celery-common
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker:celery_app inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 20s
+
+  beat:
+    <<: *celery-common
+    # 排程檔放 /tmp：不寫進同步的程式碼資料夾
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+
+  flower:
+    <<: *celery-common
+    command: ["celery", "-A", "app.worker:celery_app", "flower", "--port=5555"]
+    ports:
+      - "127.0.0.1:${FLOWER_PORT:-5555}:5555"
+
+  # 開發用收信匣：提醒信寄到這裡，不會真的寄出；http://localhost:8025 看信
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAILPIT_PORT:-8025}:8025"
+      # SMTP：讓本機跑的寄信測試（make test）也能寄進來
+      - "127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025"
 
   frontend:
     image: gae265_03_group_project-frontend
