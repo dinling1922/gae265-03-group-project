@@ -30,6 +30,8 @@ for p in "$BACKEND_PORT" "$FRONT_PORT"; do
 done
 
 LOGS="$(mktemp -d)"
+# 主目錄的 frontend/node_modules/.vite* 是 docker 用 root 建的，本機寫不進去：快取放暫存目錄、設定檔在記憶體載入
+VITE_CACHE="$LOGS/vite-cache"
 PIDS=()
 cleanup() {
   for pid in "${PIDS[@]:-}"; do
@@ -54,8 +56,8 @@ trap 'exit 130' INT TERM
 PIDS+=("$!")
 
 [ -d "$ROOT/frontend/node_modules" ] || pnpm --dir "$ROOT/frontend" install --frozen-lockfile
-(cd "$ROOT/frontend" && API_PROXY_TARGET="http://127.0.0.1:$BACKEND_PORT" \
-  exec setsid pnpm exec vite --host 127.0.0.1 --port "$FRONT_PORT" --strictPort >"$LOGS/frontend.log" 2>&1) &
+(cd "$ROOT/frontend" && API_PROXY_TARGET="http://127.0.0.1:$BACKEND_PORT" VITE_CACHE_DIR="$VITE_CACHE" \
+  exec setsid pnpm exec vite --configLoader runner --host 127.0.0.1 --port "$FRONT_PORT" --strictPort >"$LOGS/frontend.log" 2>&1) &
 PIDS+=("$!")
 
 wait_ready() { # 名稱 網址 PID 記錄檔

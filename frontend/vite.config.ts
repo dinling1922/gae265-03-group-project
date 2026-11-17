@@ -47,6 +47,9 @@ function pdfjsAssets(): Plugin {
 }
 
 export default defineConfig({
+  // 預設放在 node_modules/.vite；主目錄的那個資料夾是 docker 容器用 root 建的，本機另起 vite 寫不進去，
+  // 所以 scripts/e2e-fake.sh 會用 VITE_CACHE_DIR 改放到暫存目錄（沒設時行為不變）
+  cacheDir: process.env.VITE_CACHE_DIR || undefined,
   // tanstackRouter 要排在 react 之前：先產生路由樹，再交給 React 轉譯
   plugins: [
     tanstackRouter({ target: "react", autoCodeSplitting: true }),
