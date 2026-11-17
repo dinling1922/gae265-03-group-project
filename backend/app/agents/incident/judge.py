@@ -156,6 +156,11 @@ def stated_delay_hours(text: str) -> int | None:
 _CLOCK = r"([0-9]{1,2})\s*[:：]\s*([0-9]{2})"
 _PLANNED_CLOCK = re.compile(rf"(?:原定|原訂|預定)[^0-9]{{0,6}}?{_CLOCK}")
 _ACTUAL_CLOCK = re.compile(rf"實際[^0-9]{{0,6}}?{_CLOCK}")
+# 「班機被改為 22:00 起飛」「延到 22:00 才飛」：新的起飛時間，記成實際起飛時間。
+# 「預計 22:00」不算（預計還沒發生，#394）
+_CHANGED_CLOCK = re.compile(
+    rf"(?:改為|改成|改到|延到|延至|延後到|延後至)[^0-9]{{0,6}}?{_CLOCK}"
+)
 
 
 def _clock(m: re.Match[str] | None) -> str | None:
@@ -170,14 +175,26 @@ def _clock(m: re.Match[str] | None) -> str | None:
 def stated_clock_times(text: str) -> dict[str, str]:
     """旅客直接說出的原定／實際起飛時間（例：「原訂14:00，實際16:00」），由程式取出，不經 LLM。
 
-    只認 `HH:MM`，要有「原定／原訂／預定」或「實際」當線索，回傳 `dep_plan`、`dep_act`。
+    只認 `HH:MM`，要有「原定／原訂／預定」或「實際」當線索，回傳 `dep_plan`、`dep_act`；
+    「改為／改成／改到／延到／延至／延後到／延後至」後面接的時間也記成 `dep_act`（#433）；
+    但和「原定」取到的是同一個時間（「原定改成 13:00」）時只記成原定。
     問句（？、嗎、多少、幾）一律不算：「原定 14:00 實際 16:00 可以賠嗎？」是在問條款（#382）。
     """
     if any(mark in text for mark in _QUESTION_MARKS):
         return {}
+    planned = _PLANNED_CLOCK.search(text)
+    # 「原定改成 13:00」是在更正原定時間：「改成」取到的若和原定是同一個位置的時間，不記成實際
+    changed = next(
+        (
+            m
+            for m in _CHANGED_CLOCK.finditer(text)
+            if planned is None or m.start(1) != planned.start(1)
+        ),
+        None,
+    )
     found = {
-        "dep_plan": _clock(_PLANNED_CLOCK.search(text)),
-        "dep_act": _clock(_ACTUAL_CLOCK.search(text)),
+        "dep_plan": _clock(planned),
+        "dep_act": _clock(_ACTUAL_CLOCK.search(text) or changed),
     }
     return {k: v for k, v in found.items() if v}
 

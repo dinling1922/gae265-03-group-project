@@ -117,6 +117,7 @@ export function ChatDivider({ children }: { children: ReactNode }) {
 
 /**
  * 提問列（DESIGN.md 6.21）：輸入框、計數、送出（主要按鈕，輸入為空時 disabled）。
+ * `disabled`（送出中）時輸入框唯讀並套停用樣式，仍保有焦點；送出的判斷不變（`!disabled`）。
  * 手機：輸入框獨佔一行，計數靠左、按鈕靠右。
  */
 export function AskBar({
@@ -132,6 +133,7 @@ export function AskBar({
   inputTestId,
   submitTestId,
   leading,
+  focusOnMount = false,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -147,7 +149,18 @@ export function AskBar({
   submitTestId?: string;
   /** 放在字數與送出鈕之間的東西（例如矮視窗時搬上來的「回到確認」）。 */
   leading?: ReactNode;
+  /**
+   * 掛載時把焦點給輸入框（#441）。預設不對焦；只有滑鼠／觸控板的裝置（`pointer: fine`）才會對焦，
+   * 手機與平板不對焦，避免一進頁面就彈出鍵盤。
+   */
+  focusOnMount?: boolean;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusOnMount && window.matchMedia?.("(pointer: fine)").matches) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+  }, [focusOnMount]);
   function submit(e: FormEvent) {
     e.preventDefault();
     if (value.trim() && !disabled) onSubmit();
@@ -155,15 +168,18 @@ export function AskBar({
   return (
     <form onSubmit={submit} className="flex flex-wrap items-center gap-3">
       <input
+        ref={inputRef}
         name={inputName}
         aria-label={inputLabel}
         value={value}
         maxLength={maxLength}
         placeholder={placeholder}
-        disabled={disabled}
+        // 送出中用 readOnly 不用 disabled：disabled 會讓輸入框失去焦點，回覆回來旅客得再點一次才能打字（#438）
+        readOnly={disabled}
+        aria-disabled={disabled || undefined}
         onChange={(e) => onChange(e.target.value)}
         data-testid={inputTestId}
-        className={`${fieldInput} basis-full md:min-w-0 md:flex-1 md:basis-0`}
+        className={`${fieldInput} basis-full md:min-w-0 md:flex-1 md:basis-0 ${disabled ? "bg-paper text-muted" : ""}`}
       />
       <span className="mr-auto whitespace-nowrap t-caption text-muted tabular-nums md:mr-0">
         {value.length}/{maxLength}
