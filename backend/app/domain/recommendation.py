@@ -1,14 +1,17 @@
-"""1-3 推薦方案與比較表（spec #61、ADR-0021）。
+"""1-3 推薦方案與比較表（spec #61、spec #457、ADR-0032）。
 
-推薦規則：每個方案用自己的推薦保額（該天數下最低的身故保額），依在意事項順序逐項比額度，
-全部同分取保費最低，再同分照 plans.json 的順序。對照方案（畫面上的「次推薦」）取比推薦便宜的
-方案中排最前面的；推薦已是最便宜時取排第二的。理由、依據與比較表是固定句型，數字全部由程式填入（ADR-0004）。
+推薦規則：在該天數下所有「方案 × 身故保額」組合中，依需求等級先篩「有就好」、再篩「越高越好」，
+取保費最低的。對照方案（畫面上的「次推薦」）是不同方案：在比推薦便宜的組合中用同一套規則選，
+推薦已是最便宜時在其他所有組合中選。依據與比較表是固定句型，數字全部由程式填入（ADR-0004）；
+推薦理由由需求等級的原因加上固定句型的結論組成，不含數字。
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.core.config import settings
 from app.domain.benefits import (
     CATEGORY_CONCERN,
     CONCERN_BENEFITS,
@@ -52,6 +55,28 @@ class Quotes:
         )
 
 
+Level = Literal["high", "enough"]  # 越高越好、有就好
+Source = Literal["llm", "default"]  # 需求等級來自 LLM，或是預設等級
+
+
+class ConcernLevel(BaseModel):
+    """需求等級：某個在意事項要「越高越好」（high）還是「有就好」（enough）。"""
+
+    concern: Concern
+    level: Level
+    reason: str | None = Field(
+        default=None, description="點名日程活動的原因；預設等級時是 null"
+    )
+
+
+def default_levels(concerns: list[Concern]) -> list[ConcernLevel]:
+    """判斷不出需求等級時：第 1 名越高越好、其餘有就好。"""
+    return [
+        ConcernLevel(concern=c, level="high" if i == 0 else "enough")
+        for i, c in enumerate(concerns)
+    ]
+
+
 class ConcernAmountOut(BaseModel):
     concern: Concern
     amount: int = Field(
@@ -70,7 +95,9 @@ class PlanCardOut(BaseModel):
     company: str
     url: str = Field(description="投保連結")
     sum_insured: int = Field(description="卡片目前選的身故保額（元）")
-    recommended_sum_insured: int = Field(description="推薦保額：該天數下最低的身故保額")
+    recommended_sum_insured: int = Field(
+        description="推薦保額：推薦時和方案一起選出的身故保額"
+    )
     sum_insured_options: list[int] = Field(
         description="該方案在該天數下有報價的身故保額，由小到大"
     )
@@ -92,74 +119,62 @@ class ComparisonTableRowOut(BaseModel):
 class RecommendationOut(BaseModel):
     recommended: PlanCardOut
     alternative: PlanCardOut = Field(description="對照方案（畫面上的「次推薦」）")
-    reason: str = Field(description="推薦理由（以推薦保額計算）")
+    concern_levels: list[ConcernLevel] = Field(description="需求等級，依在意事項順序")
+    reason: str = Field(
+        description="推薦理由：需求等級的原因加上固定句型的結論，不含數字"
+    )
     basis: list[str] = Field(description="推薦依據（以推薦保額計算）")
     table: list[ComparisonTableRowOut] = Field(
         description="比較表（以卡片目前選的保額計算）"
     )
 
 
-@dataclass(frozen=True)
-class _Ranked:
-    plan_code: str
-    sum_insured: int
-    premium: int
-    amounts: tuple[int, ...]
+Pair = tuple[str, int]  # (方案, 身故保額)
 
 
-def _rank(quotes: Quotes, concerns: list[Concern]) -> list[_Ranked]:
+def _select(quotes: Quotes, pairs: list[Pair], levels: list[ConcernLevel]) -> Pair:
+    """依在意事項順序先篩「有就好」、再篩「越高越好」，剩下的取保費最低的。
+
+    pairs 已依 plans.json 順序、保額由小到大排好；min 取第一個最小值，所以同保費照這個順序。
+    """
+    for level, ratio in (
+        ("enough", settings.RECOMMEND_ENOUGH_RATIO),
+        ("high", settings.RECOMMEND_HIGH_RATIO),
+    ):
+        for c in (x.concern for x in levels if x.level == level):
+            top = max(quotes.concern_amount(*p, c) for p in pairs)
+            if top:  # 剩下的都沒有這項：略過
+                pairs = [
+                    p for p in pairs if quotes.concern_amount(*p, c) >= top * ratio
+                ]
+    return min(pairs, key=lambda p: quotes.premiums[p[0]][p[1]])
+
+
+def pick(quotes: Quotes, levels: list[ConcernLevel]) -> tuple[Pair, Pair] | None:
+    """回傳 ((推薦方案, 推薦保額), (對照方案, 對照保額))；有報價的方案不到兩個時是 None。"""
     order = [p.id for p in load_plans() if p.id in quotes.premiums]
-    ranked = []
-    for code in order:
-        sum_insured = quotes.options(code)[0]
-        ranked.append(
-            _Ranked(
-                code,
-                sum_insured,
-                quotes.premiums[code][sum_insured],
-                tuple(quotes.concern_amount(code, sum_insured, c) for c in concerns),
-            )
-        )
-    # sorted 是穩定排序：同分同保費時保留 plans.json 的順序
-    return sorted(ranked, key=lambda r: (tuple(-a for a in r.amounts), r.premium))
-
-
-def pick(
-    quotes: Quotes, concerns: list[Concern]
-) -> tuple[tuple[str, int], tuple[str, int]] | None:
-    """回傳 ((推薦方案, 推薦保額), (對照方案, 推薦保額))；有報價的方案不到兩個時是 None。"""
-    ranked = _rank(quotes, concerns)
-    if len(ranked) < 2:
+    if len(order) < 2:
         return None
-    best = ranked[0]
-    cheaper = [r for r in ranked if r.premium < best.premium]
-    alt = cheaper[0] if cheaper else ranked[1]
-    return (best.plan_code, best.sum_insured), (alt.plan_code, alt.sum_insured)
+    pairs = [(code, s) for code in order for s in quotes.options(code)]
+    rec = _select(quotes, pairs, levels)
+    premium = quotes.premiums[rec[0]][rec[1]]
+    others = [p for p in pairs if p[0] != rec[0]]
+    cheaper = [p for p in others if quotes.premiums[p[0]][p[1]] < premium]
+    return rec, _select(quotes, cheaper or others, levels)
 
 
 def _money(n: int) -> str:
     return f"{n:,} 元"
 
 
-def _premium_clause(diff: int) -> str:
-    return f"保費多 {diff:,} 元" if diff >= 0 else f"保費還少 {-diff:,} 元"
-
-
-def _reason(
-    concerns: list[Concern], rec: tuple[int, ...], alt: tuple[int, ...], diff: int
-) -> str:
-    k = next((i for i, (a, b) in enumerate(zip(rec, alt, strict=True)) if a != b), None)
-    if k is None:
-        return f"你在意的項目兩個方案額度相同，推薦方案保費少 {-diff:,} 元。"
-    if k == 0:
-        return (
-            f"你最在意「{concerns[0]}」，推薦方案在這一項是 {rec[0]:,} 元，"
-            f"次推薦是 {alt[0]:,} 元；{_premium_clause(diff)}。"
-        )
+def _reason(levels: list[ConcernLevel], source: Source, plan_name: str) -> str:
+    conclusion = f"在這些需求都滿足的方案中，選保費最低的{plan_name}。"
+    if source == "llm":
+        reasons = "；".join((x.reason or "").rstrip("。.") for x in levels)
+        return f"{reasons}。所以{conclusion}"
+    others = "、其餘有就好" if len(levels) > 1 else ""
     return (
-        f"你最在意的「{concerns[0]}」兩個方案一樣是 {rec[0]:,} 元；"
-        f"再看第 {k + 1} 在意的「{concerns[k]}」，推薦方案 {rec[k]:,} 元、"
-        f"次推薦 {alt[k]:,} 元；{_premium_clause(diff)}。"
+        f"依你排的順序，最在意的「{levels[0].concern}」越高越好{others}；{conclusion}"
     )
 
 
@@ -250,25 +265,32 @@ def _table(
 
 def build(
     quotes: Quotes,
-    concerns: list[Concern],
-    recommended: tuple[str, int],
-    alternative: tuple[str, int],
+    levels: list[ConcernLevel],
+    source: Source,
+    recommended: Pair,
+    alternative: Pair,
 ) -> RecommendationOut:
-    """依存下的兩個方案與保額組出卡片、理由、依據與比較表。"""
+    """依存下的兩個方案與卡片保額組出卡片、理由、依據與比較表。
+
+    卡片保額可能被使用者改過，推薦保額不存：依同樣的需求等級重跑一次選法取回。
+    """
     plans = {p.id: p for p in load_plans()}
+    concerns = [x.concern for x in levels]
+    rule_sums = dict(pick(quotes, levels) or ())
 
     def card(plan_code: str, sum_insured: int) -> PlanCardOut:
         plan = plans[plan_code]
         options = quotes.options(plan_code)
-        # 試算表換版後已存的保額沒有報價：回到推薦保額
-        current = sum_insured if sum_insured in options else options[0]
+        # 試算表換版後選法結果不同：推薦保額退回最低保額；已存的保額沒有報價時回到推薦保額
+        rule_sum = rule_sums.get(plan_code, options[0])
+        current = sum_insured if sum_insured in options else rule_sum
         return PlanCardOut(
             plan_code=plan_code,
             name=plan.name,
             company=plan.company,
             url=plan.url,
             sum_insured=current,
-            recommended_sum_insured=options[0],
+            recommended_sum_insured=rule_sum,
             sum_insured_options=options,
             premium=quotes.premiums[plan_code][current],
             concern_amounts=[
@@ -292,7 +314,8 @@ def build(
     return RecommendationOut(
         recommended=rec,
         alternative=alt,
-        reason=_reason(concerns, rec_amounts, alt_amounts, rec_premium - alt_premium),
+        concern_levels=levels,
+        reason=_reason(levels, source, rec.name),
         basis=_basis(concerns, rec_amounts, alt_amounts, rec_premium, alt_premium),
         table=_table(quotes, concerns, rec, alt),
     )

@@ -33,8 +33,8 @@ class Comparison(BaseTable, table=True):
     concern_suggestions: list[dict[str, Any]] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
-    # 推薦結果（ADR-0021）：存檔時天數或在意事項有變才重算。四個都是空的代表還沒推薦。
-    # 保費、額度、推薦理由與比較表不存，讀取時依這兩個方案與保額重算。
+    # 推薦結果（ADR-0032）：天數或在意事項有變、或日程活動改了（清空後補算）才重算。
+    # 四個方案欄位都是空的代表還沒推薦。保費、額度、推薦理由與比較表不存，讀取時重算。
     recommended_plan_code: str | None = Field(default=None, description="推薦方案 id")
     recommended_sum_insured: int | None = Field(
         default=None, description="推薦方案卡片目前選的身故保額（元）"
@@ -44,4 +44,11 @@ class Comparison(BaseTable, table=True):
     )
     alternative_sum_insured: int | None = Field(
         default=None, description="對照方案卡片目前選的身故保額（元）"
+    )
+    # 需求等級：[{concern, level, reason}]，依在意事項順序；null 代表還沒推薦
+    concern_levels: list[dict[str, Any]] | None = Field(
+        default=None, sa_column=Column(JSON, nullable=True)
+    )
+    recommendation_source: str | None = Field(
+        default=None, description="需求等級的來源：llm 或 default（預設等級）"
     )

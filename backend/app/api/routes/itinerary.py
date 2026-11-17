@@ -16,7 +16,7 @@ from sqlalchemy import delete
 from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
-from app.api.routes.comparisons import own_comparison
+from app.api.routes.comparisons import clear_recommendation, own_comparison
 from app.domain.itinerary import FIRST_HOUR, LAST_HOUR, ActivityCategory
 from app.models import Comparison, ItineraryActivity
 
@@ -109,8 +109,9 @@ class SlotTakenConflict(BaseModel):
 
 
 def _itinerary_changed(session: SessionDep, comparison: Comparison) -> None:
-    """日程改了，推薦的在意事項就失效，下次進 1-2 重算（spec #427）。"""
+    """日程改了，推薦的在意事項（spec #427）與推薦方案（spec #457）就失效，下次 1-2 存檔時重算。"""
     comparison.concern_suggestions = None
+    clear_recommendation(comparison)
     session.add(comparison)
 
 

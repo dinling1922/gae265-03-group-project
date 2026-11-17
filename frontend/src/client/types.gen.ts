@@ -867,6 +867,25 @@ export type ConcernAmountOut = {
 };
 
 /**
+ * ConcernLevel
+ *
+ * 需求等級：某個在意事項要「越高越好」（high）還是「有就好」（enough）。
+ */
+export type ConcernLevel = {
+    concern: Concern;
+    /**
+     * Level
+     */
+    level: 'high' | 'enough';
+    /**
+     * Reason
+     *
+     * 點名日程活動的原因；預設等級時是 null
+     */
+    reason?: string | null;
+};
+
+/**
  * ConfirmDocumentIn
  */
 export type ConfirmDocumentIn = {
@@ -2311,7 +2330,7 @@ export type PlanCardOut = {
     /**
      * Recommended Sum Insured
      *
-     * 推薦保額：該天數下最低的身故保額
+     * 推薦保額：推薦時和方案一起選出的身故保額
      */
     recommended_sum_insured: number;
     /**
@@ -2945,9 +2964,15 @@ export type RecommendationOut = {
      */
     alternative: PlanCardOut;
     /**
+     * Concern Levels
+     *
+     * 需求等級，依在意事項順序
+     */
+    concern_levels: Array<ConcernLevel>;
+    /**
      * Reason
      *
-     * 推薦理由（以推薦保額計算）
+     * 推薦理由：需求等級的原因加上固定句型的結論，不含數字
      */
     reason: string;
     /**

@@ -2,6 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { login, nextSkippingItinerary } from "./helpers";
 
 // 推薦結果依開發資料庫的 seed（make seed）：6 天「班機延誤 → 突然生病就醫」。
+// 跳過日程（沒有活動）不呼叫 LLM，用預設需求等級：班機延誤越高越好、突然生病就醫有就好。
 
 /** 今天往後 offset 天的 YYYY-MM-DD（瀏覽器的本地日期）。 */
 function day(offset: number): string {
@@ -42,16 +43,20 @@ test("1-3 顯示推薦、依據、比較表與名詞解釋；改次推薦保額�
   await expect(rec.getByRole("heading")).toHaveText("富邦國外旅平險-進階型");
   await expect(rec.getByText("6 天 985 元")).toBeVisible();
   await expect(alt.getByRole("heading")).toHaveText("華南國外旅平險-基礎型");
-  await expect(alt.getByText("6 天 429 元")).toBeVisible();
-  await expect(alt.getByLabel("推薦保額")).toHaveValue("3000000");
+  await expect(alt.getByText("6 天 594 元")).toBeVisible();
+  await expect(alt.getByLabel("推薦保額")).toHaveValue("5000000");
   await expect(page.getByText("示意資料")).toHaveCount(0);
-  await expect(alt.getByRole("option", { name: "300 萬（推薦）" })).toBeAttached();
+  await expect(alt.getByRole("option", { name: "500 萬（推薦）" })).toBeAttached();
   await expect(alt.getByRole("link", { name: "前往保險公司官網投保 ↗" })).toHaveAttribute(
     "target",
     "_blank",
   );
+  await expect(page.getByTestId("concern-levels").getByRole("listitem")).toHaveText([
+    "班機延誤：越高越好",
+    "突然生病就醫：有就好",
+  ]);
   const reason =
-    "你最在意「班機延誤」，推薦方案在這一項是 9,000 元，次推薦是 6,000 元；保費多 556 元。";
+    "依你排的順序，最在意的「班機延誤」越高越好、其餘有就好；在這些需求都滿足的方案中，選保費最低的富邦國外旅平險-進階型。";
   await expect(page.getByTestId("reason")).toHaveText(reason);
 
   // 推薦依據
@@ -85,9 +90,9 @@ test("1-3 顯示推薦、依據、比較表與名詞解釋；改次推薦保額�
   await expect(dialog).toBeHidden();
 
   // 改次推薦保額：只有次推薦卡片與那一欄改變
-  await alt.getByLabel("保額").selectOption({ label: "500 萬" });
-  await expect(alt.getByText("6 天 594 元")).toBeVisible();
-  await expect(alt.getByLabel("保額（已自行調整）")).toHaveValue("5000000");
+  await alt.getByLabel("保額").selectOption({ label: "800 萬" });
+  await expect(alt.getByText("6 天 829 元")).toBeVisible();
+  await expect(alt.getByLabel("保額（已自行調整）")).toHaveValue("8000000");
   // 欄位標題不寫保額
   await expect(
     table.getByRole("columnheader", { name: /華南國外旅平險-基礎型/ }),
@@ -95,13 +100,13 @@ test("1-3 顯示推薦、依據、比較表與名詞解釋；改次推薦保額�
   await expect(rec.getByText("6 天 985 元")).toBeVisible();
   await expect(page.getByTestId("reason")).toHaveText(reason);
   await page.reload();
-  await expect(alt.getByLabel("保額")).toHaveValue("5000000");
+  await expect(alt.getByLabel("保額")).toHaveValue("8000000");
 
   await page.getByRole("link", { name: "上一步" }).click();
   await expect(page).toHaveURL(/\/concerns$/);
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page).toHaveURL(/\/result$/);
-  await expect(alt.getByLabel("保額")).toHaveValue("5000000");
+  await expect(alt.getByLabel("保額")).toHaveValue("8000000");
   await page.getByRole("link", { name: "完成" }).click();
   await expect(page).toHaveURL(/\/$/);
 });
