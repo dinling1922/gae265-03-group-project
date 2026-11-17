@@ -280,7 +280,9 @@ test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，
   await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/compare\/[0-9a-f-]{36}\/concerns$/);
 
-  await expect(page.getByText("這趟旅行你最擔心什麼？依重要程度點選，最多 3 項。")).toBeVisible();
+  await expect(
+    page.getByText("依你的行程，建議優先注意這幾項。你可以再調整，最多 3 項。"),
+  ).toBeVisible();
   await page.getByRole("button", { name: /^突然生病就醫/ }).click();
   await page.getByRole("button", { name: /^班機延誤/ }).click();
 
@@ -376,7 +378,7 @@ test("手機寬度（390px）下日程頁、1-2 沒有橫向捲動", async ({ pa
 
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page).toHaveURL(/\/concerns$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("選擇最在意的點");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("推薦保障重點");
   for (const name of ["突然生病就醫", "班機延誤", "證件遺失"]) {
     await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
   }

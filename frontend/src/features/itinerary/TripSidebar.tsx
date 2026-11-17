@@ -116,7 +116,7 @@ export function TripSidebar({
             : "選好兩個日期後顯示天數"}
         </DaysSummary>
         <Button onClick={onNext} disabled={nextDisabled} className={`${btnPri} w-full`}>
-          下一步：選擇在意的事
+          下一步：確認旅途風險
         </Button>
         {errors.length > 0 && (
           <ul role="alert" className="m-0 list-none space-y-1 p-0 t-caption-bold text-danger">

@@ -33,7 +33,7 @@ const CONCERNS = Object.keys({
 
 const MAX_CONCERNS = 3;
 
-/** 1-2 選擇最在意的點：進來時讀回，上一步／下一步都先存檔再換頁。 */
+/** 1-2 推薦保障重點：進來時讀回，上一步／下一步都先存檔再換頁。 */
 function ConcernsPage() {
   const { id } = Route.useParams();
   return <WithComparison id={id}>{(c) => <ConcernsForm initial={c} />}</WithComparison>;
@@ -70,10 +70,10 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
 
   return (
     <main data-page-paper className="mx-auto flex max-w-[1040px] flex-col gap-6 font-ui md:px-6">
-      <PageHead crumb="出發前：幫我選方案 · 2／3" title="選擇最在意的點" />
+      <PageHead crumb="出發前：幫我選方案 · 2／3" title="推薦保障重點" />
       <div className={`${card} flex flex-col gap-5`}>
         <h2 className="m-0 t-label text-heading">
-          這趟旅行你最擔心什麼？依重要程度點選，最多 3 項。
+          依你的行程，建議優先注意這幾項。你可以再調整，最多 3 項。
         </h2>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
           {CONCERNS.map((c) => {

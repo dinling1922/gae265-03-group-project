@@ -549,7 +549,7 @@ function SkipDialog({
       open={open}
       onOpenChange={(o) => !o && onCancel()}
       title="目前沒有任何行程活動"
-      description="要跳過安排行程這個步驟，直接選擇在意的事嗎？"
+      description="要跳過安排行程這個步驟，直接確認旅途風險嗎？"
       testId="skip-dialog"
       actions={
         <>
