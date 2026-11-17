@@ -46,8 +46,11 @@ export function nextOccurrence(month: number, day: number, from: string): string
   return null;
 }
 
-/** set_trip_details 的日期：完整日期照用；M/D 的出發日取今天起的下一個，回程日取出發日起的下一個。 */
-export function resolveTripDate(input: string, notBefore: string = today()): string {
+/** set_trip_details 的日期：完整日期照用；M/D 的出發日取今年的那天（可以是過去），回程日取出發日起的下一個。 */
+export function resolveTripDate(
+  input: string,
+  notBefore: string = `${today().slice(0, 4)}-01-01`,
+): string {
   const parsed = parseDateInput(input);
   if (!parsed) throw new InvalidDate(input);
   if ("iso" in parsed) return parsed.iso;

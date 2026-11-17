@@ -69,14 +69,9 @@ export function formatHour(hour: number): string {
   return `${String(hour).padStart(2, "0")}:00`;
 }
 
-/** 與後端 ComparisonIn 同一套規則與訊息（spec #75）。storedDepart：已存的出發日沒改時不擋「已過」。 */
-export function validateTrip(
-  depart: string,
-  returnDate: string,
-  storedDepart: string | undefined,
-): string[] {
+/** 與後端 ComparisonIn 同一套規則與訊息（spec #75）。出發日可以是過去。 */
+export function validateTrip(depart: string, returnDate: string): string[] {
   const errors: string[] = [];
-  if (depart && depart !== storedDepart && depart < today()) errors.push("出發日要從今天起。");
   if (depart && returnDate) {
     if (returnDate < depart) errors.push("回程日不能早於出發日。");
     else if (tripDays(depart, returnDate) < 4) errors.push("旅遊天數最短 4 天。");
