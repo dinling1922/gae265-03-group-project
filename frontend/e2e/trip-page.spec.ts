@@ -73,6 +73,14 @@ test("行程頁：行程資訊列、事故卡、待辦依事故分組並有「�
   await expect(page.getByTestId("qa-title")).toContainText("班機延誤");
 });
 
+test("行程頁載入時問答框沒有被自動對焦（手機一進頁面不該彈鍵盤）", async ({ page }) => {
+  const { policyId } = await setup(page, "no-autofocus", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+
+  await expect(page.getByTestId("message")).toBeVisible();
+  await expect(page.getByTestId("message")).not.toBeFocused();
+});
+
 test("勾選待辦後完成度更新；行程頁與事件資料一致", async ({ page }) => {
   const { policyId } = await setup(page, "tick", ["班機延誤了六小時"]);
   await page.goto(`/trip/${policyId}`);

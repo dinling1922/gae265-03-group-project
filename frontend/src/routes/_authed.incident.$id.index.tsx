@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
 import { useRef } from "react";
 import { listIncidentsOptions } from "../client/@tanstack/react-query.gen";
 import { ClarifyingView } from "../features/incident/ClarifyingView";
-import { useIncident } from "../features/incident/shared";
+import { useIncident, wantsFocusAsk } from "../features/incident/shared";
 import { TripPage } from "../features/incident/TripPage";
 
 export const Route = createFileRoute("/_authed/incident/$id/")({
@@ -20,6 +20,10 @@ function IncidentHome() {
   const { data: ctx } = useIncident(id);
   // 確認狀態（clarifying／awaiting／confirmed）在事件清單裡，不在給 agent 的 ctx（#345）
   const { data: incidents } = useQuery(listIncidentsOptions());
+  // 從建立事故頁送出描述後進來才會帶 focusAsk（路由 state）；直接打開、從首頁或行程頁進來都沒有（#441）
+  const focusAsk = useLocation({
+    select: (l) => wantsFocusAsk(l.state),
+  });
   // 這次是從追問畫面走過來的（一開始看到的是追問中）：問完那一刻導到行程頁
   const wasClarifying = useRef(false);
   if (!ctx || !incidents) return null;
@@ -28,7 +32,7 @@ function IncidentHome() {
     confirmation !== "confirmed" || (!ctx.incident_type_code && ctx.status !== "completed");
   if (clarifying) {
     wasClarifying.current = true;
-    return <ClarifyingView id={id} ctx={ctx} confirmation={confirmation} />;
+    return <ClarifyingView id={id} ctx={ctx} confirmation={confirmation} focusAsk={focusAsk} />;
   }
   if (wasClarifying.current && ctx.policy.policy_id) {
     return (
