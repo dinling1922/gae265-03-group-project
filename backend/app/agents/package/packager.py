@@ -374,14 +374,23 @@ _NOT_READY: dict[SendMode, str] = {
 
 # 草稿的帶顏色版本：每個「（請填寫＋項目）」用黃底紅字標出（規格「寄送」2026-11-06 決定）
 _BLANK_STYLE = "background-color:#ffff00;color:#d00000;font-weight:bold"
+# 「未隨信附上的文件」整段紅字（寄出與草稿都有，規格「後續變更」2026-11-18）
+_UNATTACHED_STYLE = "color:#d00000"
+# 標題那一行到下一個空行（或內文結尾）為止
+_UNATTACHED = re.compile(r"(?:^|(?<=\n))未隨信附上的文件\n.*?(?=\n\n|\Z)", re.DOTALL)
 
 
-def _highlighted_html(body: str) -> str:
-    """內文的 HTML 版本：先整段跳脫，再把空格包上醒目的樣式；換行與空白照原樣保留。"""
-    escaped = html.escape(body, quote=False)
-    marked = _BLANK.sub(
-        lambda m: f'<span style="{_BLANK_STYLE}">{m[0]}</span>', escaped
+def _letter_html(body: str, *, highlight_blanks: bool) -> str:
+    """內文的 HTML 版本：先整段跳脫，「未隨信附上的文件」整段紅字；草稿再把空格包上醒目的樣式。
+    換行與空白照原樣保留。"""
+    marked = _UNATTACHED.sub(
+        lambda m: f'<span style="{_UNATTACHED_STYLE}">{m[0]}</span>',
+        html.escape(body, quote=False),
     )
+    if highlight_blanks:
+        marked = _BLANK.sub(
+            lambda m: f'<span style="{_BLANK_STYLE}">{m[0]}</span>', marked
+        )
     return f'<div style="white-space:pre-wrap">{marked}</div>'
 
 
@@ -410,7 +419,8 @@ def _message(
 ) -> bytes:
     """組成要寄出或存成草稿的信：寄出與草稿用同一份主旨、內文與附件（#154）。
 
-    純文字內文照送件包原樣；草稿另外加一份把空格標出來的 HTML 版本。
+    純文字內文照送件包原樣；草稿或有「未隨信附上的文件」時另外加一份 HTML 版本：
+    「未隨信附上的文件」整段紅字，草稿再把空格標出來。
     附件的類型與內容取自 Drive，檔名用 Drive 上的名字、重名時加序號。
     收件者是空的（草稿）時不帶 To，使用者到 Gmail 再填。
     """
@@ -420,8 +430,12 @@ def _message(
         message["To"] = recipient
     message["Subject"] = package.subject
     message.set_content(package.body)
-    if highlight_blanks:
-        message.add_alternative(_highlighted_html(package.body), subtype="html")
+    # 有東西要上色才加 HTML 版本：草稿的空格、「未隨信附上的文件」；都沒有的信維持純文字
+    if highlight_blanks or _UNATTACHED.search(package.body):
+        message.add_alternative(
+            _letter_html(package.body, highlight_blanks=highlight_blanks),
+            subtype="html",
+        )
     for file, name in zip(files, _unique_names([f.name for f in files]), strict=True):
         maintype, _, subtype = file.mime_type.partition("/")
         message.add_attachment(
