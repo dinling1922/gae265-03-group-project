@@ -7,7 +7,7 @@ import { ActionBar } from "../components/ui/ActionBar";
 import { btn, lnk } from "../components/ui/buttons";
 import { PageHead } from "../components/ui/PageHead";
 import { DescribeChat, FIRST_QUESTION } from "../features/incident/DescribeChat";
-import { errorText, policyMeta, tripTitle } from "../features/incident/shared";
+import { errorText, FOCUS_ASK_STATE, policyMeta, tripTitle } from "../features/incident/shared";
 
 export const Route = createFileRoute("/_authed/incident/new/$policyId")({
   component: DescribePage,
@@ -53,6 +53,8 @@ function DescribePage() {
       to: "/incident/$id",
       params: { id: res.data.incident.incident_id },
       replace: true,
+      // 告訴追問頁：旅客剛送出描述，輸入框要自動對焦（只有這一次換頁，#441）
+      state: (prev) => ({ ...prev, ...FOCUS_ASK_STATE }),
     });
   }
 
