@@ -4,7 +4,7 @@ import { useRef } from "react";
 import { listIncidentsOptions } from "../client/@tanstack/react-query.gen";
 import { LoadingOverlay } from "../components/ui/LoadingOverlay";
 import { ClarifyingView } from "../features/incident/ClarifyingView";
-import { useIncident, wantsFocusAsk } from "../features/incident/shared";
+import { SCROLL_TO_TODOS_STATE, useIncident, wantsFocusAsk } from "../features/incident/shared";
 import { TripPage } from "../features/incident/TripPage";
 
 export const Route = createFileRoute("/_authed/incident/$id/")({
@@ -45,6 +45,8 @@ function IncidentHome() {
               to="/trip/$policyId"
               params={{ policyId: ctx.policy.policy_id }}
               search={{ incident: id }}
+              // 舊流程建立（不用確認）的事故問完也走這裡：和按確認一樣，有待辦就捲到理賠待辦（#449）
+              state={(prev) => ({ ...prev, ...SCROLL_TO_TODOS_STATE })}
               replace
             />
           </>

@@ -1,6 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useLocation } from "@tanstack/react-router";
 import { useRef } from "react";
 import { LoadingOverlay } from "../components/ui/LoadingOverlay";
+import { wantsScrollToTodos } from "../features/incident/shared";
 import { TripPage } from "../features/trip/TripPage";
 import { useTrip } from "../features/trip/useTrip";
 
@@ -17,6 +18,8 @@ function TripRoute() {
   const { policyId } = Route.useParams();
   const { incident } = Route.useSearch();
   const { user } = Route.useRouteContext();
+  // 從 2-2g 確認進來才帶（路由 state，#449）：選中的事故有待辦就捲到理賠待辦
+  const scrollToTodos = useLocation({ select: (l) => wantsScrollToTodos(l.state) });
   const { data: trip, error, isPending, isFetching } = useTrip(policyId);
 
   // 從事故導過來（`?incident=`）：行程資料還沒包含這個事故（快取是舊的、或還在讀）前先蓋載入遮罩，
@@ -46,6 +49,7 @@ function TripRoute() {
       trip={trip}
       googleUser={user.login_provider === "google"}
       initialIncidentId={incident}
+      scrollToTodos={scrollToTodos}
     />
   );
 }
