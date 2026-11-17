@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, nextSkippingItinerary } from "./helpers";
 
 // 推薦結果依開發資料庫的 seed（make seed）：6 天「班機延誤 → 突然生病就醫」。
 
@@ -15,7 +15,7 @@ async function fillTrip(page: Page) {
   await page.getByLabel("目的地").selectOption("日本");
   await page.getByLabel("出發日").fill(day(7));
   await page.getByLabel("回程日").fill(day(12));
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/compare\/[0-9a-f-]{36}\/concerns$/);
 }
 

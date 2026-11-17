@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
 import { useRef } from "react";
 import { listIncidentsOptions } from "../client/@tanstack/react-query.gen";
+import { LoadingOverlay } from "../components/ui/LoadingOverlay";
 import { ClarifyingView } from "../features/incident/ClarifyingView";
 import { useIncident, wantsFocusAsk } from "../features/incident/shared";
 import { TripPage } from "../features/incident/TripPage";
@@ -30,18 +31,25 @@ function IncidentHome() {
   const confirmation = incidents.find((i) => i.id === id)?.confirmation ?? "confirmed";
   const clarifying =
     confirmation !== "confirmed" || (!ctx.incident_type_code && ctx.status !== "completed");
-  if (clarifying) {
-    wasClarifying.current = true;
-    return <ClarifyingView id={id} ctx={ctx} confirmation={confirmation} focusAsk={focusAsk} />;
-  }
-  if (wasClarifying.current && ctx.policy.policy_id) {
+  // 問完的那一刻：追問畫面留在底下，蓋載入遮罩再導到行程頁；行程頁等資料包含這個事故才拿掉遮罩（#445）
+  const leaving = !clarifying && wasClarifying.current && !!ctx.policy.policy_id;
+  if (clarifying) wasClarifying.current = true;
+  if (clarifying || leaving) {
     return (
-      <Navigate
-        to="/trip/$policyId"
-        params={{ policyId: ctx.policy.policy_id }}
-        search={{ incident: id }}
-        replace
-      />
+      <>
+        <ClarifyingView id={id} ctx={ctx} confirmation={confirmation} focusAsk={focusAsk} />
+        {leaving && ctx.policy.policy_id && (
+          <>
+            <LoadingOverlay>正在整理您的行程…</LoadingOverlay>
+            <Navigate
+              to="/trip/$policyId"
+              params={{ policyId: ctx.policy.policy_id }}
+              search={{ incident: id }}
+              replace
+            />
+          </>
+        )}
+      </>
     );
   }
   return <TripPage id={id} ctx={ctx} googleUser={user.login_provider === "google"} />;

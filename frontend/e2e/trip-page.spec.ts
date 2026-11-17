@@ -478,7 +478,10 @@ test("資訊不足：事故卡標「資訊不足，尚無法判斷」，送件�
   const card = page.getByTestId("trip-incident");
   await expect(card.getByTestId("insufficient")).toHaveText("資訊不足，尚無法判斷");
   await expect(card.getByTestId("not-covered")).toHaveCount(0);
-  await expect(card.getByTestId("insufficient-note")).toContainText("可以在問答補充說明");
+  // 資訊不足補了資訊就會有待辦：卡上明講現在還沒有待辦、補充後會重新判斷（#445）
+  await expect(card.getByTestId("insufficient-note")).toHaveText(
+    "目前的資訊還無法判斷能不能理賠，所以還沒有待辦。在問答補充說明後會重新判斷，符合的話就會產生待辦。",
+  );
   await expect(page.getByTestId("send-box")).toContainText("資訊不足，還不能送件");
   await expect(page.getByTestId("close-note")).toContainText("也可以結案");
 });
@@ -495,6 +498,8 @@ test("不符保障的事故裡有範本待辦：反灰，組小標題下說明�
   await page.goto(`/trip/${policyId}`);
 
   await expect(page.getByTestId("not-covered")).toHaveText("不符保障");
+  // 不在保障範圍的事故補資訊也不會有待辦：不顯示資訊不足的說明（#445）
+  await expect(page.getByTestId("insufficient-note")).toHaveCount(0);
   await expect(page.getByTestId("group-not-covered").first()).toHaveText(
     "這個事故依條款不在保障範圍，這些文件不需要準備",
   );
