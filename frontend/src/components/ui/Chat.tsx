@@ -1,5 +1,5 @@
 import { Button } from "@base-ui/react/button";
-import { type FormEvent, type ReactNode, useEffect, useRef } from "react";
+import { type FormEvent, type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { btnPri } from "./buttons";
 import { fieldInput } from "./Field";
 
@@ -134,6 +134,7 @@ export function AskBar({
   submitTestId,
   leading,
   focusOnMount = false,
+  inputRef: externalRef,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -154,13 +155,16 @@ export function AskBar({
    * 手機與平板不對焦，避免一進頁面就彈出鍵盤。
    */
   focusOnMount?: boolean;
+  /** 讓外面拿得到輸入框（例如彈窗關閉後把焦點放回來）。 */
+  inputRef?: RefObject<HTMLInputElement | null>;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const ownRef = useRef<HTMLInputElement>(null);
+  const inputRef = externalRef ?? ownRef;
   useEffect(() => {
     if (focusOnMount && window.matchMedia?.("(pointer: fine)").matches) {
       inputRef.current?.focus({ preventScroll: true });
     }
-  }, [focusOnMount]);
+  }, [focusOnMount, inputRef]);
   function submit(e: FormEvent) {
     e.preventDefault();
     if (value.trim() && !disabled) onSubmit();
