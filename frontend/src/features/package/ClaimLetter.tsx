@@ -50,6 +50,25 @@ function WithBlanks({ text, values, onFill }: { text: string } & FillProps) {
   );
 }
 
+const UNATTACHED = "未隨信附上的文件";
+
+/**
+ * 把內文切成一般段落與「未隨信附上的文件」那一段（標題到下一個空行為止），後者整段標紅字，
+ * 提醒使用者這些文件沒附在信裡、要另外提供。
+ */
+export function splitUnattached(text: string): { text: string; unattached: boolean }[] {
+  const match = new RegExp(`(^|\n)${UNATTACHED}\n`).exec(text);
+  if (!match) return [{ text, unattached: false }];
+  const start = match.index + (match[1] ?? "").length;
+  const blank = text.indexOf("\n\n", start);
+  const end = blank === -1 ? text.length : blank;
+  return [
+    { text: text.slice(0, start), unattached: false },
+    { text: text.slice(start, end), unattached: true },
+    { text: text.slice(end), unattached: false },
+  ].filter((part) => part.text);
+}
+
 type AddressProps = {
   /** 寄件者：使用者自己的 Gmail，只顯示、不能改。 */
   sender?: string;
@@ -127,7 +146,20 @@ export function ClaimLetter({
       </Row>
       <Row label="內文">
         <pre data-testid="letter-body" className="m-0 font-sans leading-[26px] whitespace-pre-wrap">
-          <WithBlanks text={pkg.body} values={values} onFill={onFill} />
+          {splitUnattached(pkg.body).map((part, i) =>
+            part.unattached ? (
+              <span key="unattached" className="text-danger-ink" data-testid="letter-unattached">
+                <WithBlanks text={part.text} values={values} onFill={onFill} />
+              </span>
+            ) : (
+              <WithBlanks
+                key={i === 0 ? "before" : "after"}
+                text={part.text}
+                values={values}
+                onFill={onFill}
+              />
+            ),
+          )}
         </pre>
       </Row>
       <Row label="附件">

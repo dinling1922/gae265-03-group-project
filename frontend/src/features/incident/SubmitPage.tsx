@@ -23,6 +23,7 @@ import { ClaimLetter } from "../package/ClaimLetter";
 import { DraftQuestionDialog } from "../package/DraftQuestionDialog";
 import { fillProblems } from "../package/fillRules";
 import { GmailResultDialog, gmailHref } from "../package/GmailResultDialog";
+import { SubmitProgressDialog } from "../package/SubmitProgressDialog";
 import { type ClosedAs, type ClosedLinks, closedText, useClosedLinks } from "./closedLinks";
 import { card, errorText, policyMeta, tripTitle, useIncident } from "./shared";
 
@@ -196,6 +197,8 @@ export function SubmitFlow({
   const [draftBlocked, setDraftBlocked] = useState(false);
   // 寄出或建立草稿成功後的說明視窗：信在 Gmail 的哪裡、連結打開那封信
   const [showGmail, setShowGmail] = useState(false);
+  // 寄出或建立草稿中：等後端回來前顯示等待視窗（自己處理不用等 Gmail，不顯示）
+  const [pending, setPending] = useState<"send" | "draft" | null>(null);
 
   const closed = source.closed;
 
@@ -262,12 +265,14 @@ export function SubmitFlow({
   async function submit(mode: "send" | "draft" | "self") {
     setBusy(true);
     setError(null);
+    setPending(mode === "self" ? null : mode);
     const res = await source.submit({
       mode,
       fills: values,
       recipient: mode === "self" ? null : recipient.trim() || null,
     });
     setBusy(false);
+    setPending(null);
     if (!res.data) {
       if (isTooLarge(res)) return setTooLarge(true);
       // 送件包還缺待辦（409）時，重新讀一次送件包：如果是一定要附上的文件在 Drive 上找不到，
@@ -376,6 +381,7 @@ export function SubmitFlow({
         }}
         onDismiss={() => setAskingDraft(false)}
       />
+      <SubmitProgressDialog kind={pending} />
       <GmailResultDialog
         kind={showGmail ? gmailKind : null}
         subject={result?.subject}
