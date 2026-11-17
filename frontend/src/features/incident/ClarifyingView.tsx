@@ -12,7 +12,7 @@ import { PageHead } from "../../components/ui/PageHead";
 import { SHORT_LANDSCAPE_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { type ChatLine, DescribeChat, FIRST_QUESTION } from "./DescribeChat";
-import { errorText, policyMeta, tripTitle, useIncident } from "./shared";
+import { errorText, policyMeta, SCROLL_TO_TODOS_STATE, tripTitle, useIncident } from "./shared";
 
 /** 2-2g-3 按「還要補充或修改」後對話裡顯示的固定句（Leon 的模擬畫面）；前端顯示，不送給 5 號、不存。 */
 export const SUPPLEMENT_PROMPT = "好的，請說明要補充或修改的地方。";
@@ -114,6 +114,8 @@ export function ClarifyingView({
       params: { policyId: res.data.policy_id },
       search: { incident: id },
       replace: true,
+      // 有待辦就捲到理賠待辦（#449）
+      state: (prev) => ({ ...prev, ...SCROLL_TO_TODOS_STATE }),
     });
   }
 
