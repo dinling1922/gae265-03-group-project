@@ -31,7 +31,10 @@ def sample(**overrides: object) -> LetterInput:
 
 def test_主旨寫出行程名稱_不寫份數_同一輪的主旨才會相同() -> None:
     letter = build_letter(sample())
-    assert letter.subject == "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+    assert (
+        letter.subject
+        == "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+    )
 
 
 def test_重新提醒時主旨寫出原因() -> None:
@@ -39,7 +42,7 @@ def test_重新提醒時主旨寫出原因() -> None:
         sample(restart="11/21 新增事故「行李延誤 · 2026/11/21」重新提醒")
     )
     assert letter.subject == (
-        "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+        "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
         "（11/21 新增事故「行李延誤 · 2026/11/21」重新提醒）"
     )
 

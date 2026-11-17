@@ -112,7 +112,7 @@ make test-mail to=<你的信箱>
 
 注意：
 
-- `MAIL_FROM` 要和 `SMTP_USERNAME` 相同，Gmail 會把寄件地址改成登入的帳號；顯示名稱仍是「好險有你」。
+- `MAIL_FROM` 要和 `SMTP_USERNAME` 相同，Gmail 會把寄件地址改成登入的帳號；顯示名稱仍是「好險有你 Tripcare」。
 - 本機填了這些值，提醒信就會真的寄到 Google 登入帳號的信箱，不再進 Mailpit。測完把 `SMTP_*` 改回 `.env.example` 的值，再 `docker compose up -d worker beat`。
 - 一般 Gmail 每天寄送有上限（約數百封），超過會暫停寄信約一天，不會收費。
 - 使用者回信會進這個信箱；課程結束後到 Google 帳戶刪掉應用程式密碼。

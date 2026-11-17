@@ -132,7 +132,7 @@ class Settings(BaseSettings):
     # 連線與每次讀寫的逾時，避免 worker 卡在寄信
     SMTP_TIMEOUT_SECONDS: int = 30
     MAIL_FROM: str = "no-reply@example.com"
-    MAIL_FROM_NAME: str = "好險有你"
+    MAIL_FROM_NAME: str = "好險有你 Tripcare"
 
     # 提醒信的間隔（秒）：第一封在計時起點後多久、之後每封距上一封多久、多久掃描一次到期的保單
     REMINDER_FIRST_DELAY_SECONDS: int = 24 * 60 * 60

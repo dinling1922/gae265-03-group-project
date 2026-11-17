@@ -155,8 +155,10 @@ function Letter({ title, slots, testId }: { title: string; slots: Slots; testId:
       data-testid={testId}
     >
       <p className="m-0 mb-2 t-label text-heading">{title}</p>
-      <p className="m-0 t-caption text-muted">寄件者：好險有你</p>
-      <p className="m-0 mb-3 t-label text-heading">【好險有你】{slots.trip} 還有理賠文件尚未上傳</p>
+      <p className="m-0 t-caption text-muted">寄件者：好險有你 Tripcare</p>
+      <p className="m-0 mb-3 t-label text-heading">
+        【好險有你 Tripcare】{slots.trip} 還有理賠文件尚未上傳
+      </p>
       <p className="m-0">{slots.name}你好，</p>
       <p className="mt-2 mb-0">
         你的行程「{slots.trip}」還有 {slots.count} 份理賠文件尚未上傳：
@@ -205,10 +207,10 @@ export function ReminderTemplateDialog({
       <div data-testid="reminder-template-rules">
         <h3 className="m-0 mb-2 t-label text-heading">寄信事項說明</h3>
         <ul className="m-0 list-disc space-y-1 pl-5 t-body text-ink">
-          <li>寄到你登入用的 Google 信箱，寄件者是「好險有你」。</li>
+          <li>寄到你登入用的 Google 信箱，寄件者是「好險有你 Tripcare」。</li>
           <li>
             {"若在寄出提醒信之後有新增事故或同一事故有新增狀況，會在主旨最後加上原因，例如"}
-            {"「【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"}
+            {"「【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳"}
             {"（11/21 新增事故「生病或受傷就醫 · 2026/11/21」重新提醒）」。"}
           </li>
           <li>需上傳的待辦都完成（含自行勾選），或行程結案，就不再寄。</li>

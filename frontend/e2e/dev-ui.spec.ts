@@ -163,7 +163,7 @@ test.describe("共用元件預覽", () => {
       "（11/21 新增事故「生病或受傷就醫 · 2026/11/21」重新提醒）",
     );
     await expect(dialog.getByTestId("reminder-template-sample")).toContainText(
-      "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳",
+      "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳",
     );
     await expect(dialog.getByTestId("reminder-template-sample")).toContainText(
       "提醒：理賠申請有規定期限，應盡早準備。",

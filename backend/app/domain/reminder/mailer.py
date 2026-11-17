@@ -30,7 +30,7 @@ class Mailer(Protocol):
 
 
 def to_message(mail: OutgoingMail) -> EmailMessage:
-    """組成信件：純文字為主，另附 HTML 版；寄件者顯示「好險有你」。"""
+    """組成信件：純文字為主，另附 HTML 版；寄件者顯示「好險有你 Tripcare」。"""
     message = EmailMessage()
     message["Subject"] = mail.letter.subject
     username, _, domain = settings.MAIL_FROM.partition("@")

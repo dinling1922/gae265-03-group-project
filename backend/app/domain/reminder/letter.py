@@ -52,7 +52,7 @@ def message_id(
 def build_letter(data: LetterInput) -> Letter:
     """主旨不放份數：同一輪的主旨相同，收件匣才會收成同一串；份數放在內文。"""
     count = sum(len(g.documents) for g in data.groups)
-    subject = f"【好險有你】{data.trip_name} 還有理賠文件尚未上傳"
+    subject = f"【好險有你 Tripcare】{data.trip_name} 還有理賠文件尚未上傳"
     if data.restart:
         subject += f"（{data.restart}）"
     groups = "\n\n".join(

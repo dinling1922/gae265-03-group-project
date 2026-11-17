@@ -68,6 +68,8 @@ def test_透過_SMTP_寄到_Mailpit_主旨_寄件者與_Message_ID_都正確(
     monkeypatch.setattr(settings, "SMTP_STARTTLS", False)
     monkeypatch.setattr(settings, "SMTP_USERNAME", None)
     monkeypatch.setattr(settings, "MAIL_FROM", "no-reply@example.com")
+    # 寄件者名稱也固定：不受本機 .env 的 MAIL_FROM_NAME 影響
+    monkeypatch.setattr(settings, "MAIL_FROM_NAME", "好險有你 Tripcare")
     mail = sample_mail("traveler@example.com")
 
     SmtpMailer().send(mail)
@@ -78,9 +80,13 @@ def test_透過_SMTP_寄到_Mailpit_主旨_寄件者與_Message_ID_都正確(
     assert len(found) == 1
     detail = httpx.get(f"{MAILPIT_API}/message/{found[0]['ID']}").json()
     assert (
-        detail["Subject"] == "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+        detail["Subject"]
+        == "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
     )
-    assert detail["From"] == {"Name": "好險有你", "Address": "no-reply@example.com"}
+    assert detail["From"] == {
+        "Name": "好險有你 Tripcare",
+        "Address": "no-reply@example.com",
+    }
     assert [t["Address"] for t in detail["To"]] == ["traveler@example.com"]
     assert f"<{detail['MessageID']}>" == mail.message_id
     assert "・航空公司開立的班機取消證明" in detail["Text"]

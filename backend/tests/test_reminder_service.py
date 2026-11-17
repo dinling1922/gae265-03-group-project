@@ -103,7 +103,8 @@ async def test_到期而且信箱已驗證就寄一封_計數加一(session: Asy
     [mail] = mailer.sent
     assert mail.to == "traveler@example.com"
     assert (
-        mail.letter.subject == "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+        mail.letter.subject
+        == "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
     )
     await session.refresh(trip.policy)
     assert trip.policy.reminder_count == 1
@@ -366,7 +367,7 @@ async def test_寄過信後新增事故_新一輪的主旨寫出新增了哪個�
     await send_reminder(session, trip.policy.id, LATER + timedelta(days=2), mailer)
 
     assert mailer.sent[1].letter.subject == (
-        "【好險有你】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
+        "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳"
         "（07/13 新增事故「行李延誤 · 2026/07/13」重新提醒）"
     )
     assert mailer.sent[1].in_reply_to is None
