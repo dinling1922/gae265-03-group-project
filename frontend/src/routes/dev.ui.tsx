@@ -31,6 +31,7 @@ import { MiniTable, SimulationCard, Story } from "../features/compare/ScenarioPa
 import { ReminderNotice } from "../features/incident/ReminderNotice";
 import type { ReminderRound } from "../features/incident/ReminderProgress";
 import { UploadProgressPreview } from "../features/incident/UploadProgressPreview";
+import { SubmitProgressDialog } from "../features/package/SubmitProgressDialog";
 
 export const Route = createFileRoute("/dev/ui")({
   component: UiPreview,
@@ -156,6 +157,12 @@ function Preview() {
   const [picked, setPicked] = useState<Concern[]>(["班機延誤", "突然生病就醫", "證件遺失"]);
   const [sum, setSum] = useState(5_000_000);
   const [loading, setLoading] = useState(false);
+  // 送件等待視窗不能手動關，展示 4 秒後自己關
+  const [progress, setProgress] = useState<"send" | "draft" | null>(null);
+  const showProgress = (kind: "send" | "draft") => {
+    setProgress(kind);
+    setTimeout(() => setProgress(null), 4000);
+  };
 
   return (
     <div className="space-y-6 bg-paper p-4 font-ui" data-testid="ui-preview">
@@ -430,8 +437,25 @@ function Preview() {
           >
             底部抽屜
           </button>
+          <button
+            type="button"
+            className={btn}
+            onClick={() => showProgress("send")}
+            data-testid="open-progress-send"
+          >
+            信件寄出中
+          </button>
+          <button
+            type="button"
+            className={btn}
+            onClick={() => showProgress("draft")}
+            data-testid="open-progress-draft"
+          >
+            建立草稿中
+          </button>
         </div>
       </section>
+      <SubmitProgressDialog kind={progress} />
 
       <DialogShell
         open={dialog === "center"}

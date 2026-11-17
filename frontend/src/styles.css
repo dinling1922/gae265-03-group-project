@@ -345,3 +345,136 @@ body:has([data-page-paper]) {
     display: none;
   }
 }
+
+/* 送件等待視窗（SubmitProgressDialog）：寄出時信封往右飛、建立草稿時鉛筆一行一行寫；系統設為減少動態就不動 */
+@keyframes send-fly {
+  0% {
+    transform: translate(-24px, 4px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    transform: translate(18px, -4px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(52px, -10px);
+    opacity: 0;
+  }
+}
+
+@keyframes send-speed {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translateX(8px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.send-fly {
+  animation: send-fly 1.4s ease-in-out infinite;
+}
+
+.send-speed {
+  animation: send-speed 0.7s ease-in-out infinite;
+}
+
+@keyframes draft-line {
+  0%,
+  8% {
+    stroke-dashoffset: 64;
+  }
+  30%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draft-pencil {
+  0% {
+    transform: translate(48px, 22px);
+  }
+  30% {
+    transform: translate(112px, 22px);
+  }
+  33% {
+    transform: translate(48px, 36px);
+  }
+  63% {
+    transform: translate(112px, 36px);
+  }
+  66% {
+    transform: translate(48px, 50px);
+  }
+  86%,
+  100% {
+    transform: translate(88px, 50px);
+  }
+}
+
+.draft-line {
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: draft-line 2.4s linear infinite;
+}
+
+.draft-line-2 {
+  animation-name: draft-line-2;
+}
+
+.draft-line-3 {
+  animation-name: draft-line-3;
+}
+
+@keyframes draft-line-2 {
+  0%,
+  33% {
+    stroke-dashoffset: 64;
+  }
+  63%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draft-line-3 {
+  0%,
+  66% {
+    stroke-dashoffset: 64;
+  }
+  86%,
+  100% {
+    stroke-dashoffset: 24;
+  }
+}
+
+.draft-pencil {
+  animation: draft-pencil 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .send-fly,
+  .send-speed,
+  .draft-pencil {
+    animation: none;
+  }
+
+  .send-fly {
+    opacity: 1;
+  }
+
+  .draft-pencil {
+    transform: translate(112px, 36px);
+  }
+
+  .draft-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
