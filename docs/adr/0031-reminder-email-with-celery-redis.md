@@ -8,7 +8,7 @@ status: accepted
 
 ## 決定
 
-- **服務**：Redis 當 broker。worker 與 beat 用 backend 的同一個 image，套件仍是 `app`。Flower 在開發環境開 5555 埠；正式環境只綁 `127.0.0.1`，要看時用 SSH tunnel（`ssh -L 5555:localhost:5555 <VM>`），平常可以不開。
+- **服務**：Redis 當 broker。worker 與 beat 用 backend 的同一個 image，套件仍是 `app`。Flower 在開發環境開 5555 埠；正式環境一直開著，由 Caddy 轉到 `https://<網域>/flower`，用 `.env` 的 `FLOWER_BASIC_AUTH` 登入（沒設就拒絕啟動）。
 - **狀態存在 Postgres，不存在 Redis**：寄到第幾封、何時開始計時都記在 `policy.reminder_started_at`、`reminder_count`、`last_reminded_at`。Redis 只是佇列，資料遺失或重啟都不影響規則。不存工作結果（`ignore_result`），排程固定寫在程式裡，不用資料庫型的 beat 排程。
 - **流程由程式決定**（[ADR-0004](0004-llm-never-produces-numbers.md)）：
   - beat 每隔固定時間（預設 10 分鐘）排一次掃描工作，找出到期的保單，每張保單各排一個寄信工作。
@@ -49,13 +49,17 @@ status: accepted
 - **成員的個人 Gmail**：設定和專用 Gmail 一樣，但個人信箱會公開給所有收件者、回信與退信混進私人信件、應用程式密碼外洩等於個人信箱外洩，成員改密碼就停寄。不採用。
 - **第三方交易信服務（Mailgun、Brevo、Resend 等）**：沒有自己的網域時，只能寄給事先登記的收件者，或寄件地址要用別家信箱、容易進垃圾信匣。買網域後再考慮。
 - **Google Workspace 的 no-reply 帳號**：每月要付一個帳號的費用，寄件信箱也綁在管理員的帳號上，人員離開後不好交接。不採用。
-- **Flower 放在 Caddy 子路徑加 basic auth**：最方便，但會多一個公開入口；Flower 能取消與終止工作，密碼外洩就能操作排程。不採用。
+- **Flower 只綁 VM 本機、平常不開，要看時用 SSH tunnel**：最初的做法，沒有公開入口；但只有能 SSH 進 VM 的人看得到，組員與 demo 不方便。2026-11-17 改成放在 Caddy 子路徑加帳號密碼（見下方「後續變更」）。
 
 ## Consequences
 
 - 補充 [ADR-0001](0001-single-vm-docker-compose-deploy.md)：正式環境除了 backend、Postgres 與 Caddy，同一台 VM 另跑 Redis、worker 與 beat。它們都不對外開 port，Caddy 仍是唯一的對外入口，設定不用改。
-- 開發環境多 Redis、worker、beat、Flower、Mailpit 五個服務；正式環境多 Redis、worker、beat，Flower 只在需要時開。B2s 只有 4 GB 記憶體，Redis 要設 `maxmemory`，worker 的 concurrency 要設小。
+- 開發環境多 Redis、worker、beat、Flower、Mailpit 五個服務；正式環境多 Redis、worker、beat、Flower。B2s 只有 4 GB 記憶體，Redis 要設 `maxmemory`，worker 的 concurrency 要設小。
 - `config.py`、`.env.example`、`.env.prod.example` 要加 Redis、SMTP 與提醒間隔的設定；`scripts/doctor.sh`、`docs/deploy.md` 與 CD 都要跟著改。正式環境要先申請專用 Gmail、開兩步驟驗證並建立應用程式密碼。
 - 交接文件 `function2-ui-realign.md` 原本建議「提醒信範本不做」，現在不適用；2-3 的「看提醒信範本」與「稍後再傳」的提示可以照設計稿做。
 - 有了排程服務，[ADR-0009](0009-policy-document-personal-data.md) 記為已知限制的「自動過期」之後也能做，但不在本 ADR 範圍。
 - 寄信和寫入資料庫不在同一個交易裡：寄出後、寫入前剛好當機，可能重複寄一封（固定 Message-ID 只能降低使用者看到兩封的機會）。在「可能重複」與「可能漏寄」之間選擇不漏寄，接受這個風險。
+
+## 後續變更
+
+- **2026-11-17：Flower 改成在正式環境一直開著，放在 `https://<網域>/flower`，需要帳號密碼登入。** 組員與 demo 要能直接用瀏覽器看提醒信的背景工作，不必 SSH 進 VM。帳號密碼由 Flower 自己檢查（`FLOWER_BASIC_AUTH`），全程走 Caddy 的 HTTPS；沒設帳號密碼時 Flower 拒絕啟動，不會出現免登入的入口。代價是多了一個公開入口，而 Flower 能取消與終止工作，密碼外洩就能操作排程，所以帳號密碼只給需要的人，懷疑外洩就換掉。Flower 本身約幾十 MB 記憶體，B2s 仍放得下。

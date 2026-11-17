@@ -120,21 +120,23 @@ make test-mail to=<你的信箱>
 
 ### 用 Flower 看工作
 
-Flower 平常不啟動，也不對外。要看時在 VM 上啟動，再從自己的電腦開 SSH tunnel：
+Flower 跟著其他服務一直開著，用瀏覽器開 `https://<網域>/flower`，輸入 `.env` 的 `FLOWER_BASIC_AUTH`（格式「帳號:密碼」）登入。
+
+- 第一次部署前要在 VM 的 `.env` 填好 `FLOWER_BASIC_AUTH`；沒填 Flower 會拒絕啟動，`/flower` 回 502，網站其他功能不受影響。
+- 產生密碼：
 
 ```bash
-IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml --profile ops up -d flower
+openssl rand -base64 18
 ```
+
+- 改了帳號密碼要重建 Flower 才會讀到新值：
 
 ```bash
-ssh -L 5555:localhost:5555 user@<網域>
+IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml up -d flower
 ```
 
-開 http://localhost:5555 。看完關掉，省記憶體：
-
-```bash
-IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml --profile ops stop flower
-```
+- Flower 能取消與終止工作：帳號密碼只給需要的人，懷疑外洩就換掉。
+- Flower 只記得它這次啟動之後的工作，重啟後之前的紀錄會清空。
 
 ### 排查
 
