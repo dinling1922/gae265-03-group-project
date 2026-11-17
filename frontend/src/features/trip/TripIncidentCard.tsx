@@ -95,7 +95,7 @@ export function TripIncidentCard({
       </div>
       {insufficient && (
         <p className="m-0 t-caption text-muted" data-testid="insufficient-note">
-          目前的資訊還無法判斷能不能理賠，可以在問答補充說明。
+          目前的資訊還無法判斷能不能理賠，所以還沒有待辦。在問答補充說明後會重新判斷，符合的話就會產生待辦。
         </p>
       )}
       <IncidentCardBody ctx={incident} id={bodyId} hidden={!open} />

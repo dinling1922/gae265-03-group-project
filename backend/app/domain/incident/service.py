@@ -788,16 +788,40 @@ async def _state_snapshot(
     return facts, clauses
 
 
+async def _applicable_todo_ids(
+    session: AsyncSession, incident: Incident
+) -> frozenset[uuid.UUID]:
+    """這個事件的適用待辦，加上整個行程的共同待辦（適用性依各事件的結論聚合）。"""
+    return frozenset(
+        (
+            await session.exec(
+                select(IncidentTodo.id).where(
+                    col(IncidentTodo.applicable).is_(True),
+                    or_(
+                        col(IncidentTodo.incident_id) == incident.id,
+                        and_(
+                            col(IncidentTodo.policy_id) == incident.policy_id,
+                            col(IncidentTodo.incident_id).is_(None),
+                        ),
+                    ),
+                )
+            )
+        ).all()
+    )
+
+
 def next_confirmation(
-    current: str, *, finished: bool, changed: bool
+    current: str, *, finished: bool, changed: bool, outcome_changed: bool = False
 ) -> tuple[str, bool]:
     """2-2 現況確認的狀態轉換（#345）：回 (新狀態, 要不要跳彈窗)。
 
     彈窗條件是「5 號問完（finished）而且有變」；等確認時沒變的回覆（問問題、講別件事）
     不論 finished 都維持等確認、不跳，對話裡留「回到確認」。
+    已確認的事件：狀態不變；補完資訊後「問完 + 結論或適用待辦有變」（`outcome_changed`）才跳（#445），
+    只問條款、或只改了事實而結論與待辦沒變都不跳。
     """
     if current == "confirmed":
-        return "confirmed", False
+        return "confirmed", finished and outcome_changed
     if current == "clarifying":
         return ("awaiting", True) if finished else ("clarifying", False)
     if not changed:
@@ -885,6 +909,9 @@ async def apply_reply(
 
     # ---- 通過檢查，開始寫 ----
     before = await _state_snapshot(session, incident)
+    todos_before = await _applicable_todo_ids(session, incident)
+    # 5 號問完才會回報事件類型：之前已有類型，這輪才是「補完資訊後」的更新（建立時平台預設的結論不算）
+    resolved_before = incident.incident_type_id is not None
     if itype is not None and itype.id != incident.incident_type_id:
         incident.incident_type_id = itype.id
     if reply.title:
@@ -1006,9 +1033,18 @@ async def apply_reply(
             MessageCitation(message_id=message.id, rule_id=rule.id, score=score)
         )
     await session.flush()
-    changed = await _state_snapshot(session, incident) != before
+    after = await _state_snapshot(session, incident)
+    changed = after != before
+    # 結論或適用待辦有變：之前已經問完才算（第一次問完是建立結論，不是補完資訊後的變動）
+    outcome_changed = resolved_before and (
+        after[1] != before[1]
+        or await _applicable_todo_ids(session, incident) != todos_before
+    )
     incident.confirmation, show_confirm = next_confirmation(
-        incident.confirmation, finished=reply.finished, changed=changed
+        incident.confirmation,
+        finished=reply.finished,
+        changed=changed,
+        outcome_changed=outcome_changed,
     )
     session.add(incident)
     await session.flush()

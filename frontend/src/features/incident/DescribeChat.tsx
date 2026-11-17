@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import { AskBar, ChatLog, ChatMessage, TypingBubble } from "../../components/ui/Chat";
 import { Chip, ChipGroup } from "../../components/ui/Chip";
 import { box } from "./shared";
@@ -35,6 +35,7 @@ export function DescribeChat({
   typingLabel,
   askLeading,
   focusInput = false,
+  inputRef,
 }: {
   lines: ChatLine[];
   quickReplies: string[];
@@ -61,6 +62,8 @@ export function DescribeChat({
   askLeading?: ReactNode;
   /** 掛載時自動對焦輸入框（只有桌機；從建立事故頁送出描述後進到追問頁用，#441）。 */
   focusInput?: boolean;
+  /** 讓外面拿得到提問列的輸入框。 */
+  inputRef?: RefObject<HTMLInputElement | null>;
 }) {
   const showTyping = typing ?? busy;
   return (
@@ -115,6 +118,7 @@ export function DescribeChat({
         submitTestId="send"
         leading={askLeading}
         focusOnMount={focusInput}
+        inputRef={inputRef}
       />
     </section>
   );
