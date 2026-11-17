@@ -308,3 +308,40 @@ body {
 body:has([data-page-paper]) {
   background-color: var(--color-paper);
 }
+
+/* 保單上傳的縮圖流光（#444）：一道淡綠色的光掃過縮圖；解析中循環、完成時掃一次；系統設為減少動態就不顯示 */
+@keyframes policy-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.policy-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--color-leaf) 35%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+}
+
+.policy-sweep[data-run="loop"] {
+  animation: policy-sweep 1.4s ease-in-out infinite;
+}
+
+.policy-sweep[data-run="once"] {
+  animation: policy-sweep 0.9s ease-out 1 forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .policy-sweep {
+    display: none;
+  }
+}

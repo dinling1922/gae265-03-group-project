@@ -24,6 +24,7 @@ import { Segmented } from "../../components/ui/Segmented";
 import { useToast } from "../../components/ui/Toast";
 import { DESTINATIONS } from "../itinerary/tripRules";
 import { IMPORT_HINT, type ImportedTrip, ImportFromComparison } from "./ImportFromComparison";
+import { PolicyScan, type ScanPhase } from "./PolicyScan";
 import { errorText } from "./shared";
 
 /** 表單裡的值（都是字串，直接對應輸入框）。 */
@@ -125,6 +126,12 @@ export function PolicyStep({
   const [uploaded, setUploaded] = useState<PolicyUploadOut | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // 保單解析的縮圖與步驟（#444）：回應回來後先暫存，步驟播完（或略過）才填進表單
+  const [scanFile, setScanFile] = useState<File | null>(null);
+  const [phase, setPhase] = useState<ScanPhase | null>(null);
+  const [pending, setPending] = useState<PolicyUploadOut | null>(null);
+  const pickerRef = useRef<HTMLInputElement>(null);
+  const reduced = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   const [imported, setImported] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -159,6 +166,9 @@ export function PolicyStep({
     setPlanName("");
     setUploaded(null);
     setFileName(null);
+    setScanFile(null);
+    setPhase(null);
+    setPending(null);
     setImported(false);
   }
 
@@ -168,34 +178,58 @@ export function PolicyStep({
     else loadedFor.current = null; // 讓上面的 effect 載入
   }
 
+  /** 保單已建立：留在「建立新的」，表單填入讀到的值並標記 */
+  function applyUpload(policy: PolicyUploadOut, file: File) {
+    setChoice(NEW);
+    loadedFor.current = NEW;
+    const values = valuesOf(policy);
+    setV(values);
+    setInitial(values);
+    setRead(new Set(policy.auto_filled));
+    setPlanName(policy.plan_name);
+    setUploaded(policy);
+    setFileName(file.name);
+  }
+
   async function onFile(files: File[]) {
     const file = files[0];
     if (!file) return;
     setUploading(true);
+    setScanFile(file);
+    setPhase("uploading");
+    setPending(null);
     onError(null);
     try {
       const body = new FormData();
       body.append("file", file);
       const response = await fetch("/api/v1/policies", { method: "POST", body });
       const data = await response.json().catch(() => null);
-      if (!response.ok) return onError(errorText(data, response.status));
+      if (!response.ok) {
+        setPhase("failed");
+        return onError(errorText(data, response.status));
+      }
       const policy = data as PolicyUploadOut;
       await queryClient.invalidateQueries({ queryKey: listPoliciesOptions().queryKey });
-      // 保單已建立：留在「建立新的」，表單填入讀到的值並標記
-      setChoice(NEW);
-      loadedFor.current = NEW;
-      const values = valuesOf(policy);
-      setV(values);
-      setInitial(values);
-      setRead(new Set(policy.auto_filled));
-      setPlanName(policy.plan_name);
-      setUploaded(policy);
-      setFileName(file.name);
+      if (reduced()) {
+        // 偏好減少動態：沒有逐步動畫，結果直接出現
+        applyUpload(policy, file);
+        setPending(policy);
+        setPhase("done");
+      } else {
+        setPending(policy);
+        setPhase("revealing");
+      }
     } catch {
+      setPhase("failed");
       onError(errorText(undefined));
     } finally {
       setUploading(false);
     }
+  }
+
+  function finishReveal() {
+    if (pending && scanFile) applyUpload(pending, scanFile);
+    setPhase("done");
   }
 
   function applyTrip(trip: ImportedTrip) {
@@ -358,15 +392,26 @@ export function PolicyStep({
                   description="PDF（文字型），10 MB 內。個資會先移除再讀取，原檔不保存；只留下方案與保險期間等整理結果，可隨時到「我的帳號」刪除。"
                 >
                   <FilePickButton
-                    label={uploading ? "讀取中…" : "選擇保單檔案"}
+                    label={uploading ? "讀取中…" : scanFile ? "重新選擇保單檔案" : "選擇保單檔案"}
                     accept="application/pdf"
-                    disabled={uploading}
+                    disabled={uploading || phase === "revealing"}
+                    inputRef={pickerRef}
                     onFiles={(files) => void onFile(files)}
                     inputTestId="policy-file"
                   />
-                  {fileName && <PickedFile name={fileName} />}
+                  {scanFile && phase && (
+                    <PolicyScan
+                      file={scanFile}
+                      phase={phase}
+                      policy={pending}
+                      reduced={reduced()}
+                      onDone={finishReveal}
+                      onReselect={() => pickerRef.current?.click()}
+                    />
+                  )}
+                  {fileName && phase === "done" && <PickedFile name={fileName} />}
                 </FileDrop>
-                {uploaded && <UploadedSummary policy={uploaded} />}
+                {uploaded && phase === "done" && <UploadedSummary policy={uploaded} />}
               </div>
             ) : (
               <>
@@ -571,7 +616,7 @@ export function PolicyStep({
           <ActionBar.Full>
             <button
               type="submit"
-              disabled={!complete || busy || uploading}
+              disabled={!complete || busy || uploading || phase === "revealing"}
               className={btnPri}
               data-testid="confirm-continue"
             >

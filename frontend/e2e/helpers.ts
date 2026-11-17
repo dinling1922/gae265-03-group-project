@@ -69,6 +69,15 @@ export async function setupClaimIncident(page: Page, name: string) {
   return id;
 }
 
+/**
+ * 上傳保單並略過保單解析的逐步動畫（#444）：回應回來後步驟要播約 2.7 秒才填表，
+ * 不是在測動畫的測試用這個，免得撞到 expect 的 5 秒逾時。
+ */
+export async function uploadPolicyPdf(page: Page, file: string) {
+  await page.getByTestId("policy-file").setInputFiles(file);
+  await page.getByTestId("policy-skip").click();
+}
+
 type TripTransition = { overlay: boolean; cardCounts: number[] };
 
 /**
