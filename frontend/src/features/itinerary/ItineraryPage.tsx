@@ -82,7 +82,7 @@ function Itinerary({
   // 存檔排成一串：上一次還沒回來就不送下一次，避免回應亂序
   const queue = useRef<Promise<unknown>>(Promise.resolve());
 
-  const errors = validateTrip(form.depart, form.returnDate, comparison?.depart_date);
+  const errors = validateTrip(form.depart, form.returnDate);
   const valid = Boolean(form.destination && form.depart && form.returnDate) && errors.length === 0;
   const dirty =
     !comparison ||

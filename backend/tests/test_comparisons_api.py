@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from app.api.deps import current_user
-from app.api.routes import comparisons
 from app.domain.plans import get_plan, load_plans
 from app.ingest.plan_matrix import read_plan_data
 from app.main import app
@@ -110,10 +109,6 @@ def days_later(n: int) -> str:
     [
         ({"destination": "火星"}, None),
         (
-            {"depart_date": days_later(-1), "return_date": days_later(4)},
-            "出發日要從今天起。",
-        ),
-        (
             {"depart_date": days_later(5), "return_date": days_later(4)},
             "回程日不能早於出發日。",
         ),
@@ -159,56 +154,18 @@ async def test_boundary_values_are_accepted(client: AsyncClient) -> None:
 
 
 @pytest.mark.usefixtures("user")
-async def test_patch_without_changing_a_past_depart_date_still_succeeds(
-    client: AsyncClient, session: AsyncSession
+async def test_past_depart_date_is_accepted_on_create_and_patch(
+    client: AsyncClient,
 ) -> None:
-    created = (await client.post("/comparisons", json=trip())).json()
-    # 存了之後時間過去：出發日變成昨天
-    comparison = await session.get(Comparison, created["id"])
-    assert comparison is not None
-    comparison.depart_date = today() - timedelta(days=1)
-    comparison.return_date = today() + timedelta(days=3)
-    await session.commit()
-
-    response = await client.patch(
-        f"/comparisons/{created['id']}", json={"concerns": ["班機延誤"]}
-    )
-    assert response.status_code == 200, response.text
-    response = await client.patch(
-        f"/comparisons/{created['id']}",
-        json={"depart_date": comparison.depart_date.isoformat(), "city": "京都"},
-    )
-    assert response.status_code == 200, response.text
-
-    response = await client.patch(
-        f"/comparisons/{created['id']}",
-        json={"depart_date": (today() - timedelta(days=2)).isoformat()},
-    )
-    assert response.status_code == 422
-    assert "出發日要從今天起。" in response.text
-
-
-@pytest.mark.usefixtures("user")
-async def test_today_is_taiwan_date_not_server_date(
-    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    # UTC 11/5 23:30 = 台灣 11/6 07:30：伺服器還在 11/5，台灣已經是 11/6
-    now = datetime(2026, 11, 5, 23, 30, tzinfo=UTC)
-
-    class FixedDatetime(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return now.astimezone(tz)
-
-    monkeypatch.setattr(comparisons, "datetime", FixedDatetime)
-    yesterday = {"depart_date": "2026-11-05", "return_date": "2026-11-09"}
-    response = await client.post("/comparisons", json=trip(**yesterday))
-    assert response.status_code == 422, response.text
-    assert "出發日要從今天起。" in response.text
-
-    today = {"depart_date": "2026-11-06", "return_date": "2026-11-10"}
-    response = await client.post("/comparisons", json=trip(**today))
+    past = {"depart_date": days_later(-30), "return_date": days_later(-25)}
+    response = await client.post("/comparisons", json=trip(**past))
     assert response.status_code == 201, response.text
+
+    response = await client.patch(
+        f"/comparisons/{response.json()['id']}",
+        json={"depart_date": days_later(-31), "return_date": days_later(-26)},
+    )
+    assert response.status_code == 200, response.text
 
 
 async def test_requires_login(client: AsyncClient) -> None:

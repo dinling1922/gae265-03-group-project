@@ -7,7 +7,7 @@ import { Field, FieldError, FieldHint, fieldInput, fieldSelect } from "../../com
 import { PageHead } from "../../components/ui/PageHead";
 import { DaysSummary } from "../compare/DaysSummary";
 import { DEMO_ITINERARIES, type DemoItinerary } from "./demoItineraries";
-import { addDays, DESTINATIONS, today, tripDays } from "./tripRules";
+import { addDays, DESTINATIONS, tripDays } from "./tripRules";
 
 export type TripForm = {
   destination: string;
@@ -91,7 +91,6 @@ export function TripSidebar({
               id="depart"
               type="date"
               value={depart}
-              min={today()}
               onChange={(e) => onChange({ depart: e.target.value })}
               className={`${fieldInput} w-full`}
             />

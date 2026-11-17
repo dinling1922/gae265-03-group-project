@@ -8,7 +8,6 @@ import logging
 import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal, Self
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.exceptions import RequestValidationError
@@ -17,7 +16,6 @@ from pydantic import (
     BaseModel,
     Field,
     ValidationError,
-    ValidationInfo,
     model_validator,
 )
 from pydantic_core import PydanticCustomError
@@ -47,9 +45,6 @@ from app.models import Comparison, ItineraryActivity, PlanBenefit, PlanPremium
 router = APIRouter(tags=["comparisons"])
 logger = logging.getLogger(__name__)
 
-# 使用者在台灣：「今天」以台灣日期為準，不看伺服器時區
-TAIPEI = ZoneInfo("Asia/Taipei")
-
 
 def _check_unique(concerns: list[Concern]) -> list[Concern]:
     if len(set(concerns)) != len(concerns):
@@ -67,13 +62,8 @@ class ComparisonIn(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _check_dates(self, info: ValidationInfo) -> Self:
-        # 修改已存的紀錄時，出發日沒變就不檢查是否已過（context 帶已存的出發日）
-        stored_depart = (info.context or {}).get("stored_depart_date")
-        depart_unchanged = stored_depart == self.depart_date
-        today = datetime.now(TAIPEI).date()
-        if self.depart_date < today and not depart_unchanged:
-            raise PydanticCustomError("depart_past", "出發日要從今天起。")
+    def _check_dates(self) -> Self:
+        # 出發日可以是過去：app 不實際投保，只拿來比較與試算
         if self.return_date < self.depart_date:
             raise PydanticCustomError("return_before_depart", "回程日不能早於出發日。")
         days = (self.return_date - self.depart_date).days + 1
@@ -447,8 +437,7 @@ async def update_comparison(
             stored
             | body.model_dump(
                 exclude_unset=True, include=set(ComparisonIn.model_fields)
-            ),
-            context={"stored_depart_date": comparison.depart_date},
+            )
         )
     except ValidationError as e:
         raise RequestValidationError(

@@ -62,7 +62,6 @@ test("日程頁的日期與天數不合規則時顯示原因，也不建立比�
   await expect(next).toBeDisabled();
 
   const cases: [string, string, string][] = [
-    [day(-1), day(4), "出發日要從今天起。"],
     [day(7), day(6), "回程日不能早於出發日。"],
     [day(7), day(9), "旅遊天數最短 4 天。"],
     [day(7), day(17), "旅遊天數最長 10 天。"],
@@ -76,9 +75,12 @@ test("日程頁的日期與天數不合規則時顯示原因，也不建立比�
   await page.waitForTimeout(800); // 比自動存檔的等待久：還是沒建立
   await expect(page).toHaveURL(/\/compare\/new$/);
 
-  // 日期選擇器只能選有效範圍：出發日從今天起，回程日是 4～10 天
+  // 出發日可以是過去；回程日的選擇範圍是出發日後 4～10 天
+  await page.getByLabel("出發日").fill(day(-7));
+  await expect(page.getByLabel("出發日")).not.toHaveAttribute("min");
+  await expect(page.getByLabel("回程日")).toHaveAttribute("min", day(-4));
+  await expect(page.getByLabel("回程日")).toHaveAttribute("max", day(2));
   await page.getByLabel("出發日").fill(day(7));
-  await expect(page.getByLabel("出發日")).toHaveAttribute("min", day(0));
   await expect(page.getByLabel("回程日")).toHaveAttribute("min", day(10));
   await expect(page.getByLabel("回程日")).toHaveAttribute("max", day(16));
 });

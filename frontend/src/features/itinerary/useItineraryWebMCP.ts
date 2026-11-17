@@ -227,7 +227,7 @@ export function useItineraryWebMCP(ctx: WebMCPContext): { supported: boolean } {
       }
       const start = resolveTripDate(args.start_date);
       const end = resolveTripDate(args.end_date, start);
-      const errors = validateTrip(start, end, latest.current.comparison?.depart_date);
+      const errors = validateTrip(start, end);
       if (errors.length > 0) throw new Error(errors.join(" "));
 
       const before = latest.current;
