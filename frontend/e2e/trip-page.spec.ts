@@ -688,3 +688,59 @@ test("捲動自動切換：手機問答面板拉開時，捲動不換問答", as
 
   expect(await selectedIndex(page)).toBe(1);
 });
+
+// 行程頁問答補完資訊後再確認（#445）：後端判斷「問完 + 結論或適用待辦有變」才回 show_confirm。
+// 假 5 號只要使用者的話裡有「不理賠」，就把保障改成 excluded（結論有變）。
+async function askInTrip(page: Page, text: string) {
+  const replied = page.waitForResponse(
+    (r) => r.url().endsWith("/messages") && r.request().method() === "POST",
+  );
+  await page.getByTestId("message").fill(text);
+  await page.getByTestId("send").click();
+  await replied;
+}
+
+test("問答補完資訊讓結論有變：再跳確認彈窗，「確認」只關彈窗，不呼叫確認 API", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const confirmCalls: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith("/confirm")) confirmCalls.push(r.url());
+  });
+
+  await askInTrip(page, "這樣不理賠嗎？");
+
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("您補充的內容讓判斷有變");
+  // 事故早就確認過：按鈕不寫「進入行程頁」
+  await expect(dialog.getByTestId("confirm-yes")).toHaveText("確認");
+  // 背景已經先更新：事故卡不再有可能適用的項目
+  await expect(page.getByTestId("not-covered")).toBeVisible();
+
+  await dialog.getByTestId("confirm-yes").click();
+  await expect(dialog).toBeHidden();
+  expect(confirmCalls).toEqual([]);
+  await expect(page).toHaveURL(new RegExp(`/trip/${policyId}`));
+});
+
+test("再跳的確認彈窗按「還要補充或修改」：關彈窗，焦點回到問答輸入框", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm-supplement", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  await askInTrip(page, "這樣不理賠嗎？");
+
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("confirm-supplement").click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("message")).toBeFocused();
+});
+
+test("問答只問條款、結論沒變：不跳確認彈窗", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm-none", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  await askInTrip(page, "診斷書要正本嗎？");
+
+  await expect(page.getByTestId("messages")).toContainText("診斷書要正本嗎？");
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+});
