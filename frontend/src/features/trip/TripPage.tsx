@@ -9,11 +9,13 @@ import { Pill, ProgressPill } from "../../components/ui/Tag";
 import { GoogleAuthResult } from "../google/GoogleAuthResult";
 import { ConfirmDialog } from "../incident/ConfirmDialog";
 import { type ChatLine, DescribeChat } from "../incident/DescribeChat";
+import { ReminderNotice } from "../incident/ReminderNotice";
 import { card, errorText, policyMeta, tripTitle, useIncident, wideMain } from "../incident/shared";
 import { TripIncidentCard } from "./TripIncidentCard";
 import { TripSendBox } from "./TripSendBox";
-import { TripTodoCards, tripProgress } from "./TripTodoCards";
+import { TripTodoCards, tripPending, tripProgress } from "./TripTodoCards";
 import { TripUploader } from "./TripUploader";
+import { useReminderPolling } from "./useReminderPolling";
 import { useTrip } from "./useTrip";
 
 const H2 = "m-0 t-section-title text-heading";
@@ -59,6 +61,8 @@ export function TripPage({
   scrollToTodos?: boolean;
 }) {
   const { setTrip, refresh } = useTrip(policyId);
+  // 提醒信寄出後不用重新整理：這一輪還有信沒寄時自動重新讀取（只有 Google 登入的使用者會收到信）
+  useReminderPolling(trip.reminder_rounds, googleUser && !trip.locked, refresh);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // 選中的事故一定展開；其他的按「▸」展開，展開過的維持展開（規格 7.3.1）
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -406,6 +410,14 @@ export function TripPage({
             )}
           </section>
 
+          {/* 提醒信說明（ADR-0031）：只有 Google 登入的使用者會收到。
+              送件或結案後不再寄，但寄過信的話仍顯示寄送進度（最後一輪標成已結束） */}
+          {googleUser && (!locked || trip.reminder_rounds.length > 0) && (
+            <ReminderNotice
+              missingUploads={tripPending(trip).missingUploads}
+              rounds={trip.reminder_rounds}
+            />
+          )}
           <TripSendBox policyId={policyId} trip={trip} />
         </div>
 
