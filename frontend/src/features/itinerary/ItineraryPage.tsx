@@ -167,7 +167,14 @@ function Itinerary({
     }
   };
 
-  const goNext = async () => {
+  // 沒有任何活動就按「下一步」：先用滿版視窗問要不要跳過安排行程
+  const [skipOpen, setSkipOpen] = useState(false);
+  const goNext = async (skipConfirmed = false) => {
+    if (activities.length === 0 && !skipConfirmed) {
+      setSkipOpen(true);
+      return;
+    }
+    setSkipOpen(false);
     clearTimeout(timer.current);
     const saved = dirty ? await save() : comparison;
     if (saved) void navigate({ to: "/compare/$id/concerns", params: { id: saved.id } });
@@ -403,6 +410,12 @@ function Itinerary({
         onCancel={cancelClear}
         onConfirm={confirmClear}
       />
+      <SkipDialog
+        open={skipOpen}
+        saving={saving}
+        onCancel={() => setSkipOpen(false)}
+        onConfirm={() => void goNext(true)}
+      />
       <ShortenDialog
         activities={toRemove}
         error={saveError}
@@ -516,6 +529,42 @@ function ClearDialog({
     >
       <FieldError>{error}</FieldError>
     </DialogShell>
+  );
+}
+
+function SkipDialog({
+  open,
+  saving,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  /** 正在存檔時不能按「確定」，免得和自動存檔重疊 */
+  saving: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <DialogShell
+      open={open}
+      onOpenChange={(o) => !o && onCancel()}
+      title="目前沒有任何行程活動"
+      description="要跳過安排行程這個步驟，直接確認旅途風險嗎？"
+      testId="skip-dialog"
+      actions={
+        <>
+          <Dialog.Close className={btn}>繼續安排行程</Dialog.Close>
+          <Button
+            className={btnPri}
+            onClick={onConfirm}
+            disabled={saving}
+            data-testid="skip-confirm"
+          >
+            確定
+          </Button>
+        </>
+      }
+    />
   );
 }
 

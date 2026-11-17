@@ -68,3 +68,9 @@ export async function setupClaimIncident(page: Page, name: string) {
   }
   return id;
 }
+
+/** 1-1 還沒有任何活動就按「下一步」：會先跳出提醒，按「確定」跳過安排行程。 */
+export async function nextSkippingItinerary(page: Page) {
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByTestId("skip-confirm").click();
+}
