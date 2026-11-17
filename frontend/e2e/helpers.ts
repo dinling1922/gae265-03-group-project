@@ -68,3 +68,46 @@ export async function setupClaimIncident(page: Page, name: string) {
   }
   return id;
 }
+
+/**
+ * 上傳保單並略過保單解析的逐步動畫（#444）：回應回來後步驟要播約 2.7 秒才填表，
+ * 不是在測動畫的測試用這個，免得撞到 expect 的 5 秒逾時。
+ */
+export async function uploadPolicyPdf(page: Page, file: string) {
+  await page.getByTestId("policy-file").setInputFiles(file);
+  await page.getByTestId("policy-skip").click();
+}
+
+type TripTransition = { overlay: boolean; cardCounts: number[] };
+
+/**
+ * 開始記錄換到行程頁的過場（#445）：有沒有出現「正在整理您的行程」載入遮罩，以及事故卡出現過哪些張數
+ * （只有舊行程的一張卡閃一下，就會多記到 1）。SPA 換頁不重新載入，記錄會一直留著；要在換頁前呼叫。
+ */
+export async function watchTripTransition(page: Page) {
+  await page.evaluate(() => {
+    const seen: TripTransition = { overlay: false, cardCounts: [] };
+    (window as Window & { __trip?: TripTransition }).__trip = seen;
+    const check = () => {
+      const status = document.querySelector('[role="status"]');
+      if (status?.textContent?.includes("正在整理您的行程")) seen.overlay = true;
+      const n = document.querySelectorAll('[data-testid="trip-incident"]').length;
+      if (n > 0 && !seen.cardCounts.includes(n)) seen.cardCounts.push(n);
+    };
+    new MutationObserver(check).observe(document.body, { childList: true, subtree: true });
+  });
+}
+
+/** `watchTripTransition` 到目前為止記到的過場。 */
+export async function tripTransition(page: Page): Promise<TripTransition> {
+  return page.evaluate(
+    () =>
+      (window as Window & { __trip?: TripTransition }).__trip ?? { overlay: false, cardCounts: [] },
+  );
+}
+
+/** 1-1 還沒有任何活動就按「下一步」：會先跳出提醒，按「確定」跳過安排行程。 */
+export async function nextSkippingItinerary(page: Page) {
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByTestId("skip-confirm").click();
+}

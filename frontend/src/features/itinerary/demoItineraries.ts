@@ -282,7 +282,7 @@ function nextSep15(now: string): string {
   return `${now <= `${year}-09-15` ? year : year + 1}-09-15`;
 }
 
-/** 旅行規劃欄位：出發日依規則推算（保留「出發日要從今天起」），回程日 = 出發日 + 天數 − 1。`now` 預設今天。 */
+/** 旅行規劃欄位：出發日依規則推算（今天之後），回程日 = 出發日 + 天數 − 1。`now` 預設今天。 */
 export function demoTrip(demo: DemoItinerary, now: string = today()): TripFields {
   const depart = demo.departRule === "next-sep-15" ? nextSep15(now) : addDays(now, 30);
   return {

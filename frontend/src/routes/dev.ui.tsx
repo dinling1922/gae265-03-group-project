@@ -257,7 +257,7 @@ function Preview() {
           <FieldHint>旅遊天數最多 10 天（含頭尾）</FieldHint>
           <FieldOk data-testid="ui-ok">由保單自動帶入，可修改</FieldOk>
           <FieldWarn data-testid="ui-warn">保單上讀不到，請自行選擇</FieldWarn>
-          <FieldError data-testid="ui-error">出發日要從今天起。</FieldError>
+          <FieldError data-testid="ui-error">回程日不能早於出發日。</FieldError>
         </Field>
         <FileDrop title="上傳保單" description="PDF，10 MB 內。個資會先移除再讀取，原檔不保存。">
           <FilePickButton

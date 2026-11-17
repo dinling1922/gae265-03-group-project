@@ -7,6 +7,7 @@ import { btn, btnPri, btnSm } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
 import { Pill, ProgressPill } from "../../components/ui/Tag";
 import { GoogleAuthResult } from "../google/GoogleAuthResult";
+import { ConfirmDialog } from "../incident/ConfirmDialog";
 import { type ChatLine, DescribeChat } from "../incident/DescribeChat";
 import { ReminderNotice } from "../incident/ReminderNotice";
 import { card, errorText, policyMeta, tripTitle, useIncident, wideMain } from "../incident/shared";
@@ -72,6 +73,11 @@ export function TripPage({
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
   const [deleting, setDeleting] = useState<DocumentView | null>(null);
+  // 問答補完資訊、結論或待辦有變時再跳確認彈窗（#445）：記是哪個事故；背景先更新，彈窗只是讓旅客看過一遍
+  const [reconfirmId, setReconfirmId] = useState<string | null>(null);
+  const askInputRef = useRef<HTMLInputElement>(null);
+  // 按「還要補充或修改」關掉彈窗後，焦點放回問答輸入框；按「確認」就照 Base UI 預設回到原本的位置
+  const focusAskAfterClose = useRef(false);
 
   const locked = trip.locked;
   // 預設選中發生日期最早的事故（事故已依發生時間排序）
@@ -223,6 +229,8 @@ export function TripPage({
     setDrafts((prev) => ({ ...prev, [selected.id]: "" }));
     setAsking(null);
     setBusy(false);
+    // 補完資訊讓結論或待辦有變（後端判斷）：資料已經更新，再跳確認彈窗
+    if (res.data.show_confirm) setReconfirmId(selected.id);
   }
 
   const lines: ChatLine[] = (ctx?.messages ?? []).map((m) => ({
@@ -430,6 +438,7 @@ export function TripPage({
               typing={asking?.id === selected.id}
               typingLabel="正在查閱條款"
               onSend={(content) => void ask(content)}
+              inputRef={askInputRef}
               maxLength={300}
               minHeight={96}
               tall
@@ -451,6 +460,27 @@ export function TripPage({
           </section>
         )}
       </div>
+
+      {ctx && (
+        <ConfirmDialog
+          open={reconfirmId !== null && reconfirmId === ctx.incident_id}
+          ctx={ctx}
+          busy={false}
+          error={null}
+          mode="update"
+          // 事故早就確認過（再呼叫 confirmIncident 會回 409）：「確認」只關彈窗
+          onConfirm={() => setReconfirmId(null)}
+          onSupplement={() => {
+            focusAskAfterClose.current = true;
+            setReconfirmId(null);
+          }}
+          finalFocus={() => {
+            if (!focusAskAfterClose.current) return true;
+            focusAskAfterClose.current = false;
+            return askInputRef.current ?? true;
+          }}
+        />
+      )}
 
       <ActionBar>
         <ActionBar.Push>

@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, nextSkippingItinerary } from "./helpers";
 
 /** 今天往後 offset 天的 YYYY-MM-DD（瀏覽器的本地日期）。 */
 function day(offset: number): string {
@@ -62,7 +62,6 @@ test("日程頁的日期與天數不合規則時顯示原因，也不建立比�
   await expect(next).toBeDisabled();
 
   const cases: [string, string, string][] = [
-    [day(-1), day(4), "出發日要從今天起。"],
     [day(7), day(6), "回程日不能早於出發日。"],
     [day(7), day(9), "旅遊天數最短 4 天。"],
     [day(7), day(17), "旅遊天數最長 10 天。"],
@@ -76,9 +75,12 @@ test("日程頁的日期與天數不合規則時顯示原因，也不建立比�
   await page.waitForTimeout(800); // 比自動存檔的等待久：還是沒建立
   await expect(page).toHaveURL(/\/compare\/new$/);
 
-  // 日期選擇器只能選有效範圍：出發日從今天起，回程日是 4～10 天
+  // 出發日可以是過去；回程日的選擇範圍是出發日後 4～10 天
+  await page.getByLabel("出發日").fill(day(-7));
+  await expect(page.getByLabel("出發日")).not.toHaveAttribute("min");
+  await expect(page.getByLabel("回程日")).toHaveAttribute("min", day(-4));
+  await expect(page.getByLabel("回程日")).toHaveAttribute("max", day(2));
   await page.getByLabel("出發日").fill(day(7));
-  await expect(page.getByLabel("出發日")).toHaveAttribute("min", day(0));
   await expect(page.getByLabel("回程日")).toHaveAttribute("min", day(10));
   await expect(page.getByLabel("回程日")).toHaveAttribute("max", day(16));
 });
@@ -207,13 +209,45 @@ test("清除所有活動：沒活動時不顯示按鈕，取消不變、確認�
   await expect(page.getByTestId("clear-activities")).toBeHidden();
 });
 
+// 沒有任何活動按下一步：跳出確認視窗，「繼續安排行程」留在原地，「確定」才往 1-2。
+test("沒有活動按下一步會跳出確認視窗；繼續安排留在 1-1，確定才進 1-2", async ({ page }) => {
+  await login(page, "e2e-itinerary-skip-modal@example.com");
+  await page.goto("/compare/new");
+  const id = await fillTrip(page, "日本", 7, 11);
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  const dialog = page.getByTestId("skip-dialog");
+  await expect(dialog).toContainText("目前沒有任何行程活動");
+  await dialog.getByRole("button", { name: "繼續安排行程" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(new RegExp(`/compare/${id}/itinerary$`));
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByTestId("skip-confirm").click();
+  await expect(page).toHaveURL(new RegExp(`/compare/${id}/concerns$`));
+});
+
+// 有活動就不會問。
+test("已有活動按下一步直接進 1-2，不跳提醒", async ({ page }) => {
+  await login(page, "e2e-itinerary-skip-modal-has-activity@example.com");
+  await page.goto("/compare/new");
+  await fillTrip(page, "日本", 7, 11);
+  await slot(page, 14).getByRole("button", { name: /空檔/ }).click();
+  await page.getByTestId("activity-dialog").getByLabel("要做什麼").fill("祇園散步");
+  await page.getByTestId("activity-dialog").getByRole("button", { name: "儲存" }).click();
+  await expect(slot(page, 14).getByTestId("activity-card")).toContainText("祇園散步");
+
+  await page.getByRole("button", { name: "下一步" }).click();
+  await expect(page).toHaveURL(/\/concerns$/);
+});
+
 // 不排活動也能下一步；1-2 按上一步回來，活動還在。
 test("不排活動可以直接下一步；1-2 上一步回到日程頁，活動還在", async ({ page }) => {
   await login(page, "e2e-itinerary-back@example.com");
   await page.goto("/compare/new");
   const id = await fillTrip(page, "日本", 7, 11);
 
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(new RegExp(`/compare/${id}/concerns$`));
   await page.getByRole("button", { name: "上一步" }).click();
   await expect(page).toHaveURL(new RegExp(`/compare/${id}/itinerary$`));
@@ -245,10 +279,12 @@ test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，
 
   await page.getByRole("link", { name: /出發前：幫我選方案/ }).click();
   await fillTrip(page, "日本", 7, 11);
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/compare\/[0-9a-f-]{36}\/concerns$/);
 
-  await expect(page.getByText("這趟旅行你最擔心什麼？依重要程度點選，最多 3 項。")).toBeVisible();
+  await expect(
+    page.getByText("依你的行程，建議優先注意這幾項。你可以再調整，最多 3 項。"),
+  ).toBeVisible();
   await page.getByRole("button", { name: /^突然生病就醫/ }).click();
   await page.getByRole("button", { name: /^班機延誤/ }).click();
 
@@ -258,7 +294,7 @@ test("1-1 → 1-2 → 上一步 → 下一步 → 重新整理，資料都在，
   await expect(page.getByLabel("出發日")).toHaveValue(day(7));
   await expect(page.getByLabel("回程日")).toHaveValue(day(11));
 
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/concerns$/);
   for (const reload of [false, true]) {
     if (reload) await page.reload();
@@ -280,7 +316,7 @@ test("1-2 的點選順序、取消補位、最多 3 項", async ({ page }) => {
   await login(page, "e2e-compare-concerns-rules@example.com");
   await page.goto("/compare/new");
   await fillTrip(page, "美國", 7, 10);
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/concerns$/);
 
   const card = (name: string) => page.getByRole("button", { name: new RegExp(`^${name}`) });
@@ -344,7 +380,7 @@ test("手機寬度（390px）下日程頁、1-2 沒有橫向捲動", async ({ pa
 
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page).toHaveURL(/\/concerns$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("選擇最在意的點");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("推薦保障重點");
   for (const name of ["突然生病就醫", "班機延誤", "證件遺失"]) {
     await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
   }
@@ -359,7 +395,7 @@ test("1-2 按下一步存檔時顯示載入遮罩", async ({ page }) => {
   await login(page, "e2e-compare-overlay@example.com");
   await page.goto("/compare/new");
   await fillTrip(page, "日本", 7, 11);
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/concerns$/);
   await page.getByRole("button", { name: /^班機延誤/ }).click();
   // 讓 PATCH 慢一點，遮罩才看得到
@@ -407,7 +443,7 @@ test("1-2 還沒選在意事項時，依推薦順序預先勾選並顯示理由�
   await login(page, "e2e-concern-suggestions@example.com");
   await page.goto("/compare/new");
   await fillTrip(page, "日本", 7, 11);
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/concerns$/);
 
   const box = page.getByTestId("concern-suggestions");
@@ -428,7 +464,7 @@ test("1-2 已經選過在意事項時，推薦不覆蓋，只顯示理由", asyn
   await login(page, "e2e-concern-suggestions-keep@example.com");
   await page.goto("/compare/new");
   const id = await fillTrip(page, "日本", 7, 11);
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/concerns$/);
   await page.getByRole("button", { name: /^班機延誤/ }).click();
   await page.getByRole("button", { name: "上一步" }).click();
@@ -447,7 +483,7 @@ test("1-2 推薦回空陣列時不顯示推薦區塊", async ({ page }) => {
   await login(page, "e2e-concern-suggestions-empty@example.com");
   await page.goto("/compare/new");
   await fillTrip(page, "日本", 7, 11);
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/concerns$/);
   await expect(page.getByTestId("concern-suggestions-loading")).toHaveCount(0);
   await expect(page.getByTestId("concern-suggestions")).toHaveCount(0);

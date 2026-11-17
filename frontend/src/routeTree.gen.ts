@@ -15,7 +15,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed.account'
 import { Route as AuthedAdminRouteImport } from './routes/_authed.admin'
-import { Route as AuthedPlansRouteImport } from './routes/_authed.plans'
 import { Route as DevIndexRouteImport } from './routes/dev.index'
 import { Route as DevConsoleRouteImport } from './routes/dev.console'
 import { Route as DevDocumentRouteImport } from './routes/dev.document'
@@ -77,11 +76,6 @@ const AuthedAccountRoute = AuthedAccountRouteImport.update({
 const AuthedAdminRoute = AuthedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedPlansRoute = AuthedPlansRouteImport.update({
-  id: '/plans',
-  path: '/plans',
   getParentRoute: () => AuthedRoute,
 } as any)
 const DevIndexRoute = DevIndexRouteImport.update({
@@ -262,7 +256,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
   '/admin': typeof AuthedAdminRouteWithChildren
-  '/plans': typeof AuthedPlansRoute
   '/dev/console': typeof DevConsoleRoute
   '/dev/document': typeof DevDocumentRoute
   '/dev/health': typeof DevHealthRoute
@@ -301,7 +294,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
   '/admin': typeof AuthedAdminRouteWithChildren
-  '/plans': typeof AuthedPlansRoute
   '/dev/console': typeof DevConsoleRoute
   '/dev/document': typeof DevDocumentRoute
   '/dev/health': typeof DevHealthRoute
@@ -342,7 +334,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/account': typeof AuthedAccountRoute
   '/_authed/admin': typeof AuthedAdminRouteWithChildren
-  '/_authed/plans': typeof AuthedPlansRoute
   '/dev/console': typeof DevConsoleRoute
   '/dev/document': typeof DevDocumentRoute
   '/dev/health': typeof DevHealthRoute
@@ -386,7 +377,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/account'
     | '/admin'
-    | '/plans'
     | '/dev/console'
     | '/dev/document'
     | '/dev/health'
@@ -425,7 +415,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/account'
     | '/admin'
-    | '/plans'
     | '/dev/console'
     | '/dev/document'
     | '/dev/health'
@@ -465,7 +454,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/account'
     | '/_authed/admin'
-    | '/_authed/plans'
     | '/dev/console'
     | '/dev/document'
     | '/dev/health'
@@ -550,13 +538,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AuthedAdminRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/plans': {
-      id: '/_authed/plans'
-      path: '/plans'
-      fullPath: '/plans'
-      preLoaderRoute: typeof AuthedPlansRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/dev/': {
@@ -842,7 +823,6 @@ const AuthedIncidentNewRouteWithChildren =
 interface AuthedRouteChildren {
   AuthedAccountRoute: typeof AuthedAccountRoute
   AuthedAdminRoute: typeof AuthedAdminRouteWithChildren
-  AuthedPlansRoute: typeof AuthedPlansRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCompareNewRoute: typeof AuthedCompareNewRoute
   AuthedIncidentIdRoute: typeof AuthedIncidentIdRouteWithChildren
@@ -862,7 +842,6 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAccountRoute: AuthedAccountRoute,
   AuthedAdminRoute: AuthedAdminRouteWithChildren,
-  AuthedPlansRoute: AuthedPlansRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCompareNewRoute: AuthedCompareNewRoute,
   AuthedIncidentIdRoute: AuthedIncidentIdRouteWithChildren,
