@@ -15,7 +15,6 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedIndexRouteImport } from './routes/_authed.index'
 import { Route as AuthedAccountRouteImport } from './routes/_authed.account'
 import { Route as AuthedAdminRouteImport } from './routes/_authed.admin'
-import { Route as AuthedPlansRouteImport } from './routes/_authed.plans'
 import { Route as DevIndexRouteImport } from './routes/dev.index'
 import { Route as DevConsoleRouteImport } from './routes/dev.console'
 import { Route as DevDocumentRouteImport } from './routes/dev.document'
@@ -39,6 +38,7 @@ import { Route as DevChatIndexRouteImport } from './routes/dev.chat.index'
 import { Route as DevChatConversationIdRouteImport } from './routes/dev.chat.$conversationId'
 import { Route as AuthedCompareIdBackgroundRouteImport } from './routes/_authed.compare.$id.background'
 import { Route as AuthedCompareIdConcernsRouteImport } from './routes/_authed.compare.$id.concerns'
+import { Route as AuthedCompareIdItineraryRouteImport } from './routes/_authed.compare.$id.itinerary'
 import { Route as AuthedCompareIdResultRouteImport } from './routes/_authed.compare.$id.result'
 import { Route as AuthedCompareIdScenariosRouteImport } from './routes/_authed.compare.$id.scenarios'
 import { Route as AuthedIncidentIdIndexRouteImport } from './routes/_authed.incident.$id.index'
@@ -76,11 +76,6 @@ const AuthedAccountRoute = AuthedAccountRouteImport.update({
 const AuthedAdminRoute = AuthedAdminRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => AuthedRoute,
-} as any)
-const AuthedPlansRoute = AuthedPlansRouteImport.update({
-  id: '/plans',
-  path: '/plans',
   getParentRoute: () => AuthedRoute,
 } as any)
 const DevIndexRoute = DevIndexRouteImport.update({
@@ -199,6 +194,12 @@ const AuthedCompareIdConcernsRoute = AuthedCompareIdConcernsRouteImport.update({
   path: '/compare/$id/concerns',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedCompareIdItineraryRoute =
+  AuthedCompareIdItineraryRouteImport.update({
+    id: '/compare/$id/itinerary',
+    path: '/compare/$id/itinerary',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedCompareIdResultRoute = AuthedCompareIdResultRouteImport.update({
   id: '/compare/$id/result',
   path: '/compare/$id/result',
@@ -255,7 +256,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
   '/admin': typeof AuthedAdminRouteWithChildren
-  '/plans': typeof AuthedPlansRoute
   '/dev/console': typeof DevConsoleRoute
   '/dev/document': typeof DevDocumentRoute
   '/dev/health': typeof DevHealthRoute
@@ -279,6 +279,7 @@ export interface FileRoutesByFullPath {
   '/dev/chat/': typeof DevChatIndexRoute
   '/compare/$id/background': typeof AuthedCompareIdBackgroundRoute
   '/compare/$id/concerns': typeof AuthedCompareIdConcernsRoute
+  '/compare/$id/itinerary': typeof AuthedCompareIdItineraryRoute
   '/compare/$id/result': typeof AuthedCompareIdResultRoute
   '/compare/$id/scenarios': typeof AuthedCompareIdScenariosRoute
   '/incident/$id/documents': typeof AuthedIncidentIdDocumentsRoute
@@ -293,7 +294,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/account': typeof AuthedAccountRoute
   '/admin': typeof AuthedAdminRouteWithChildren
-  '/plans': typeof AuthedPlansRoute
   '/dev/console': typeof DevConsoleRoute
   '/dev/document': typeof DevDocumentRoute
   '/dev/health': typeof DevHealthRoute
@@ -316,6 +316,7 @@ export interface FileRoutesByTo {
   '/dev/chat': typeof DevChatIndexRoute
   '/compare/$id/background': typeof AuthedCompareIdBackgroundRoute
   '/compare/$id/concerns': typeof AuthedCompareIdConcernsRoute
+  '/compare/$id/itinerary': typeof AuthedCompareIdItineraryRoute
   '/compare/$id/result': typeof AuthedCompareIdResultRoute
   '/compare/$id/scenarios': typeof AuthedCompareIdScenariosRoute
   '/incident/$id/documents': typeof AuthedIncidentIdDocumentsRoute
@@ -333,7 +334,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/account': typeof AuthedAccountRoute
   '/_authed/admin': typeof AuthedAdminRouteWithChildren
-  '/_authed/plans': typeof AuthedPlansRoute
   '/dev/console': typeof DevConsoleRoute
   '/dev/document': typeof DevDocumentRoute
   '/dev/health': typeof DevHealthRoute
@@ -358,6 +358,7 @@ export interface FileRoutesById {
   '/dev/chat/': typeof DevChatIndexRoute
   '/_authed/compare/$id/background': typeof AuthedCompareIdBackgroundRoute
   '/_authed/compare/$id/concerns': typeof AuthedCompareIdConcernsRoute
+  '/_authed/compare/$id/itinerary': typeof AuthedCompareIdItineraryRoute
   '/_authed/compare/$id/result': typeof AuthedCompareIdResultRoute
   '/_authed/compare/$id/scenarios': typeof AuthedCompareIdScenariosRoute
   '/_authed/incident/$id/documents': typeof AuthedIncidentIdDocumentsRoute
@@ -376,7 +377,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/account'
     | '/admin'
-    | '/plans'
     | '/dev/console'
     | '/dev/document'
     | '/dev/health'
@@ -400,6 +400,7 @@ export interface FileRouteTypes {
     | '/dev/chat/'
     | '/compare/$id/background'
     | '/compare/$id/concerns'
+    | '/compare/$id/itinerary'
     | '/compare/$id/result'
     | '/compare/$id/scenarios'
     | '/incident/$id/documents'
@@ -414,7 +415,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/account'
     | '/admin'
-    | '/plans'
     | '/dev/console'
     | '/dev/document'
     | '/dev/health'
@@ -437,6 +437,7 @@ export interface FileRouteTypes {
     | '/dev/chat'
     | '/compare/$id/background'
     | '/compare/$id/concerns'
+    | '/compare/$id/itinerary'
     | '/compare/$id/result'
     | '/compare/$id/scenarios'
     | '/incident/$id/documents'
@@ -453,7 +454,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/account'
     | '/_authed/admin'
-    | '/_authed/plans'
     | '/dev/console'
     | '/dev/document'
     | '/dev/health'
@@ -478,6 +478,7 @@ export interface FileRouteTypes {
     | '/dev/chat/'
     | '/_authed/compare/$id/background'
     | '/_authed/compare/$id/concerns'
+    | '/_authed/compare/$id/itinerary'
     | '/_authed/compare/$id/result'
     | '/_authed/compare/$id/scenarios'
     | '/_authed/incident/$id/documents'
@@ -537,13 +538,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AuthedAdminRouteImport
-      parentRoute: typeof AuthedRoute
-    }
-    '/_authed/plans': {
-      id: '/_authed/plans'
-      path: '/plans'
-      fullPath: '/plans'
-      preLoaderRoute: typeof AuthedPlansRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/dev/': {
@@ -707,6 +701,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedCompareIdConcernsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/compare/$id/itinerary': {
+      id: '/_authed/compare/$id/itinerary'
+      path: '/compare/$id/itinerary'
+      fullPath: '/compare/$id/itinerary'
+      preLoaderRoute: typeof AuthedCompareIdItineraryRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/compare/$id/result': {
       id: '/_authed/compare/$id/result'
       path: '/compare/$id/result'
@@ -822,7 +823,6 @@ const AuthedIncidentNewRouteWithChildren =
 interface AuthedRouteChildren {
   AuthedAccountRoute: typeof AuthedAccountRoute
   AuthedAdminRoute: typeof AuthedAdminRouteWithChildren
-  AuthedPlansRoute: typeof AuthedPlansRoute
   AuthedIndexRoute: typeof AuthedIndexRoute
   AuthedCompareNewRoute: typeof AuthedCompareNewRoute
   AuthedIncidentIdRoute: typeof AuthedIncidentIdRouteWithChildren
@@ -832,6 +832,7 @@ interface AuthedRouteChildren {
   AuthedTripIndexRoute: typeof AuthedTripIndexRoute
   AuthedCompareIdBackgroundRoute: typeof AuthedCompareIdBackgroundRoute
   AuthedCompareIdConcernsRoute: typeof AuthedCompareIdConcernsRoute
+  AuthedCompareIdItineraryRoute: typeof AuthedCompareIdItineraryRoute
   AuthedCompareIdResultRoute: typeof AuthedCompareIdResultRoute
   AuthedCompareIdScenariosRoute: typeof AuthedCompareIdScenariosRoute
   AuthedTripPolicyIdSubmitRoute: typeof AuthedTripPolicyIdSubmitRoute
@@ -841,7 +842,6 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAccountRoute: AuthedAccountRoute,
   AuthedAdminRoute: AuthedAdminRouteWithChildren,
-  AuthedPlansRoute: AuthedPlansRoute,
   AuthedIndexRoute: AuthedIndexRoute,
   AuthedCompareNewRoute: AuthedCompareNewRoute,
   AuthedIncidentIdRoute: AuthedIncidentIdRouteWithChildren,
@@ -851,6 +851,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTripIndexRoute: AuthedTripIndexRoute,
   AuthedCompareIdBackgroundRoute: AuthedCompareIdBackgroundRoute,
   AuthedCompareIdConcernsRoute: AuthedCompareIdConcernsRoute,
+  AuthedCompareIdItineraryRoute: AuthedCompareIdItineraryRoute,
   AuthedCompareIdResultRoute: AuthedCompareIdResultRoute,
   AuthedCompareIdScenariosRoute: AuthedCompareIdScenariosRoute,
   AuthedTripPolicyIdSubmitRoute: AuthedTripPolicyIdSubmitRoute,

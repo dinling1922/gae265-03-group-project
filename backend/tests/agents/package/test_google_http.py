@@ -292,3 +292,22 @@ async def test_查檔案狀態時Drive回錯誤丟出錯誤類別(code: int, kin
         await api.file_status("drive-token", "file-1")
 
     assert error.value.kind == kind
+
+
+async def test_同一個轉接器共用連線_每次呼叫各自帶自己的授權() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "gmail.googleapis.com":
+            return httpx.Response(200, json={"id": "message-1"})
+        return _drive(request)
+
+    api, sent = _api(handler)
+    client = api._http()
+    await api.fetch_file("drive-token", "file-1")
+    await api.send_message("gmail-token", b"Subject: x\r\n\r\nbody")
+
+    assert api._http() is client
+    assert [r.headers["Authorization"] for r in sent] == [
+        "Bearer drive-token",
+        "Bearer drive-token",
+        "Bearer gmail-token",
+    ]

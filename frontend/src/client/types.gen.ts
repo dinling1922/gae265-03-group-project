@@ -5,6 +5,224 @@ export type ClientOptions = {
 };
 
 /**
+ * ActivitiesCleared
+ */
+export type ActivitiesCleared = {
+    /**
+     * Removed
+     *
+     * 刪掉幾個活動
+     */
+    removed: number;
+};
+
+/**
+ * ActivitiesCreated
+ */
+export type ActivitiesCreated = {
+    /**
+     * Created
+     */
+    created: Array<ActivityOut>;
+    /**
+     * Failed
+     */
+    failed: Array<ActivityFailure>;
+};
+
+/**
+ * ActivitiesIn
+ */
+export type ActivitiesIn = {
+    /**
+     * Activities
+     */
+    activities: Array<ActivityIn>;
+};
+
+/**
+ * ActivityBrief
+ */
+export type ActivityBrief = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hour
+     */
+    hour: number;
+    /**
+     * Title
+     */
+    title: string;
+};
+
+/**
+ * ActivityCategory
+ *
+ * 宣告順序就是畫面上的順序；前端的分類標籤與圖示照這組代碼。
+ */
+export type ActivityCategory = 'eat' | 'explore' | 'culture' | 'coffee' | 'rest' | 'stay';
+
+/**
+ * ActivityFailure
+ */
+export type ActivityFailure = {
+    /**
+     * Index
+     *
+     * 這筆在請求陣列裡的位置（從 0 起算）
+     */
+    index: number;
+    /**
+     * Code
+     */
+    code: 'SLOT_TAKEN' | 'DATE_OUT_OF_RANGE';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Occupied By
+     *
+     * SLOT_TAKEN 時，佔用這個時段的活動 id
+     */
+    occupied_by?: string | null;
+};
+
+/**
+ * ActivityIn
+ */
+export type ActivityIn = {
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hour
+     *
+     * 開始的整點，24 小時制
+     */
+    hour: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description?: string;
+    /**
+     * Location
+     */
+    location?: string;
+    category?: ActivityCategory;
+    /**
+     * Duration
+     *
+     * 時長（小時），0.5 一級
+     */
+    duration?: number;
+    /**
+     * Latitude
+     */
+    latitude?: number | null;
+    /**
+     * Longitude
+     */
+    longitude?: number | null;
+};
+
+/**
+ * ActivityOut
+ */
+export type ActivityOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Date
+     */
+    date: string;
+    /**
+     * Hour
+     */
+    hour: number;
+    /**
+     * Title
+     */
+    title: string;
+    /**
+     * Description
+     */
+    description: string;
+    /**
+     * Location
+     */
+    location: string;
+    category: ActivityCategory;
+    /**
+     * Duration
+     */
+    duration: number;
+    /**
+     * Latitude
+     */
+    latitude: number | null;
+    /**
+     * Longitude
+     */
+    longitude: number | null;
+};
+
+/**
+ * ActivityPatch
+ *
+ * 只帶要改的欄位；合併已存的值之後照 ActivityIn 的規則驗證。座標帶 null 表示清除。
+ */
+export type ActivityPatch = {
+    /**
+     * Date
+     */
+    date?: string | null;
+    /**
+     * Hour
+     */
+    hour?: number | null;
+    /**
+     * Title
+     */
+    title?: string | null;
+    /**
+     * Description
+     */
+    description?: string | null;
+    /**
+     * Location
+     */
+    location?: string | null;
+    category?: ActivityCategory | null;
+    /**
+     * Duration
+     */
+    duration?: number | null;
+    /**
+     * Latitude
+     */
+    latitude?: number | null;
+    /**
+     * Longitude
+     */
+    longitude?: number | null;
+};
+
+/**
  * AttachmentRef
  */
 export type AttachmentRef = {
@@ -483,6 +701,12 @@ export type CloseOut = {
 export type ComparisonIn = {
     destination: Destination;
     /**
+     * City
+     *
+     * 城市，選填
+     */
+    city?: string;
+    /**
      * Depart Date
      */
     depart_date: string;
@@ -491,23 +715,11 @@ export type ComparisonIn = {
      */
     return_date: string;
     /**
-     * Age
-     *
-     * 15～80 的整數
-     */
-    age: number;
-    /**
      * Concerns
      *
      * 依重要程度排序，最多 3 項、不重複
      */
     concerns?: Array<Concern>;
-    /**
-     * Note
-     *
-     * 其他在意的事
-     */
-    note?: string;
 };
 
 /**
@@ -520,6 +732,10 @@ export type ComparisonOut = {
     id: string;
     destination: Destination;
     /**
+     * City
+     */
+    city: string;
+    /**
      * Depart Date
      */
     depart_date: string;
@@ -528,17 +744,9 @@ export type ComparisonOut = {
      */
     return_date: string;
     /**
-     * Age
-     */
-    age: number;
-    /**
      * Concerns
      */
     concerns: Array<Concern>;
-    /**
-     * Note
-     */
-    note: string;
     /**
      * Created At
      */
@@ -547,6 +755,12 @@ export type ComparisonOut = {
      * Updated At
      */
     updated_at: string;
+    /**
+     * Removed Activity Count
+     *
+     * 這次修改刪除的日程活動數（縮短日期並帶 confirm_remove）
+     */
+    removed_activity_count?: number;
     /**
      * 推薦方案、次推薦與比較表；還沒推薦（在意事項是空的）時是 null
      */
@@ -561,6 +775,10 @@ export type ComparisonOut = {
 export type ComparisonPatch = {
     destination?: Destination | null;
     /**
+     * City
+     */
+    city?: string | null;
+    /**
      * Depart Date
      */
     depart_date?: string | null;
@@ -569,19 +787,15 @@ export type ComparisonPatch = {
      */
     return_date?: string | null;
     /**
-     * Age
-     *
-     * 15～80 的整數
-     */
-    age?: number | null;
-    /**
      * Concerns
      */
     concerns?: Array<Concern> | null;
     /**
-     * Note
+     * Confirm Remove
+     *
+     * 縮短日期會刪除日程活動時，帶 true 表示使用者已同意；沒帶會回 409
      */
-    note?: string | null;
+    confirm_remove?: boolean;
     /**
      * Recommended Sum Insured
      *
@@ -2751,6 +2965,76 @@ export type RecommendationOut = {
 };
 
 /**
+ * ReminderLetterOut
+ */
+export type ReminderLetterOut = {
+    /**
+     * Planned At
+     *
+     * 依規則預計寄出的時間
+     */
+    planned_at: string;
+    /**
+     * Sent At
+     *
+     * 實際寄出時間（和信件的 Date 標頭相同）；還沒寄或不再寄是 null
+     */
+    sent_at: string | null;
+};
+
+/**
+ * ReminderRoundOut
+ *
+ * 提醒信的一輪（ADR-0031）：起點、因為哪個事故開始、3 封的預計與實際寄出時間。
+ */
+export type ReminderRoundOut = {
+    /**
+     * Started At
+     */
+    started_at: string;
+    /**
+     * Ended At
+     *
+     * 這一輪結束的時間；還沒寄的信從此不再寄。還在進行是 null
+     */
+    ended_at: string | null;
+    /**
+     * End Reason
+     *
+     * new_round 有新的一輪；completed 需上傳的文件都齊全（含自行勾選）；closed 行程結案。還在進行是 null
+     */
+    end_reason: 'new_round' | 'completed' | 'closed' | null;
+    /**
+     * 第一輪、或只因為共同文件開始的一輪是 null
+     */
+    trigger: ReminderTriggerOut | null;
+    /**
+     * Letters
+     *
+     * 固定 3 封
+     */
+    letters: Array<ReminderLetterOut>;
+};
+
+/**
+ * ReminderTriggerOut
+ */
+export type ReminderTriggerOut = {
+    /**
+     * Incident
+     *
+     * 事故在信裡的名稱「事故類型 · 發生日」
+     */
+    incident: string;
+    /**
+     * Kind
+     *
+     * new_incident 新增了這個事故；new_situation 原本的事故有新狀況（例如補問後多了要上傳的文件）
+     */
+    kind: 'new_incident' | 'new_situation';
+};
+
+/**
  * RestoreIn
  */
 export type RestoreIn = {
@@ -3377,6 +3661,33 @@ export type SkippedRule = {
 };
 
 /**
+ * SlotTaken
+ */
+export type SlotTaken = {
+    /**
+     * Code
+     */
+    code: 'SLOT_TAKEN';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Occupied By
+     */
+    occupied_by: string;
+};
+
+/**
+ * SlotTakenConflict
+ *
+ * 409 的內容（FastAPI 把 HTTPException 的 detail 包在 detail 底下）。
+ */
+export type SlotTakenConflict = {
+    detail: SlotTaken;
+};
+
+/**
  * SplitBody
  */
 export type SplitBody = {
@@ -3602,6 +3913,19 @@ export type SubmitIn = {
      * 收件人信箱。send 必填；draft 可以沒有；self 不用
      */
     recipient?: string | null;
+};
+
+/**
+ * Suggestion
+ */
+export type Suggestion = {
+    concern: Concern;
+    /**
+     * Reason
+     *
+     * 點名日程活動（日期＋標題）的一句理由，40 字以內
+     */
+    reason: string;
 };
 
 /**
@@ -3932,6 +4256,12 @@ export type TripOut = {
      */
     can_close: boolean;
     submission: SubmissionStatusOut;
+    /**
+     * Reminder Rounds
+     *
+     * 提醒信寄過信的每一輪加上目前這一輪，舊的在前（ADR-0031）；第一封寄出前新增的事故或狀況都算在同一輪。只寄給 Google 驗證過的信箱，前端只對 Google 登入的使用者顯示
+     */
+    reminder_rounds: Array<ReminderRoundOut>;
 };
 
 /**
@@ -4248,6 +4578,33 @@ export type WalkthroughOut = {
      * 在 Google Drive 打開這個檔案的網址；假雲端是 null
      */
     drive_file_url?: string | null;
+};
+
+/**
+ * WouldRemoveActivities
+ */
+export type WouldRemoveActivities = {
+    /**
+     * Code
+     */
+    code: 'WOULD_REMOVE_ACTIVITIES';
+    /**
+     * Message
+     */
+    message: string;
+    /**
+     * Activities
+     */
+    activities: Array<ActivityBrief>;
+};
+
+/**
+ * WouldRemoveConflict
+ *
+ * 409 的內容（FastAPI 把 HTTPException 的 detail 包在 detail 底下）。
+ */
+export type WouldRemoveConflict = {
+    detail: WouldRemoveActivities;
 };
 
 /**
@@ -5115,6 +5472,10 @@ export type UpdateComparisonData = {
 
 export type UpdateComparisonErrors = {
     /**
+     * 縮短日期會刪除日程活動，要帶 confirm_remove: true 才會執行
+     */
+    409: WouldRemoveConflict;
+    /**
      * Validation Error
      */
     422: HttpValidationError;
@@ -5130,6 +5491,202 @@ export type UpdateComparisonResponses = {
 };
 
 export type UpdateComparisonResponse = UpdateComparisonResponses[keyof UpdateComparisonResponses];
+
+export type SuggestConcernsData = {
+    body?: never;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/concern-suggestions';
+};
+
+export type SuggestConcernsErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type SuggestConcernsError = SuggestConcernsErrors[keyof SuggestConcernsErrors];
+
+export type SuggestConcernsResponses = {
+    /**
+     * Response Suggest Concerns
+     *
+     * Successful Response
+     */
+    200: Array<Suggestion>;
+};
+
+export type SuggestConcernsResponse = SuggestConcernsResponses[keyof SuggestConcernsResponses];
+
+export type ClearItineraryActivitiesData = {
+    body?: never;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/activities';
+};
+
+export type ClearItineraryActivitiesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ClearItineraryActivitiesError = ClearItineraryActivitiesErrors[keyof ClearItineraryActivitiesErrors];
+
+export type ClearItineraryActivitiesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActivitiesCleared;
+};
+
+export type ClearItineraryActivitiesResponse = ClearItineraryActivitiesResponses[keyof ClearItineraryActivitiesResponses];
+
+export type ListItineraryActivitiesData = {
+    body?: never;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/activities';
+};
+
+export type ListItineraryActivitiesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListItineraryActivitiesError = ListItineraryActivitiesErrors[keyof ListItineraryActivitiesErrors];
+
+export type ListItineraryActivitiesResponses = {
+    /**
+     * Response List Itinerary Activities
+     *
+     * Successful Response
+     */
+    200: Array<ActivityOut>;
+};
+
+export type ListItineraryActivitiesResponse = ListItineraryActivitiesResponses[keyof ListItineraryActivitiesResponses];
+
+export type CreateItineraryActivitiesData = {
+    body: ActivitiesIn;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/activities';
+};
+
+export type CreateItineraryActivitiesErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateItineraryActivitiesError = CreateItineraryActivitiesErrors[keyof CreateItineraryActivitiesErrors];
+
+export type CreateItineraryActivitiesResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActivitiesCreated;
+};
+
+export type CreateItineraryActivitiesResponse = CreateItineraryActivitiesResponses[keyof CreateItineraryActivitiesResponses];
+
+export type DeleteItineraryActivityData = {
+    body?: never;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+        /**
+         * Activity Id
+         */
+        activity_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/activities/{activity_id}';
+};
+
+export type DeleteItineraryActivityErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteItineraryActivityError = DeleteItineraryActivityErrors[keyof DeleteItineraryActivityErrors];
+
+export type DeleteItineraryActivityResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteItineraryActivityResponse = DeleteItineraryActivityResponses[keyof DeleteItineraryActivityResponses];
+
+export type UpdateItineraryActivityData = {
+    body: ActivityPatch;
+    path: {
+        /**
+         * Comparison Id
+         */
+        comparison_id: string;
+        /**
+         * Activity Id
+         */
+        activity_id: string;
+    };
+    query?: never;
+    url: '/api/v1/comparisons/{comparison_id}/activities/{activity_id}';
+};
+
+export type UpdateItineraryActivityErrors = {
+    /**
+     * 要移到的時段已有活動
+     */
+    409: SlotTakenConflict;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type UpdateItineraryActivityError = UpdateItineraryActivityErrors[keyof UpdateItineraryActivityErrors];
+
+export type UpdateItineraryActivityResponses = {
+    /**
+     * Successful Response
+     */
+    200: ActivityOut;
+};
+
+export type UpdateItineraryActivityResponse = UpdateItineraryActivityResponses[keyof UpdateItineraryActivityResponses];
 
 export type GetComparisonScenariosData = {
     body?: never;

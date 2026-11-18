@@ -40,7 +40,7 @@ function AuthedLayout() {
           <Link
             to="/"
             aria-label="好險有你"
-            className="inline-flex items-center gap-1 whitespace-nowrap text-[22px] leading-none font-bold tracking-[0.04em] text-brand md:gap-1.5 md:text-[28px]"
+            className="-my-1 inline-flex items-center gap-1 whitespace-nowrap py-1 text-[22px] leading-none font-bold tracking-[0.04em] text-brand md:gap-1.5 md:text-[28px]"
           >
             <img
               src={crab}
@@ -67,7 +67,7 @@ function AuthedLayout() {
             {user.is_admin && (
               <Link
                 to="/admin/ingest"
-                className="mr-4 whitespace-nowrap hover:text-brand md:mr-6"
+                className="mr-4 -my-3 whitespace-nowrap py-3 hover:text-brand md:my-0 md:mr-6 md:py-0"
                 data-testid="admin-link"
               >
                 後台
@@ -77,7 +77,7 @@ function AuthedLayout() {
               to="/account"
               title="我的帳號"
               data-testid="header-account-link"
-              className="flex items-center gap-1.5 hover:text-brand md:gap-3"
+              className="-my-3 flex items-center gap-1.5 py-3 hover:text-brand md:my-0 md:gap-3 md:py-0"
             >
               <UserIcon className="hidden size-10 flex-none text-leaf md:block" />
               <span data-testid="header-user" className="max-w-[12rem] truncate">
@@ -87,7 +87,7 @@ function AuthedLayout() {
             <Button
               onClick={() => logout.mutate({})}
               disabled={logout.isPending}
-              className="ml-1 h-[22px] whitespace-nowrap border-l border-line pl-4 font-bold data-[disabled]:opacity-50 md:ml-3 md:h-10 md:pl-8"
+              className="relative -my-[11px] ml-1 h-11 whitespace-nowrap pl-4 font-bold before:absolute before:top-1/2 before:left-0 before:h-[22px] before:-translate-y-1/2 before:border-l before:border-line data-[disabled]:opacity-50 md:my-0 md:ml-3 md:h-10 md:border-l md:border-line md:pl-8 md:before:hidden"
             >
               登出
             </Button>

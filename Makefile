@@ -90,10 +90,19 @@ db-reset: ## 重建開發資料庫並套用 migration
 test: ## 執行後端測試（只連 gae265_03_group_project_test 資料庫）
 	uv run pytest -vs $(args)
 
+.PHONY: test-mail
+test-mail: ## 用 .env 的 SMTP 設定真的寄一封提醒信測試信（make test-mail to=<信箱>；換成專用 Gmail 的設定就是測正式寄信）
+	@test -n "$(to)" || (echo '用法：make test-mail to=<你的信箱>' && exit 1)
+	REMINDER_LIVE_TO=$(to) uv run pytest -v --tb=short backend/tests/test_reminder_smtp.py -k 正式
+
 .PHONY: e2e
 e2e: ## 執行 e2e 冒煙測試（先 make up；前端不在 localhost:5173 時設 E2E_BASE_URL）
 	$(FRONTEND) pnpm exec playwright install chromium
 	$(FRONTEND) pnpm exec playwright test $(args)
+
+.PHONY: e2e-fake
+e2e-fake: ## 另起「假 5 號」的後端與前端（埠 8001／5174）再跑 e2e；docker 開發環境的 5 號是真實實作，完整 e2e 要用這個（先 make up；args 傳給 playwright）
+	scripts/e2e-fake.sh $(args)
 
 .PHONY: client
 client: ## 從後端的 OpenAPI 產生前端 API client（frontend/src/client/）；改了 API 的 schema 要重跑
@@ -124,4 +133,4 @@ DEPLOY_DIR ?= gae265-03-group-project
 .PHONY: deploy
 deploy: ## 部署到 VM：make deploy DEPLOY_HOST=user@<主機> REF=<tag 或 SHA>（該版 image 須已由 CD 打包；DEPLOY_DIR 預設 ~/gae265-03-group-project）
 	@test -n "$(DEPLOY_HOST)" -a -n "$(REF)" || (echo '用法：make deploy DEPLOY_HOST=user@<名稱>.<區域>.cloudapp.azure.com REF=<tag 或 SHA>' && exit 1)
-	ssh $(DEPLOY_HOST) 'set -e; cd $(DEPLOY_DIR) && git fetch --tags origin && git checkout --detach $(REF) && export IMAGE_TAG=$$(git rev-parse HEAD) && docker compose -f compose.prod.yaml pull && docker compose -f compose.prod.yaml up -d --wait --no-build'
+	ssh $(DEPLOY_HOST) 'set -e; cd $(DEPLOY_DIR) && git fetch --tags origin && git checkout --detach $(REF) && export IMAGE_TAG=$$(git rev-parse HEAD) && docker compose -f compose.prod.yaml pull && docker compose -f compose.prod.yaml up -d --wait --no-build && (docker image prune -af || true)'

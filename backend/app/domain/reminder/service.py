@@ -1,0 +1,223 @@
+"""掃描到期的保單並寄提醒信（ADR-0031）。規則在 `rules.py`，信件內容在 `letter.py`。"""
+
+import uuid
+from datetime import datetime, timedelta
+
+from sqlmodel import col, select
+from sqlmodel.ext.asyncio.session import AsyncSession
+
+from app.core.config import settings
+from app.domain.plans import get_plan
+from app.domain.reminder.letter import (
+    LetterInput,
+    MissingGroup,
+    build_letter,
+    message_id,
+    trip_name,
+)
+from app.domain.reminder.mailer import Mailer, OutgoingMail
+from app.domain.reminder.rounds import (
+    incident_labels,
+    previous_round_last_sent,
+    round_trigger,
+    sent_letters,
+    taipei_day,
+    trigger_text,
+)
+from app.domain.reminder.rules import (
+    ReminderState,
+    missing_uploads,
+    next_reminder_at,
+    sync_round,
+    track_pause,
+)
+from app.domain.reminder.store import policy_todos
+from app.models import Identity, IncidentTodo, Policy, ReminderLetter, User
+
+# 整個行程共用的文件（共同文件，ADR-0029）在信裡這一組的標題；和行程頁一致
+TRIP_GROUP_LABEL = "共同文件"
+
+
+def _state(policy: Policy) -> ReminderState:
+    return ReminderState(
+        started_at=policy.reminder_started_at,
+        sent_count=policy.reminder_count,
+        last_sent_at=policy.last_reminded_at,
+        closed=policy.closed_at is not None,
+        paused_at=policy.reminder_paused_at,
+        resumed_at=policy.reminder_resumed_at,
+    )
+
+
+def _apply(policy: Policy, state: ReminderState) -> None:
+    policy.reminder_started_at = state.started_at
+    policy.reminder_count = state.sent_count
+    policy.reminder_paused_at = state.paused_at
+    policy.reminder_resumed_at = state.resumed_at
+
+
+def _next_at(state: ReminderState) -> datetime | None:
+    return next_reminder_at(
+        state,
+        first_delay=timedelta(seconds=settings.REMINDER_FIRST_DELAY_SECONDS),
+        interval=timedelta(seconds=settings.REMINDER_INTERVAL_SECONDS),
+    )
+
+
+async def _verified_email(session: AsyncSession, user: User) -> str | None:
+    """只寄給提供者驗證過的信箱；開發登入的帳號沒有驗證，一律不寄。"""
+    verified = (
+        await session.exec(
+            select(Identity).where(
+                Identity.user_id == user.id, col(Identity.email_verified).is_(True)
+            )
+        )
+    ).first()
+    return user.email if verified else None
+
+
+async def _letter_input(
+    session: AsyncSession,
+    policy: Policy,
+    user: User,
+    todos: list[IncidentTodo],
+    started_at: datetime,
+) -> LetterInput:
+    """信件內容；`todos` 是這張保單目前的待辦（`policy_todos`），`started_at` 是這一輪的起點。"""
+    missing = missing_uploads(todos)
+    labelled = await incident_labels(session, policy.id)
+    incidents = [incident for incident, _ in labelled]
+    labels = {incident.id: label for incident, label in labelled}
+    groups: list[MissingGroup] = []
+    first_incident: uuid.UUID | None = None
+    for incident in incidents:
+        items = sorted(
+            (t for t in missing if t.incident_id == incident.id),
+            key=lambda t: t.sort_order,
+        )
+        if not items:
+            continue
+        first_incident = first_incident or incident.id
+        groups.append(
+            MissingGroup(label=labels[incident.id], documents=[t.title for t in items])
+        )
+    trip_todos = [t for t in missing if t.incident_id is None]
+    if trip_todos:
+        groups.append(
+            MissingGroup(
+                label=TRIP_GROUP_LABEL, documents=[t.title for t in trip_todos]
+            )
+        )
+    # 連到行程頁並選中第一個缺件的事故；只缺共同文件時選最新的事故
+    target = first_incident or (incidents[-1].id if incidents else None)
+    base = (settings.PUBLIC_BASE_URL or "http://localhost:5173").rstrip("/")
+    plan = get_plan(policy.plan_id)
+    # 這一輪之前還有一輪（一定寄過信），就是重新提醒：主旨寫出因為哪個事故（和行程頁的說法一致）
+    since = previous_round_last_sent(await sent_letters(session, policy.id), started_at)
+    restart = None
+    if since is not None:
+        trigger = round_trigger(todos, labelled, started_at, since)
+        restart = f"{taipei_day(started_at)} {trigger_text(trigger)}重新提醒"
+    return LetterInput(
+        user_name=user.name,
+        trip_name=trip_name(policy.destination, policy.start_date, policy.end_date),
+        groups=groups,
+        company=(plan.company if plan and plan.company else "保險公司"),
+        upload_url=f"{base}/trip/{policy.id}"
+        + (f"?incident={target}" if target else ""),
+        restart=restart,
+    )
+
+
+async def send_reminder(
+    session: AsyncSession, policy_id: uuid.UUID, now: datetime, mailer: Mailer
+) -> bool:
+    """鎖住保單、重新確認到期後寄一封；寄出成功才把計數加 1。回傳有沒有寄。
+
+    寄信失敗時丟出例外、交易不提交，計數不變，由 Celery 重試。
+    """
+    policy = (
+        await session.exec(
+            select(Policy).where(Policy.id == policy_id).with_for_update()
+        )
+    ).first()
+    if policy is None:
+        return False
+    todos = await policy_todos(session, policy.id)
+    state = track_pause(sync_round(_state(policy), todos), todos, now)
+    _apply(policy, state)
+    missing = missing_uploads(todos)
+    at = _next_at(state)
+    user = await session.get(User, policy.user_id)
+    to = await _verified_email(session, user) if user else None
+    if not missing or at is None or at > now or user is None or to is None:
+        await session.commit()
+        return False
+
+    assert state.started_at is not None
+    letter = build_letter(
+        await _letter_input(session, policy, user, todos, state.started_at)
+    )
+    number = state.sent_count + 1
+    mailer.send(
+        OutgoingMail(
+            to=to,
+            letter=letter,
+            message_id=message_id(
+                policy.id, state.started_at, number, settings.MAIL_FROM
+            ),
+            sent_at=now,
+            # 同一輪的第 2、3 封接在前一封後面，收件匣收成同一串
+            in_reply_to=message_id(
+                policy.id, state.started_at, number - 1, settings.MAIL_FROM
+            )
+            if number > 1
+            else None,
+        )
+    )
+    policy.reminder_count = number
+    policy.last_reminded_at = now
+    session.add(policy)
+    session.add(
+        ReminderLetter(
+            policy_id=policy.id,
+            round_started_at=state.started_at,
+            number=number,
+            planned_at=at,
+            sent_at=now,
+        )
+    )
+    await session.commit()
+    return True
+
+
+async def due_policy_ids(session: AsyncSession, now: datetime) -> list[uuid.UUID]:
+    """未結案的保單中，這一輪下一封已到期、而且還缺文件的；順便更新每張保單這一輪的起點，
+    以及文件齊全（暫停）、又缺文件（恢復）的時間。
+
+    這裡只挑出來，不鎖也不寄：寄信工作會鎖住保單再確認一次。
+    """
+    # 信箱沒驗證的使用者不會收到信（開發登入的帳號），掃描時就排除，不派發寄不出去的工作
+    verified_users = select(Identity.user_id).where(
+        col(Identity.email_verified).is_(True)
+    )
+    policies = (
+        await session.exec(
+            select(Policy).where(
+                col(Policy.closed_at).is_(None),
+                col(Policy.user_id).in_(verified_users),
+            )
+        )
+    ).all()
+    due: list[uuid.UUID] = []
+    for policy in policies:
+        todos = await policy_todos(session, policy.id)
+        state = track_pause(sync_round(_state(policy), todos), todos, now)
+        if state != _state(policy):
+            _apply(policy, state)
+            session.add(policy)
+        at = _next_at(state)
+        if missing_uploads(todos) and at is not None and at <= now:
+            due.append(policy.id)
+    await session.commit()
+    return due

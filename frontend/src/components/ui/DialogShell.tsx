@@ -1,5 +1,5 @@
 import { Dialog } from "@base-ui/react/dialog";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 
 /**
  * 對話框殼（DESIGN.md 6.30）：遮罩、白底卡、標題、內容、靠右的按鈕列。
@@ -15,6 +15,7 @@ export function DialogShell({
   actions,
   variant = "center",
   testId,
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -25,6 +26,8 @@ export function DialogShell({
   actions?: ReactNode;
   variant?: "center" | "wide" | "bottom";
   testId?: string;
+  /** 關閉後焦點要去哪（Base UI 的 `finalFocus`）；沒給就回到開啟前的元素。 */
+  finalFocus?: boolean | RefObject<HTMLElement | null> | (() => boolean | HTMLElement | null);
 }) {
   const centered =
     "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-2xl md:rounded-panel";
@@ -41,6 +44,7 @@ export function DialogShell({
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-scrim" />
         <Dialog.Popup
           data-testid={testId}
+          finalFocus={finalFocus}
           className={`fixed z-40 flex max-h-[90dvh] flex-col gap-3.5 overflow-auto bg-white p-5.5 shadow-dialog md:p-7 ${position}`}
         >
           <Dialog.Title className="m-0 t-dialog-title text-heading">{title}</Dialog.Title>

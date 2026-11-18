@@ -586,3 +586,55 @@ async def test_還沒接上Google轉接器時建立草稿回failed() -> None:
 
     assert result.status == "failed"
     assert result.reason == "建立草稿功能開發中，尚未建立"
+
+
+UNATTACHED = "未隨信附上的文件\n・班機延誤(2)：航空公司延誤證明（另行提供）\n・理賠申請書（另行提供）"
+
+
+def _with_unattached(*attachments: AttachmentRef) -> ClaimPackage:
+    body = f"您好：\n\n{UNATTACHED}\n\n附件清單\n・（無）\n\n聯絡電話：0912345678"
+    return ClaimPackage(
+        subject="旅遊保險理賠申請", body=body, attachments=list(attachments)
+    )
+
+
+def _html(message: EmailMessage) -> str | None:
+    part = message.get_body(preferencelist=("html",))
+    return None if part is None else part.get_content().replace("\r\n", "\n")
+
+
+async def test_寄出的信_未隨信附上的文件整段紅字_其他段落不上色() -> None:
+    # 規格「後續變更」2026-11-18：寄出與草稿都把「未隨信附上的文件」整段標紅字
+    mail = FakeGoogleApi()
+    await _send_with(mail, _with_unattached())
+
+    _, message = mail.sent[0]
+    html = _html(message)
+    assert html is not None
+    assert f'<span style="color:#d00000">{UNATTACHED}</span>' in html
+    assert html.count("<span ") == 1
+    assert "附件清單" in html.split("</span>")[1]
+    assert UNATTACHED in _plain(message)
+
+
+async def test_草稿_未隨信附上的文件紅字_空格也照樣標出() -> None:
+    mail = FakeGoogleApi()
+    package = _with_unattached()
+    package = package.model_copy(
+        update={"body": package.body.replace("0912345678", "（請填寫聯絡電話）")}
+    )
+    await _draft_with(mail, package)
+
+    _, message = mail.drafts[0]
+    html = _html(message)
+    assert html is not None
+    assert f'<span style="color:#d00000">{UNATTACHED}</span>' in html
+    assert "background-color:#ffff00" in html
+
+
+async def test_寄出的信沒有未隨信附上的文件時維持純文字() -> None:
+    mail = FakeGoogleApi()
+    await _send_with(mail, _filled_package())
+
+    _, message = mail.sent[0]
+    assert _html(message) is None

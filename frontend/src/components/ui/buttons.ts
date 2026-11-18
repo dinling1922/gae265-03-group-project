@@ -22,6 +22,8 @@ export const btnPri = `${common} ${medium} border-2 border-brand`;
 /** 小按鈕（預設與主要）。 */
 export const btnSm = `${common} ${small} border border-line hover:border-brand`;
 export const btnSmPri = `${common} ${small} border-2 border-brand`;
+/** 小的危險按鈕：紅字、淡紅框；用在會一次刪掉很多東西的動作。整串自成一個變體，不要和其他變體疊。 */
+export const btnSmDanger = `inline-flex items-center justify-center gap-1.5 whitespace-nowrap bg-white text-danger ${small} border border-danger/40 hover:border-danger ${disabled} ${focus}`;
 /** 滿寬：加在上面任一個後面（只動寬度，不衝突）。 */
 export const wide = "w-full";
 

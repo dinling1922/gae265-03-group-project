@@ -51,6 +51,8 @@ from app.domain.incident import trip as trip_domain
 from app.domain.incident.drive_folder import trip_folder_url
 from app.domain.incident.gmail_link import is_gmail_url
 from app.domain.incident.letter import blank_items, fill_blanks
+from app.domain.reminder.rounds import policy_rounds
+from app.domain.reminder.store import policy_todos
 from app.models import Incident, IncidentDocument, Policy, PolicySubmission
 
 router = APIRouter(tags=["trip"])
@@ -58,6 +60,37 @@ logger = logging.getLogger(__name__)
 
 # 一封信的附件合計上限（Gmail 約 25 MB，原始檔案轉成信件會變大，抓 18 MB）；超過就在預覽擋住，這次不拆信
 MAX_ATTACHMENT_BYTES = 18 * 1024 * 1024
+
+
+class ReminderTriggerOut(BaseModel):
+    incident: str = Field(description="事故在信裡的名稱「事故類型 · 發生日」")
+    kind: Literal["new_incident", "new_situation"] = Field(
+        description="new_incident 新增了這個事故；new_situation 原本的事故有新狀況（例如補問後多了要上傳的文件）"
+    )
+
+
+class ReminderLetterOut(BaseModel):
+    planned_at: datetime = Field(description="依規則預計寄出的時間")
+    sent_at: datetime | None = Field(
+        description="實際寄出時間（和信件的 Date 標頭相同）；還沒寄或不再寄是 null"
+    )
+
+
+class ReminderRoundOut(BaseModel):
+    """提醒信的一輪（ADR-0031）：起點、因為哪個事故開始、3 封的預計與實際寄出時間。"""
+
+    started_at: datetime
+    ended_at: datetime | None = Field(
+        description="這一輪結束的時間；還沒寄的信從此不再寄。還在進行是 null"
+    )
+    end_reason: Literal["new_round", "completed", "closed"] | None = Field(
+        description="new_round 有新的一輪；completed 需上傳的文件都齊全（含自行勾選）；"
+        "closed 行程結案。還在進行是 null"
+    )
+    trigger: ReminderTriggerOut | None = Field(
+        description="第一輪、或只因為共同文件開始的一輪是 null"
+    )
+    letters: list[ReminderLetterOut] = Field(description="固定 3 封")
 
 
 class TripIncidentOut(BaseModel):
@@ -101,6 +134,10 @@ class TripOut(BaseModel):
     )
     can_close: bool = Field(description="所有事件都不符保障，可以結案（不寄信）")
     submission: SubmissionStatusOut
+    reminder_rounds: list[ReminderRoundOut] = Field(
+        description="提醒信寄過信的每一輪加上目前這一輪，舊的在前（ADR-0031）；"
+        "第一封寄出前新增的事故或狀況都算在同一輪。只寄給 Google 驗證過的信箱，前端只對 Google 登入的使用者顯示"
+    )
 
 
 class TripSummaryOut(BaseModel):
@@ -291,6 +328,25 @@ async def build_trip_out(
         submission=submission_status(
             user.email, await _latest_submission(session, policy.id)
         ),
+        reminder_rounds=[
+            ReminderRoundOut(
+                started_at=r.started_at,
+                ended_at=r.ended_at,
+                end_reason=r.end_reason,
+                trigger=ReminderTriggerOut(
+                    incident=r.trigger.incident, kind=r.trigger.kind
+                )
+                if r.trigger
+                else None,
+                letters=[
+                    ReminderLetterOut(planned_at=slot.planned_at, sent_at=slot.sent_at)
+                    for slot in r.letters
+                ],
+            )
+            for r in await policy_rounds(
+                session, policy, await policy_todos(session, policy.id)
+            )
+        ],
     )
 
 

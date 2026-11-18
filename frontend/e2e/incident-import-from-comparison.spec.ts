@@ -25,7 +25,6 @@ test("手動選擇時可以從過去的比較帶入方案、保額、目的地�
       destination: "日本",
       depart_date: day(7),
       return_date: day(11),
-      age: 30,
       concerns: ["班機延誤"],
     },
   });
@@ -86,7 +85,6 @@ test("手機寬度（390px）下「從過去的比較帶入」兩個視窗是貼
       destination: "日本",
       depart_date: day(7),
       return_date: day(11),
-      age: 30,
       concerns: ["班機延誤"],
     },
   });
