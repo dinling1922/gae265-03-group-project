@@ -6,11 +6,14 @@
    標籤後的片段與下一行開頭接起來是二到四個字時當成姓名，再把文件裡所有拆開或沒拆開的寫法都遮掉。
 2. 共用規則沒有的標籤：「旅客：王小明」「乘客：…」，以及登機證上的英文姓名格式「WANG/XIAOMING MR」。
 3. 檔名：使用者上傳的原檔名常含姓名（例如「王小明_登機證.jpg」）。檔名裡不是文件關鍵字的中文詞當成姓名遮掉。
+   英文字只有像拼音姓名時才算：連續兩個以上大寫開頭的字（WANG_XIAOMING、Chen Yichun），
+   保險公司名與文件常用字（baggage、policy、chubb）不算，不然內文、網址裡的同一個字都會被換掉。
 4. 手寫的申請書：值寫在格子裡、標籤後面沒有冒號，讀出來姓名常自己一行。緊接在身分證字號前面的二到四個字
    （例如戶名欄「陳怡君 / A223456789」）當成姓名，再把文件裡所有同樣的姓名遮掉。
    地址也沒有「地址：」標籤，而且手寫常留空白（「復興南路一段 100 號 5 樓」），用「○○路／街…號」的格式遮掉。
 5. 銀行帳號：申請書的匯款帳號常分段寫（「1234-5678-9012」），標籤又常在別行。
    用連字號或空白分成幾段、總共 10～16 碼的數字當成帳號；電話先由共用規則換掉，不會被當成帳號。
+   日期時間（「2026-07-10 20:15」去掉冒號也是 10 碼）先整段認出來留著，延誤時數要用。
 6. 出生日期：「出生79年 3月12日」「出生日期：1990/03/12」。只看「出生」標籤，事故日期要留著判斷理賠。
    已知限制：電子 PDF 上年、月、日各自寫在格子裡，讀出來散在不同行，認不出是生日。
 7. 國外醫院、診所的英文單據（#233 泰國醫療 demo）：「Patient name: MS CHEN YICHUN」的姓名、
@@ -86,6 +89,13 @@ _ROAD_ADDRESS_RE = re.compile(
 )
 # 分段寫的帳號：至少兩段、每段二到六碼；前後不能接英數或連字號（證明編號 NRT-DLY-20260710-0412 不算）
 _ACCOUNT_RE = re.compile(r"(?<![\w-])\d{2,6}(?:[- ]\d{2,6}){1,5}(?![\w-])")
+# 日期（可接時間）：「2026-07-10 20:15」「2026/07/10 09:05」「2026-07-10 11:42:08」
+# 和帳號規則放在同一個 regex、日期在前：從左往右掃到日期就整段留著，不會被拆成帳號
+_DATE_TIME = (
+    r"(?<![\w-])(?:19|20)\d{2}(?P<sep>[-/.])(?:0?[1-9]|1[0-2])(?P=sep)(?:0?[1-9]|[12]\d|3[01])"
+    r"(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?(?!\d)"
+)
+_DATE_OR_ACCOUNT_RE = re.compile(rf"(?P<date>{_DATE_TIME})|{_ACCOUNT_RE.pattern}")
 _ACCOUNT_DIGITS = range(10, 17)
 # 出生日期：民國「79年3月12日」或西元「1990/03/12」
 _BIRTH_RE = re.compile(
@@ -95,44 +105,97 @@ _BIRTH_RE = re.compile(
 )
 # 欄位名稱不是姓名（「身分證號 A123456789」）
 _NOT_NAME_CHARS = set("證號碼編統")
-_FILE_TOKEN_RE = re.compile(r"[一-鿿]{2,4}|[A-Za-z]{2,}(?: [A-Za-z]{2,})*")
-# 檔名裡常見、不是姓名的詞
-_FILE_WORDS = {
-    k.lower()
-    for spec in SPECS.values()
-    for p in spec.parts
-    for k in (*p.keywords, p.label)
-} | {
-    "證明",
-    "收據",
-    "掃描",
-    "照片",
-    "文件",
-    "副本",
-    "影本",
-    "正本",
-    "截圖",
-    "scan",
-    "img",
-    "image",
-    "photo",
-    "pdf",
-    "jpg",
-    "jpeg",
-    "png",
-    "copy",
-    "screenshot",
-    "boarding",
-    "pass",
-    "ticket",
-    "flight",
-    "delay",
-    "certificate",
-    "claim",
-    "form",
-    "final",
-    "new",
+_FILE_TOKEN_RE = re.compile(r"[一-鿿]{2,4}")
+# 檔名裡的英文字，用空白、底線、連字號分開（CHEN_YI-CHUN 是 CHEN、YI、CHUN）
+_FILE_ENGLISH_WORD_RE = re.compile(r"[A-Za-z]+")
+_FILE_ENGLISH_SEPARATORS = set(" _-")
+# 保險公司名：檔名常有（chubb_policy.pdf），內文、網址也常有，不是姓名
+_INSURER_WORDS = {
+    "chubb",
+    "fubon",
+    "cathay",
+    "shinkong",
+    "tokio",
+    "marine",
+    "mingtai",
+    "taian",
+    "allianz",
+    "aig",
+    "富邦",
+    "安達",
+    "國泰",
+    "新光",
+    "明台",
+    "泰安",
+    "產險",
+    "壽險",
+    "保險",
+    "保險公司",
 }
+# 檔名裡常見、不是姓名的詞
+_FILE_WORDS = (
+    {
+        k.lower()
+        for spec in SPECS.values()
+        for p in spec.parts
+        for k in (*p.keywords, p.label)
+    }
+    | {
+        "證明",
+        "收據",
+        "掃描",
+        "照片",
+        "文件",
+        "副本",
+        "影本",
+        "正本",
+        "截圖",
+        "scan",
+        "img",
+        "image",
+        "photo",
+        "pdf",
+        "jpg",
+        "jpeg",
+        "png",
+        "copy",
+        "screenshot",
+        "boarding",
+        "pass",
+        "ticket",
+        "flight",
+        "delay",
+        "certificate",
+        "claim",
+        "form",
+        "final",
+        "new",
+        # 英文檔名常見的一般字
+        "baggage",
+        "luggage",
+        "policy",
+        "medical",
+        "receipt",
+        "proof",
+        "blank",
+        "attachment",
+        "attachments",
+        "passport",
+        "id",
+        "card",
+        "doc",
+        "file",
+        "travel",
+        "insurance",
+        "report",
+        "missing",
+        "med",
+        "the",
+        "of",
+        "and",
+    }
+    | _INSURER_WORDS
+)
 
 
 def broken_names(text: str) -> set[str]:
@@ -155,15 +218,43 @@ def names_before_id(text: str) -> set[str]:
 
 
 def file_name_words(file_name: str) -> set[str]:
-    """檔名裡可能是姓名的詞（去掉副檔名與文件關鍵字）。"""
+    """檔名裡可能是姓名的詞（去掉副檔名與文件關鍵字）。
+
+    中文：不是文件關鍵字的二到四個字。英文：連續兩個以上大寫開頭、不是常用字的字
+    （WANG_XIAOMING、Chen Yichun、CHEN_YI-CHUN）；全小寫的 baggage_delay 不算。
+    """
     stem = file_name.rsplit(".", 1)[0]
     words = set()
     for token in _FILE_TOKEN_RE.findall(stem):
-        lowered = token.lower()
-        if lowered in _FILE_WORDS or any(w in lowered for w in _FILE_WORDS):
+        if token in _FILE_WORDS or any(w in token for w in _FILE_WORDS):
             continue
         words.add(token)
-    return words
+    return words | _file_name_english_names(stem)
+
+
+def _file_name_english_names(stem: str) -> set[str]:
+    """檔名裡像拼音姓名的英文字：同一段（只隔空白、底線、連字號）裡兩個以上大寫開頭的字。"""
+    names: set[str] = set()
+    run: list[str] = []
+    end = 0
+
+    def flush() -> None:
+        if len(run) >= 2:
+            names.update(run)
+        run.clear()
+
+    for m in _FILE_ENGLISH_WORD_RE.finditer(stem):
+        word = m.group()
+        between = stem[end : m.start()]
+        end = m.end()
+        if run and not set(between) <= _FILE_ENGLISH_SEPARATORS:
+            flush()
+        if len(word) < 2 or not word[0].isupper() or word.lower() in _FILE_WORDS:
+            flush()
+            continue
+        run.append(word)
+    flush()
+    return names
 
 
 def _split_pattern(name: str) -> re.Pattern[str]:
@@ -202,9 +293,11 @@ def deidentify_document_text(text: str, file_name: str | None = None) -> str:
     values[NAME] = names
     text = _BIRTH_RE.sub(rf"\g<1>{BIRTH_DATE}", text)
     text = deidentify_text(text, values)
-    return _ACCOUNT_RE.sub(_mask_account, text)
+    return _DATE_OR_ACCOUNT_RE.sub(_mask_account, text)
 
 
 def _mask_account(m: re.Match[str]) -> str:
+    if m.group("date"):
+        return m.group()
     digits = sum(c.isdigit() for c in m.group())
     return ACCOUNT if digits in _ACCOUNT_DIGITS else m.group()
