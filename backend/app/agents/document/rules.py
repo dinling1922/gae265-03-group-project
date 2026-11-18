@@ -12,6 +12,8 @@
   - 欄位信心度低於門檻 → 不通過（請重拍）
   - 欄位是手寫 → 不確定（請使用者自己確認）
   - 只提醒的欄位（severity=remind）找不到 → 照樣通過，reason 帶提醒
+  - 只核對日期的欄位（severity=period）找不到 → 不擋也不提醒；找得到才核對保險期間
+- `within_policy_period` 的欄位讀得出日期、而且沒有一個落在保險期間內 → 不確定（請使用者確認）
 """
 
 import json
@@ -27,7 +29,7 @@ from app.core.config import ROOT_DIR
 
 RULES_FILE = Path(__file__).with_name("qualification_rules.json")
 OUTSIDE_PERIOD = (
-    "「{}」不在保單的保險期間內，請確認日期是否正確；保險期間外的就醫不在理賠範圍"
+    "「{}」不在保單的保險期間內，請確認日期是否正確；保險期間外發生的事故不在理賠範圍"
 )
 
 
@@ -85,7 +87,7 @@ class FieldRule:
     code: str
     field: str
     label: str
-    severity: Literal["incomplete", "remind"]
+    severity: Literal["incomplete", "remind", "period"]
     any_of: tuple[tuple[Condition, ...], ...]  # 幾種寫法；每種寫法的條件要同時成立
     missing_reason: str
     issuer: str | None  # 開立單位，組「下一步」用（規格 v3.7 第 5 點）
@@ -181,18 +183,21 @@ def check(
             continue
         found = matched_lines(rule, texts)
         if found is None:
-            problems.append(Problem(rule.severity, rule.missing_reason, rule))
+            if rule.severity != "period":  # 只核對日期的欄位沒寫就不管
+                problems.append(Problem(rule.severity, rule.missing_reason, rule))
             continue
-        if rule.severity == "remind":
-            continue  # 只提醒的欄位不因為看不清楚或手寫而擋
-        hits = [line for line in read.lines if line.text in found]
-        if any(line.confidence < threshold for line in hits):
-            problems.append(Problem("failed", f"「{rule.label}」看不清楚，請重拍"))
-        elif any(line.handwritten for line in hits):
-            problems.append(
-                Problem("needs_review", f"「{rule.label}」是手寫，請確認內容正確")
-            )
-        elif (
+        if rule.severity == "incomplete":
+            # 只提醒、只核對日期的欄位不因為看不清楚或手寫而擋
+            hits = [line for line in read.lines if line.text in found]
+            if any(line.confidence < threshold for line in hits):
+                problems.append(Problem("failed", f"「{rule.label}」看不清楚，請重拍"))
+                continue
+            if any(line.handwritten for line in hits):
+                problems.append(
+                    Problem("needs_review", f"「{rule.label}」是手寫，請確認內容正確")
+                )
+                continue
+        if (
             rule.within_policy_period
             and period is not None
             and outside_period(found, *period)

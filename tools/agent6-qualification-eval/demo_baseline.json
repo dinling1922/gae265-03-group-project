@@ -36,7 +36,9 @@
     "failure": null,
     "document_kind": "D02 搭機證明",
     "missing": [],
-    "found_fields": [],
+    "found_fields": [
+      "班機日期"
+    ],
     "reason": null
   },
   "boarding_proof.pdf @ medical": {
@@ -118,7 +120,8 @@
     "missing": [],
     "found_fields": [
       "延誤期間",
-      "延誤原因"
+      "延誤原因",
+      "班機日期"
     ],
     "reason": null
   },
@@ -137,7 +140,8 @@
     "missing": [],
     "found_fields": [
       "延誤期間",
-      "延誤原因"
+      "延誤原因",
+      "班機日期"
     ],
     "reason": null
   },
@@ -157,7 +161,8 @@
       "延誤期間"
     ],
     "found_fields": [
-      "延誤原因"
+      "延誤原因",
+      "班機日期"
     ],
     "reason": "延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）"
   },
@@ -175,11 +180,28 @@
     "document_kind": "D01 延誤／取消證明",
     "missing": [],
     "found_fields": [
-      "延誤期間"
+      "延誤期間",
+      "班機日期"
     ],
     "reason": "證明上沒看到延誤原因，保險公司可能需要原因來判斷是否理賠，建議向航空公司索取註明原因的證明"
   },
   "delay_no_reason.pdf @ medical": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "delay_out_of_period.pdf @ flight_delay": {
+    "status": "needs_review",
+    "failure": null,
+    "document_kind": "D01 延誤／取消證明",
+    "missing": [],
+    "found_fields": [],
+    "reason": "「班機日期」不在保單的保險期間內，請確認日期是否正確；保險期間外發生的事故不在理賠範圍"
+  },
+  "delay_out_of_period.pdf @ medical": {
     "status": "failed",
     "failure": "not_matched",
     "document_kind": "D01 延誤／取消證明",
@@ -241,6 +263,22 @@
       "就診日期"
     ],
     "reason": "診斷書上看不到病名"
+  },
+  "med_certificate_out_of_period.pdf @ flight_delay": {
+    "status": "failed",
+    "failure": "not_matched",
+    "document_kind": "D13 診斷書",
+    "missing": [],
+    "found_fields": [],
+    "reason": "這份文件不屬於這個行程的任何待辦，不需要上傳"
+  },
+  "med_certificate_out_of_period.pdf @ medical": {
+    "status": "needs_review",
+    "failure": null,
+    "document_kind": "D13 診斷書",
+    "missing": [],
+    "found_fields": [],
+    "reason": "「就診日期」不在保單的保險期間內，請確認日期是否正確；保險期間外發生的事故不在理賠範圍"
   },
   "med_claim_form.pdf @ flight_delay": {
     "status": "recognized",
@@ -384,7 +422,8 @@
     "missing": [],
     "found_fields": [
       "延誤期間",
-      "延誤原因"
+      "延誤原因",
+      "班機日期"
     ],
     "reason": null
   },
@@ -420,7 +459,9 @@
     "failure": null,
     "document_kind": "D02 機票",
     "missing": [],
-    "found_fields": [],
+    "found_fields": [
+      "班機日期"
+    ],
     "reason": "已收到，還缺登機證（或改傳一份搭機證明）"
   },
   "photo_ticket_blurry.jpg @ medical": {
@@ -452,7 +493,9 @@
     "failure": null,
     "document_kind": "D02 機票",
     "missing": [],
-    "found_fields": [],
+    "found_fields": [
+      "班機日期"
+    ],
     "reason": "已收到，還缺登機證（或改傳一份搭機證明）"
   },
   "ticket.pdf @ medical": {
@@ -468,7 +511,9 @@
     "failure": null,
     "document_kind": "D02 機票及登機證",
     "missing": [],
-    "found_fields": [],
+    "found_fields": [
+      "班機日期"
+    ],
     "reason": null
   },
   "ticket_boarding.pdf @ medical": {
