@@ -142,6 +142,7 @@ async def test_created_matches_web_api(
     for key in ("recommended", "alternative"):
         card = web["recommendation"][key]
         assert comparison[key] == {
+            "plan_id": card["plan_code"],
             "name": card["name"],
             "company": card["company"],
             "sum_insured": card["sum_insured"],
