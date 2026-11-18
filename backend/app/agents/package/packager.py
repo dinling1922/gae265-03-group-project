@@ -269,16 +269,22 @@ def _without_document_section(
     return "\n".join(["未隨信附上的文件", *(f"・{t.title}（另行提供）" for t in todos)])
 
 
+# 行程頁的兩張待辦卡：先「事故當下」、再「回國後整理」
+_PHASE_ORDER = {"on_site": 0, "after_return": 1}
+
+
 def _trip_todo_order(
     trip: TripContext,
-) -> dict[uuid.UUID, tuple[int, int, int]]:
-    """行程版的待辦順序：先各事件的待辦（事件依發生時間），再共同文件（D02、D10 等），各自依待辦順序。"""
-    order: dict[uuid.UUID, tuple[int, int, int]] = {}
+) -> dict[uuid.UUID, tuple[int, int, int, int]]:
+    """行程版的待辦順序，和行程頁的待辦清單一致（規格「後續變更」2026-11-18）：
+    先依階段（事故當下 → 回國後整理）；同一階段裡先各事件的待辦（事件依發生時間），
+    再共同文件（D02、D10 等）；同一組依待辦順序。"""
+    order: dict[uuid.UUID, tuple[int, int, int, int]] = {}
     for n, incident in enumerate(trip.incidents):
         for t in incident.todos:
-            order[t.id] = (0, n, t.sort_order)
+            order[t.id] = (_PHASE_ORDER.get(t.phase, 2), 0, n, t.sort_order)
     for t in trip.shared_todos:
-        order[t.id] = (1, 0, t.sort_order)
+        order[t.id] = (_PHASE_ORDER.get(t.phase, 2), 1, 0, t.sort_order)
     return order
 
 
@@ -291,7 +297,9 @@ def _trip_attachment_documents(trip: TripContext) -> list[DocumentView]:
         if d.todo_id is not None and d.todo_id in order and _can_attach(d)
     ]
     # sorted 是穩定排序：同一項待辦的多份文件維持上傳順序
-    return sorted(documents, key=lambda d: order[d.todo_id] if d.todo_id else (2, 0, 0))
+    return sorted(
+        documents, key=lambda d: order[d.todo_id] if d.todo_id else (3, 0, 0, 0)
+    )
 
 
 def _trip_without_document_section(

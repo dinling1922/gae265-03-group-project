@@ -289,3 +289,97 @@ async def test_行程寄出_沒有附件時只要Gmail授權() -> None:
     )
 
     assert result.status == "sent"
+
+
+def _phase(todo: TodoView, phase: str) -> TodoView:
+    return todo.model_copy(update={"phase": phase})
+
+
+async def test_附件與行程頁同順序_先依階段_同階段先各事件再共同文件() -> None:
+    # 規格「後續變更」2026-11-18：行程頁先分「事故當下」「回國後整理」兩張卡，
+    # 卡裡先各事件、最後共同文件。範本的理賠申請書（回國後）sort_order 比機票（事故當下）小，
+    # 只依 sort_order 會排在機票前面，跟行程頁相反
+    first = _delay()
+    luggage = _incident(incident_type_name="行李延誤", description="行李晚到一天")
+    proof = _phase(
+        _owned(_todo("done", title="延誤證明", sort_order=0), first), "on_site"
+    )
+    receipt = _phase(
+        _owned(_todo("done", title="延誤期間的費用收據", sort_order=1), first),
+        "after_return",
+    )
+    pir = _phase(
+        _owned(_todo("done", title="行李事故報告", sort_order=0), luggage), "on_site"
+    )
+    claim_form = _phase(
+        _owned(_todo("done", title="理賠申請書", sort_order=0), None), "after_return"
+    )
+    boarding = _phase(
+        _owned(_todo("done", title="機票及登機證", sort_order=1), None), "on_site"
+    )
+
+    def with_docs(incident: IncidentContext, *todos: TodoView) -> IncidentContext:
+        return incident.model_copy(
+            update={
+                "todos": list(todos),
+                "documents": [
+                    _document("recognized", todo=t, file_name=f"{t.title}.pdf")
+                    for t in todos
+                ],
+            }
+        )
+
+    trip = _trip(
+        with_docs(first, receipt, proof),
+        with_docs(luggage, pir),
+        shared_todos=[claim_form, boarding],
+        shared_documents=[
+            _document("recognized", todo=t, file_name=f"{t.title}.pdf")
+            for t in (claim_form, boarding)
+        ],
+    )
+
+    package = await GmailClaimPackager().build_trip(trip)
+
+    expected = [
+        "延誤證明.pdf",  # 事故當下：班機延誤
+        "行李事故報告.pdf",  # 事故當下：行李延誤
+        "機票及登機證.pdf",  # 事故當下：共同文件
+        "延誤期間的費用收據.pdf",  # 回國後整理：班機延誤
+        "理賠申請書.pdf",  # 回國後整理：共同文件
+    ]
+    assert [a.file_name for a in package.attachments] == expected
+    listed = package.body.split("附件清單\n", 1)[1].split("\n\n", 1)[0].splitlines()
+    assert listed == [f"・{name}" for name in expected]
+
+
+async def test_未隨信附上的文件也照行程頁的順序() -> None:
+    first = _delay()
+    receipt = _phase(
+        _owned(_todo("done", title="費用收據", without_document=True), first),
+        "after_return",
+    )
+    claim_form = _phase(
+        _owned(_todo("done", title="理賠申請書", without_document=True), None),
+        "after_return",
+    )
+    boarding = _phase(
+        _owned(
+            _todo("done", title="機票及登機證", without_document=True, sort_order=1),
+            None,
+        ),
+        "on_site",
+    )
+    trip = _trip(
+        first.model_copy(update={"todos": [receipt]}),
+        shared_todos=[claim_form, boarding],
+    )
+
+    package = await GmailClaimPackager().build_trip(trip)
+
+    assert (
+        "未隨信附上的文件\n"
+        "・機票及登機證（另行提供）\n"
+        "・班機延誤：費用收據（另行提供）\n"
+        "・理賠申請書（另行提供）"
+    ) in package.body
