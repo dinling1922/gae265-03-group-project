@@ -4,13 +4,16 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from sqlmodel.ext.asyncio.session import AsyncSession
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.routing import Route
 
 from app.api.main import api_router
 from app.core.auth import SESSION_MAX_AGE, session_secret
 from app.core.config import settings
 from app.core.db import engine
 from app.ingest.agent import fail_stale_jobs
+from app.mcp_server.endpoint import MCP_PATH, build_endpoint
 
 # app 自己的 INFO log（例如方案問答改寫後的問題與 Jev 的判斷）要出現在 server log；
 # 沒設定時 Python 只印 WARNING 以上
@@ -24,6 +27,12 @@ def _operation_id_from_route_name(route: APIRoute) -> str:
     return route.name
 
 
+mcp_endpoint = build_endpoint(
+    lambda: AsyncSession(engine, expire_on_commit=False),
+    settings.MCP_RATE_LIMIT_PER_MINUTE,
+)
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     # 啟動即檢查 LLM 設定，缺必填項時伺服器起不來並印出缺哪些變數
@@ -31,7 +40,8 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     settings.check_auth_settings()
     # 重啟會中斷背景工作，所以所有環境都把殘留的「處理中」標成失敗
     await fail_stale_jobs(engine)
-    yield
+    async with mcp_endpoint.run():
+        yield
 
 
 app = FastAPI(
@@ -49,3 +59,5 @@ app.add_middleware(
     https_only=settings.ENVIRONMENT == "production",
 )
 app.include_router(api_router, prefix=settings.API_V1_STR)
+# MCP 伺服器（ADR-0032）：只收 Bearer，自己驗證，不經過 cookie session 的依賴、不開 CORS
+app.router.routes.append(Route(MCP_PATH, mcp_endpoint.asgi))
