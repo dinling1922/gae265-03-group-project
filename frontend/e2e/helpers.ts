@@ -106,6 +106,27 @@ export async function tripTransition(page: Page): Promise<TripTransition> {
   );
 }
 
+/**
+ * 記錄頁面上呼叫過 `scrollIntoView` 的元素（#449）：用元素的 `data-testid` 當名字（事故卡是 `trip-incident`、
+ * 理賠待辦是 `todos-section`）。頁面高度不夠時實際捲不動，只看呼叫才準；要在換頁（`goto`）前呼叫。
+ */
+export async function spyScrollIntoView(page: Page) {
+  await page.addInitScript(() => {
+    const w = window as Window & { __scrolled?: string[] };
+    w.__scrolled = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element, ...args: []) {
+      w.__scrolled?.push(this.getAttribute("data-testid") ?? this.tagName);
+      return original.apply(this, args);
+    };
+  });
+}
+
+/** `spyScrollIntoView` 到目前為止記到的元素名稱。 */
+export async function scrolledTo(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as Window & { __scrolled?: string[] }).__scrolled ?? []);
+}
+
 /** 1-1 還沒有任何活動就按「下一步」：會先跳出提醒，按「確定」跳過安排行程。 */
 export async function nextSkippingItinerary(page: Page) {
   await page.getByRole("button", { name: "下一步" }).click();

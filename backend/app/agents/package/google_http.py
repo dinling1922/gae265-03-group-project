@@ -1,9 +1,11 @@
 """7 號真的連 Google 的轉接器：Drive v3 取檔、Gmail API 寄信與建立草稿（規格「模組」）。
 
-只做薄薄一層 HTTP 呼叫，把 Google 的錯誤換成錯誤類別。`transport` 給測試換成假的網路，
+只做薄薄一層 HTTP 呼叫，把 Google 的錯誤換成錯誤類別。所有呼叫共用同一個連線池，
+不用每次重新連線（TLS 握手）；授權依每次呼叫放在 header（Drive 與 Gmail 的 token 不同）。`transport` 給測試換成假的網路，
 不寫連真的 Google 的自動測試（ADR-0020），真的寄送用測試帳號手動確認。
 """
 
+import asyncio
 from typing import Any, cast
 from urllib.parse import quote
 
@@ -30,25 +32,36 @@ def _kind(status_code: int) -> GoogleErrorKind:
     return "unavailable"
 
 
+def _auth(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
 class HttpGoogleApi:
     def __init__(
         self, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 30.0
     ) -> None:
         self._transport = transport
         self._timeout = timeout
+        self._shared: httpx.AsyncClient | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
-    def _client(self, token: str) -> httpx.AsyncClient:
-        return httpx.AsyncClient(
-            transport=self._transport,
-            timeout=self._timeout,
-            headers={"Authorization": f"Bearer {token}"},
-        )
+    def _http(self) -> httpx.AsyncClient:
+        # 同一個事件迴圈共用一個 client（連線池）；換了事件迴圈（例如測試）就重開一個，
+        # 不把別的迴圈建立的連線拿來用
+        loop = asyncio.get_running_loop()
+        if self._shared is None or self._loop is not loop or self._shared.is_closed:
+            self._shared = httpx.AsyncClient(
+                transport=self._transport, timeout=self._timeout
+            )
+            self._loop = loop
+        return self._shared
 
     async def file_status(self, token: str, file_id: str) -> DriveFileStatus:
         url = f"{DRIVE_FILES}/{quote(file_id, safe='')}"
         try:
-            async with self._client(token) as client:
-                metadata = await client.get(url, params={"fields": "trashed"})
+            metadata = await self._http().get(
+                url, params={"fields": "trashed"}, headers=_auth(token)
+            )
             if metadata.status_code == 404:
                 return "not_found"
             if metadata.is_error:
@@ -61,23 +74,23 @@ class HttpGoogleApi:
         # 檔案編號整段編碼，避免奇怪的編號改到別的網址
         url = f"{DRIVE_FILES}/{quote(file_id, safe='')}"
         try:
-            async with self._client(token) as client:
-                metadata = await client.get(
-                    url, params={"fields": "name,mimeType,trashed"}
-                )
-                if metadata.is_error:
-                    raise GoogleApiError(_kind(metadata.status_code))
-                info = metadata.json()
-                if info.get("trashed") is True:
-                    raise GoogleApiError("trashed")
-                media = await client.get(url, params={"alt": "media"})
-                if media.is_error:
-                    raise GoogleApiError(_kind(media.status_code))
-                return DriveFile(
-                    name=str(info["name"]),
-                    mime_type=str(info.get("mimeType") or "application/octet-stream"),
-                    content=media.content,
-                )
+            client = self._http()
+            metadata = await client.get(
+                url, params={"fields": "name,mimeType,trashed"}, headers=_auth(token)
+            )
+            if metadata.is_error:
+                raise GoogleApiError(_kind(metadata.status_code))
+            info = metadata.json()
+            if info.get("trashed") is True:
+                raise GoogleApiError("trashed")
+            media = await client.get(url, params={"alt": "media"}, headers=_auth(token))
+            if media.is_error:
+                raise GoogleApiError(_kind(media.status_code))
+            return DriveFile(
+                name=str(info["name"]),
+                mime_type=str(info.get("mimeType") or "application/octet-stream"),
+                content=media.content,
+            )
         except (httpx.HTTPError, KeyError, ValueError, TypeError) as error:
             # 錯誤訊息只放錯誤類別，不放 token 或檔案內容
             raise GoogleApiError("unavailable") from error
@@ -100,13 +113,12 @@ class HttpGoogleApi:
     async def _upload(self, url: str, token: str, message: bytes) -> dict[str, Any]:
         # 用上傳的寫法把整封信原樣送出：附件大也寄得出去，不用轉 base64 放進 JSON
         try:
-            async with self._client(token) as client:
-                response = await client.post(
-                    url,
-                    params={"uploadType": "media"},
-                    headers={"Content-Type": "message/rfc822"},
-                    content=message,
-                )
+            response = await self._http().post(
+                url,
+                params={"uploadType": "media"},
+                headers={**_auth(token), "Content-Type": "message/rfc822"},
+                content=message,
+            )
             if response.is_error:
                 kind = _kind(response.status_code)
                 raise GoogleApiError("unavailable" if kind == "not_found" else kind)

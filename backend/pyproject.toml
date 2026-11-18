@@ -5,8 +5,10 @@ description = "gae265_03_group_project backend"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.20.1",
+    "celery>=5.7.0",
     "cryptography>=50.0.2",
     "fastapi[standard]",
+    "flower>=2.2.0",
     "httpx>=0.28.1",
     "itsdangerous>=2.2.0",
     "langchain>=1.4.7",
@@ -24,6 +26,7 @@ dependencies = [
     "pydantic-settings",
     "pymupdf>=2.0",
     "python-multipart>=0.0.32",
+    "redis>=8.1.0",
     "sqlalchemy[asyncio]",
     "sqlmodel",
 ]

@@ -92,11 +92,13 @@ def test_正式的劇本檔都讀得進來_而且兩個_Demo_劇本帶後續句(
         "Demo 事故 A",
         "Demo 事故 B",
         "更正延誤時數",
+        "發生日期不知道、補充原定日期",
     }
     assert {f.expect for f in with_follow_up.values()} == {
         "new_situation",
         "qa",
         "excluded",
+        "applicable",
     }
     # 正式站 11/15 的三句更正（#384）：各一個劇本，預期更正後文件不再適用
     corrections = {
@@ -170,6 +172,29 @@ def test_更正類後續句_重新下結論_文件不再適用才算過() -> Non
     assert "沒有重新下結論" in (judge(a=({}, ["insufficient"])) or "")
     assert "D01" in (judge(still=frozenset({"D01"})) or "")
     assert judge(still=frozenset({"D03"})) is None  # 不是劇本預期的文件，不算
+
+
+def test_補充類後續句_補充後變成可申請_預期的文件適用才算過() -> None:
+    reply = {"message": "已更新。", "citations": []}
+    before = ({"date": "不知道"}, ["insufficient"])
+    docs = frozenset({"D01", "D02"})
+
+    def judge(r=reply, b=before, a=({}, ["applicable"]), have=docs) -> str | None:
+        return judge_follow_up(
+            "applicable", r, b, a, expect_documents=docs, after_documents=have
+        )
+
+    assert judge() is None
+    assert "沒有變成可申請" in (judge(a=({}, ["insufficient"])) or "")
+    assert "沒有測到" in (judge(b=({}, ["applicable"])) or "")
+    assert "D02" in (judge(have=frozenset({"D01"})) or "")
+    for message, expected in [
+        (NEW_SITUATION_MESSAGE, "新狀況"),
+        (UNSURE_MESSAGE, "守門"),
+        (ORIGINAL_NOTICE, "原文"),
+    ]:
+        problem = judge(r={"message": message})
+        assert problem and expected in problem
 
 
 @pytest.mark.parametrize(
@@ -342,6 +367,55 @@ async def test_更正類後續句_會改動狀況_看更正後的結論與文件
     assert run.follow_up_conclusions == ["excluded"]
     assert run.ok is True  # 原本的判定只看問完那一刻
     assert run.conclusions == ["applicable"]
+
+
+async def test_補充類後續句_成功與否看補充之後_不看問完那一刻() -> None:
+    follow_up = FollowUp(say="原本7/11 10:30，後來實際 16:45 起飛", expect="applicable")
+    platform = FakePlatform(
+        [
+            _step(
+                "整理好了。",
+                finished=True,
+                conclusions=["insufficient"],
+                applicable=False,
+            ),
+            _step("已更新。", finished=True, conclusions=["applicable"]),
+        ]
+    )
+
+    async with platform.client() as client:
+        run = await run_once(client, "pol-1", _scenario(follow_up))
+
+    assert run.follow_up_ok is True
+    assert run.ok is True  # 問完那一刻沒有待辦，成功與否看補充之後
+    assert run.conclusions == ["insufficient"]
+    assert run.follow_up_conclusions == ["applicable"]
+
+
+async def test_補充類後續句_補充後還是資訊不足就失敗() -> None:
+    follow_up = FollowUp(say="原本7/11 10:30，後來實際 16:45 起飛", expect="applicable")
+    platform = FakePlatform(
+        [
+            _step(
+                "整理好了。",
+                finished=True,
+                conclusions=["insufficient"],
+                applicable=False,
+            ),
+            _step(
+                "目前的資訊還無法判斷。",
+                finished=True,
+                conclusions=["insufficient"],
+                applicable=False,
+            ),
+        ]
+    )
+
+    async with platform.client() as client:
+        run = await run_once(client, "pol-1", _scenario(follow_up))
+
+    assert run.follow_up_ok is False
+    assert run.ok is False
 
 
 async def test_更正類後續句_結論沒變就失敗() -> None:

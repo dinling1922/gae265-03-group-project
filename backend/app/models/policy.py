@@ -70,13 +70,24 @@ class Policy(BaseTable, table=True):
     reminder_started_at: datetime | None = Field(
         default=None,
         sa_column=Column(DateTime(timezone=True), nullable=True),
-        description="提醒信計時起點：產生待辦時，新增需上傳的待辦時重新計時；備齊或結案後清空",
+        description="提醒信這一輪的起點：由掃描推算，等於最新一筆需上傳而且適用的待辦的建立時間（ADR-0031）",
     )
     reminder_count: int = Field(
         default=0, description="這一輪已寄的提醒信（最多 3 封）；重新計時時歸零"
     )
     last_reminded_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    reminder_paused_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description="掃描看到這一輪需上傳的文件都齊全的時間；又缺文件時清掉（ADR-0031）",
+    )
+    reminder_resumed_at: datetime | None = Field(
+        default=None,
+        sa_column=Column(DateTime(timezone=True), nullable=True),
+        description="文件齊全後又缺文件（取消勾選、刪掉文件）的時間；"
+        "下一封已經過了預計時間就從這裡重新起算；新的一輪清掉（ADR-0031）",
     )
     closed_at: datetime | None = Field(
         default=None,

@@ -125,6 +125,26 @@ class Settings(BaseSettings):
     # 加密 Google refresh token 的 Fernet 金鑰
     TOKEN_ENCRYPTION_KEY: SecretStr | None = None
 
+    # 背景工作（ADR-0031）：Celery 的 broker；compose 裡的服務會覆寫成 redis://redis:6379/0
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # 提醒信的寄件信箱（ADR-0031）：只用 SMTP。開發預設寄到 compose 的 Mailpit，正式環境是專用 Gmail
+    SMTP_HOST: str = "localhost"
+    SMTP_PORT: int = 1025
+    SMTP_USERNAME: str | None = None
+    SMTP_PASSWORD: SecretStr | None = None
+    # 連線後升級成 TLS（Gmail 的 587 埠要打開；Mailpit 不用）
+    SMTP_STARTTLS: bool = False
+    # 連線與每次讀寫的逾時，避免 worker 卡在寄信
+    SMTP_TIMEOUT_SECONDS: int = 30
+    MAIL_FROM: str = "no-reply@example.com"
+    MAIL_FROM_NAME: str = "好險有你 Tripcare"
+
+    # 提醒信的間隔（秒）：第一封在計時起點後多久、之後每封距上一封多久、多久掃描一次到期的保單
+    REMINDER_FIRST_DELAY_SECONDS: int = 24 * 60 * 60
+    REMINDER_INTERVAL_SECONDS: int = 3 * 24 * 60 * 60
+    REMINDER_SCAN_SECONDS: int = 10 * 60
+
     # 不放在 model_validator：alembic、匯出 OpenAPI 也會載入設定，但不需要 LLM 設定。
     # 由 app 啟動（lifespan）與 app.core.llm 取得 model 時呼叫。
     def check_llm_provider(self) -> None:

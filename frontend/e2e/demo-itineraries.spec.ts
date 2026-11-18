@@ -7,7 +7,7 @@ test.beforeEach(async ({ request }) => {
 });
 
 // 範例日程的座標是寫死的，載入時不該呼叫 Nominatim
-test("在 /compare/new 載入主 demo：網址換成日程頁、旅行規劃有值、11 個活動", async ({ page }) => {
+test("在 /compare/new 載入主 demo：網址換成日程頁、旅行規劃有值、20 個活動", async ({ page }) => {
   await login(page, "e2e-demo-main@example.com");
   let geocoded = false;
   await page.route("https://nominatim.openstreetmap.org/**", (route) => {
@@ -21,9 +21,9 @@ test("在 /compare/new 載入主 demo：網址換成日程頁、旅行規劃有�
 
   await expect(page).toHaveURL(/\/compare\/[0-9a-f-]{36}\/itinerary$/);
   await expect(page.getByLabel("目的地")).toHaveValue("日本");
-  await expect(page.getByLabel("城市")).toHaveValue("大阪");
-  await expect(page.getByText("共 5 天")).toBeVisible();
-  await expect(page.getByTestId("clear-activities")).toContainText("（11）");
+  await expect(page.getByLabel("城市")).toHaveValue("東京");
+  await expect(page.getByText("共 7 天")).toBeVisible();
+  await expect(page.getByTestId("clear-activities")).toContainText("（20）");
   expect(geocoded).toBe(false);
 });
 
@@ -32,15 +32,15 @@ test("已有活動時載入範例要先確認：取消不變，確認後換成 3
   await page.goto("/compare/new");
   await page.getByTestId("demo-menu").click();
   await page.getByTestId("demo-main").click();
-  await expect(page.getByTestId("clear-activities")).toContainText("（11）");
+  await expect(page.getByTestId("clear-activities")).toContainText("（20）");
 
   await page.getByTestId("demo-menu").click();
   await page.getByTestId("demo-2-1").click();
   const dialog = page.getByTestId("clear-dialog");
-  await expect(dialog).toContainText("清除現有的 11 個活動");
+  await expect(dialog).toContainText("清除現有的 20 個活動");
   await dialog.getByRole("button", { name: "取消" }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByTestId("clear-activities")).toContainText("（11）");
+  await expect(page.getByTestId("clear-activities")).toContainText("（20）");
 
   await page.getByTestId("demo-menu").click();
   await page.getByTestId("demo-2-1").click();
@@ -71,7 +71,7 @@ test("載入範例後進 1-2、回日程頁換另一份範例再進 1-2：勾選
   await page.goto("/compare/new");
   await page.getByTestId("demo-menu").click();
   await page.getByTestId("demo-main").click();
-  await expect(page.getByTestId("clear-activities")).toContainText("（11）");
+  await expect(page.getByTestId("clear-activities")).toContainText("（20）");
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page.getByTestId("concern-suggestions")).toContainText("舊結果 1");
 

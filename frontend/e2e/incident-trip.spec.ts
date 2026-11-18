@@ -305,3 +305,59 @@ test("桌機寬度（1440px）下 2-3 是雙欄：左邊內容、右邊問答；
   await page.getByTestId("qa-close").click();
   await expect(qa).toBeHidden();
 });
+
+test("提醒信寄出後，行程頁不用重新整理就自動顯示已寄出", async ({ page }) => {
+  const id = await setup(page, "reminder-poll");
+  const start = new Date("2026-11-16T03:00:00Z");
+  await page.clock.install({ time: start });
+  // 假裝是 Google 登入（才顯示提醒信）；行程的寄送進度改成「第 1 封 1 分鐘後寄」，sent 後變成已寄出
+  await page.route("**/api/v1/auth/me", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), login_provider: "google" },
+    });
+  });
+  await page.route("**/api/v1/auth/google/grant", (route) =>
+    route.fulfill({ json: { status: "none", drive: false, gmail: false } }),
+  );
+  let sent = false;
+  let reads = 0;
+  const planned = new Date(start.getTime() + 60_000).toISOString();
+  await page.route("**/api/v1/policies/*/trip", async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    reads += 1;
+    const response = await route.fetch();
+    const trip = await response.json();
+    const later = (days: number) => new Date(start.getTime() + days * 86_400_000).toISOString();
+    trip.reminder_rounds = [
+      {
+        started_at: start.toISOString(),
+        ended_at: null,
+        end_reason: null,
+        trigger: null,
+        letters: [
+          { planned_at: planned, sent_at: sent ? planned : null },
+          { planned_at: later(3), sent_at: null },
+          { planned_at: later(6), sent_at: null },
+        ],
+      },
+    ];
+    await route.fulfill({ response, json: trip });
+  });
+
+  // 提醒信區塊在行程頁
+  await page.goto(`/incident/${id}`);
+  await page.getByRole("link", { name: "看整個行程" }).click();
+  await expect(page).toHaveURL(/\/trip\//);
+  const steps = page.getByTestId("reminder-step");
+  await expect(steps.nth(1)).toHaveAttribute("data-state", "next", { timeout: SLOW });
+  const before = reads;
+
+  // 預計時間到了、信寄出：不重新整理，計時到了自己重新讀取
+  sent = true;
+  await page.clock.fastForward("01:05");
+  await expect(steps.nth(1)).toHaveAttribute("data-state", "ok");
+  await expect(steps.nth(1)).toContainText("已寄出");
+  expect(reads).toBeGreaterThan(before);
+});
