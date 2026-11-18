@@ -1,16 +1,25 @@
 import { Button } from "@base-ui/react/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { suggestConcerns } from "../client";
-import { updateComparisonMutation } from "../client/@tanstack/react-query.gen";
-import type { ComparisonOut, Concern, Suggestion } from "../client/types.gen";
+import {
+  listItineraryActivitiesOptions,
+  updateComparisonMutation,
+} from "../client/@tanstack/react-query.gen";
+import type { ComparisonOut, Concern } from "../client/types.gen";
 import { ActionBar } from "../components/ui/ActionBar";
 import { btn, btnPri } from "../components/ui/buttons";
 import { FieldError } from "../components/ui/Field";
 import { LoadingOverlay } from "../components/ui/LoadingOverlay";
 import { PageHead } from "../components/ui/PageHead";
 import { ConcernCard } from "../features/compare/ConcernCard";
+import {
+  revealDelays,
+  SuggestionTimeline,
+  suggestionRows,
+  useRevealPhase,
+} from "../features/compare/SuggestionTimeline";
 import { WithComparison } from "../features/compare/WithComparison";
 import { card } from "../features/incident/shared";
 
@@ -42,18 +51,35 @@ function ConcernsPage() {
 function ConcernsForm({ initial }: { initial: ComparisonOut }) {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  // 進來時捲過網站 header，讓 9 個選項和下方的日程掃描動畫同時在畫面裡
+  const mainRef = useRef<HTMLElement>(null);
+  // 用區塊包起來：新版 Chrome 的 scrollIntoView 回傳 Promise，直接回傳會被 React 當成 cleanup 呼叫
+  useEffect(() => {
+    mainRef.current?.scrollIntoView({ block: "start" });
+  }, []);
   const [concerns, setConcerns] = useState(initial.concerns);
   const suggestions = useSuggestions(id);
-  // 推薦回來時只預先勾選一次，而且只在使用者還沒選任何一項時（spec #427）
+  const activities = useQuery(listItineraryActivitiesOptions({ path: { comparison_id: id } }));
+  const rows = suggestionRows(
+    initial.depart_date,
+    initial.return_date,
+    activities.data ?? [],
+    suggestions.data ?? [],
+  );
+  const reveal = useRevealPhase(!suggestions.isPending, rows.filter((r) => r.items.length).length);
+  const delays = revealDelays(rows);
+  // 推薦揭曉時只預先勾選一次，而且只在使用者還沒選任何一項時（spec #427）
   const prefilled = useRef(false);
+  const [popping, setPopping] = useState(false);
   useEffect(() => {
     const data = suggestions.data;
-    if (!data || prefilled.current) return;
+    if (!data || reveal.phase === "loading" || prefilled.current) return;
     prefilled.current = true;
-    if (data.length === MAX_CONCERNS) {
-      setConcerns((current) => (current.length === 0 ? data.map((s) => s.concern) : current));
+    if (data.length === MAX_CONCERNS && concerns.length === 0) {
+      setConcerns(data.map((s) => s.concern));
+      setPopping(reveal.phase === "revealing");
     }
-  }, [suggestions.data]);
+  }, [suggestions.data, reveal.phase, concerns]);
   const update = useMutation(updateComparisonMutation());
   const [goingNext, setGoingNext] = useState(false);
 
@@ -69,7 +95,11 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
     setConcerns(concerns.includes(c) ? concerns.filter((x) => x !== c) : [...concerns, c]);
 
   return (
-    <main data-page-paper className="mx-auto flex max-w-[1040px] flex-col gap-6 font-ui md:px-6">
+    <main
+      ref={mainRef}
+      data-page-paper
+      className="mx-auto flex max-w-[1040px] flex-col gap-6 font-ui md:px-6"
+    >
       <PageHead crumb="出發前：幫我選方案 · 2／3" title="推薦保障重點" />
       <div className={`${card} flex flex-col gap-5`}>
         <h2 className="m-0 t-label text-heading">
@@ -78,6 +108,7 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
           {CONCERNS.map((c) => {
             const order = concerns.indexOf(c) + 1;
+            const pop = popping && reveal.phase === "revealing" && order > 0 && delays.has(c);
             return (
               <ConcernCard
                 key={c}
@@ -85,15 +116,20 @@ function ConcernsForm({ initial }: { initial: ComparisonOut }) {
                 order={order}
                 disabled={order === 0 && concerns.length >= MAX_CONCERNS}
                 onClick={() => toggle(c)}
+                className={pop ? "sg-prefill" : ""}
+                style={{ "--d": `${delays.get(c) ?? 0}ms` } as CSSProperties}
               />
             );
           })}
         </div>
-        {suggestions.isPending ? (
-          <SuggestionsLoading />
-        ) : (
-          suggestions.data &&
-          suggestions.data.length > 0 && <SuggestionList items={suggestions.data} />
+        {(suggestions.isPending || (suggestions.data?.length ?? 0) > 0) && (
+          <SuggestionTimeline
+            {...reveal}
+            rows={rows}
+            selected={concerns}
+            full={concerns.length >= MAX_CONCERNS}
+            onToggle={toggle}
+          />
         )}
         {update.error != null && <FieldError>存檔失敗，請再試一次。</FieldError>}
       </div>
@@ -135,56 +171,4 @@ function useSuggestions(id: string) {
     // 日程改了（例如載入範例日程）再回來，不能拿上次的快取預先勾選或顯示：離開頁面就丟掉
     gcTime: 0,
   });
-}
-
-function SuggestionList({ items }: { items: Suggestion[] }) {
-  return (
-    <section data-testid="concern-suggestions" className="flex flex-col gap-2">
-      <h3 className="m-0 t-label text-heading">依你的日程推薦</h3>
-      <ul className="m-0 flex list-none flex-col gap-1 p-0 t-body text-ink">
-        {items.map((s) => (
-          <li key={s.concern}>
-            <span className="font-semibold">{s.concern}</span>：{s.reason}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-const STEPS = ["讀取你的旅遊日程", "對照 9 項在意事項", "為每一項寫出理由"];
-
-/** 等 LLM 時顯示的步驟清單：每 2.5 秒推進一步（只是示意，不代表後端進度），最後一步停著轉。 */
-function SuggestionsLoading() {
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setStep((n) => Math.min(n + 1, STEPS.length - 1)), 2500);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <section
-      data-testid="concern-suggestions-loading"
-      role="status"
-      className="flex flex-col gap-2"
-    >
-      <h3 className="m-0 t-label text-heading">正在依你的日程推薦…</h3>
-      <ol className="m-0 flex list-none flex-col gap-1 p-0 t-body">
-        {STEPS.map((label, i) => (
-          <li
-            key={label}
-            className={`flex items-center gap-2 ${i > step ? "text-muted" : "text-ink"}`}
-          >
-            {i < step ? (
-              <span className="w-4 text-center text-leaf">✓</span>
-            ) : i === step ? (
-              <span className="size-4 shrink-0 animate-spin rounded-full border-[1.5px] border-leaf border-t-transparent motion-reduce:animate-none" />
-            ) : (
-              <span className="w-4 text-center">·</span>
-            )}
-            {label}
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
 }

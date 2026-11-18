@@ -447,10 +447,10 @@ test("1-2 還沒選在意事項時，依推薦順序預先勾選並顯示理由�
   await expect(page).toHaveURL(/\/concerns$/);
 
   const box = page.getByTestId("concern-suggestions");
-  await expect(box).toContainText("依你的日程推薦");
-  await expect(box.getByRole("listitem")).toHaveText(
-    SUGGESTIONS.map((s) => `${s.concern}：${s.reason}`),
-  );
+  await expect(box).toContainText("我們從你的日程看到這些風險");
+  // 理由開頭的 D1 等日子放進日期框，文字只留後面
+  for (const s of SUGGESTIONS) await expect(box).toContainText(s.reason.replace(/^D\d+ /, ""));
+  await expect(box.getByRole("button", { name: /^取消/ })).toHaveCount(3);
   for (const [i, s] of SUGGESTIONS.entries()) {
     await expect(
       page.getByRole("button", { name: new RegExp(`^${s.concern}`) }),
@@ -472,11 +472,47 @@ test("1-2 已經選過在意事項時，推薦不覆蓋，只顯示理由", asyn
 
   await stubSuggestions(page);
   await page.goto(`/compare/${id}/concerns`);
-  await expect(page.getByTestId("concern-suggestions").getByRole("listitem")).toHaveCount(3);
+  await expect(
+    page.getByTestId("concern-suggestions").getByRole("button", { name: /^加入/ }),
+  ).toHaveCount(3);
   await expect(page.getByRole("button", { name: /^班機延誤/ })).toHaveAccessibleName(
     "班機延誤 第 1 順位",
   );
   await expect(page.locator('button[aria-pressed="true"]')).toHaveCount(1);
+});
+
+test("1-2 推薦要等一陣子時先掃描日程，回來後揭曉並預先勾選", async ({ page }) => {
+  // 真的 LLM 常把日期寫成 12/19 這種月／日，要對得到日程裡的那一天
+  const [, month, date] = day(9).split("-").map(Number);
+  const suggestions = [
+    { ...SUGGESTIONS[0], reason: `${month}/${date}「心齋橋藥妝」刷卡次數多` },
+    ...SUGGESTIONS.slice(1),
+  ];
+  await page.route("**/api/v1/comparisons/*/concern-suggestions", async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.fulfill({ json: suggestions });
+  });
+  await login(page, "e2e-concern-suggestions-slow@example.com");
+  await page.goto("/compare/new");
+  await fillTrip(page, "日本", 7, 11);
+  await nextSkippingItinerary(page);
+
+  const loading = page.getByTestId("concern-suggestions-loading");
+  await expect(loading).toContainText("正在看你 5 天的行程…");
+  await expect(loading).toContainText("讀取你的旅遊日程");
+  await expect(loading).toContainText("自由活動");
+  await expect(page.locator('button[aria-pressed="true"]')).toHaveCount(0);
+
+  const box = page.getByTestId("concern-suggestions");
+  await expect(box).toContainText("我們從你的日程看到這些風險", { timeout: 10_000 });
+  await expect(loading).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^信用卡盜刷/ })).toHaveAccessibleName(
+    "信用卡盜刷 第 1 順位",
+  );
+  // 揭曉完只留下有推薦的日子，月／日的理由也對到那一天，沒有「全程」
+  await expect(box.getByRole("listitem")).toHaveCount(3, { timeout: 10_000 });
+  await expect(box).toContainText("「心齋橋藥妝」刷卡次數多");
+  await expect(box).not.toContainText("全程");
 });
 
 test("1-2 推薦回空陣列時不顯示推薦區塊", async ({ page }) => {
