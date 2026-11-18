@@ -564,9 +564,11 @@ def test_dev_fake_storage_is_refused_in_production(
         create_document_agent()
 
 
-def test_real_drive_is_used_by_default() -> None:
+def test_real_drive_is_used_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     from app.agents.document import create_document_agent
 
+    # 驗的是正式環境的預設，不受開發者本機 .env 的 DOCUMENT_DEV_FAKE_STORAGE 影響
+    monkeypatch.setattr(settings, "DOCUMENT_DEV_FAKE_STORAGE", False)
     assert isinstance(create_document_agent().drive, GoogleDrive)
 
 
@@ -575,6 +577,8 @@ def test_default_agent_matches_the_production_settings(
 ) -> None:
     from app.agents.document import create_document_agent
 
+    # 驗的是正式環境的預設，不受開發者本機 .env 的 DOCUMENT_DEV_FAKE_STORAGE 影響
+    monkeypatch.setattr(settings, "DOCUMENT_DEV_FAKE_STORAGE", False)
     monkeypatch.setattr(settings, "DOCUMENT_FIELD_CONFIDENCE", 0.65)
     monkeypatch.setattr(settings, "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT", "https://x")
     monkeypatch.setattr(settings, "AZURE_DOCUMENT_INTELLIGENCE_API_KEY", SecretStr("k"))

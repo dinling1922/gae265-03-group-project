@@ -80,7 +80,12 @@ def _year(y: int) -> int:
     return y
 
 
-def _make(y: int, m: int, d: int) -> date | None:
+def _make(y: int | str, m: int, d: int) -> date | None:
+    """`y` 給字串時，四位數而且是 0 開頭的不算年份（收據號碼 R-26-07-0153 不是民國 153 年）。"""
+    if isinstance(y, str):
+        if len(y) == 4 and y.startswith("0"):
+            return None
+        y = int(y)
     try:
         return date(_year(y), m, d)
     except ValueError:
@@ -93,10 +98,10 @@ def dates_in(text: str) -> set[date]:
     for y, m, d in _YMD.findall(text):
         if len(y) != 3 and len(y) != 4:
             continue
-        found.add(_make(int(y), int(m), int(d)))
+        found.add(_make(y, int(m), int(d)))
     for a, b, y in _XYY.findall(text):
-        found.add(_make(int(y), int(b), int(a)))  # 日／月／年
-        found.add(_make(int(y), int(a), int(b)))  # 月／日／年
+        found.add(_make(y, int(b), int(a)))  # 日／月／年
+        found.add(_make(y, int(a), int(b)))  # 月／日／年
     for d, mon, y in _D_MON_Y.findall(text):
         if (m := _MONTHS.get(mon.lower())) is not None:
             found.add(_make(int(y), m, int(d)))
