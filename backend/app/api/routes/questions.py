@@ -5,6 +5,7 @@ from functools import cache
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from langchain_core.language_models import BaseChatModel
 from langchain_typesafe import TypeSafeClassifier
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -14,6 +15,7 @@ from app.api.routes.conversations import AnswerModel, CitationOut, citation_out
 from app.core.config import settings
 from app.domain.plans import get_plan
 from app.domain.questions import Guard, PlanSource, Turn, answer_comparison_question
+from app.models import Comparison
 
 router = APIRouter(tags=["comparisons"])
 
@@ -74,17 +76,18 @@ class QuestionAnswerOut(BaseModel):
     )
 
 
-@router.post("/comparisons/{comparison_id}/questions")
-async def ask_comparison_question(
+async def answer_for_comparison(
     session: SessionDep,
-    user: CurrentUser,
-    model: AnswerModel,
-    guard: QuestionGuard,
-    comparison_id: uuid.UUID,
-    body: QuestionIn,
+    comparison: Comparison,
+    model: BaseChatModel,
+    guard: Guard | None,
+    question: str,
+    history: list[TurnIn],
 ) -> QuestionAnswerOut:
-    """問推薦方案與次推薦的條款，一次回完整回答；不存檔，前文由前端帶 history。"""
-    comparison = await own_comparison(session, user, comparison_id)
+    """網站 1-4 與 MCP `ask_plan_question` 共用：推薦方案與次推薦一起問，不存檔。
+
+    還沒有推薦方案時 `plan_cards` 丟 422 的 HTTPException。
+    """
     quotes, cards = await plan_cards(session, comparison)
     sources = []
     for i, card in enumerate(cards):
@@ -97,8 +100,8 @@ async def ask_comparison_question(
         session,
         model,
         guard,
-        body.question,
-        [Turn(t.question, t.answer) for t in body.history],
+        question,
+        [Turn(t.question, t.answer) for t in history],
         sources,
     )
     return QuestionAnswerOut(
@@ -118,4 +121,20 @@ async def ask_comparison_question(
             )
             for source, hits in answer.hits
         ],
+    )
+
+
+@router.post("/comparisons/{comparison_id}/questions")
+async def ask_comparison_question(
+    session: SessionDep,
+    user: CurrentUser,
+    model: AnswerModel,
+    guard: QuestionGuard,
+    comparison_id: uuid.UUID,
+    body: QuestionIn,
+) -> QuestionAnswerOut:
+    """問推薦方案與次推薦的條款，一次回完整回答；不存檔，前文由前端帶 history。"""
+    comparison = await own_comparison(session, user, comparison_id)
+    return await answer_for_comparison(
+        session, comparison, model, guard, body.question, body.history
     )
