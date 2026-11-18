@@ -1,16 +1,17 @@
 """使用者自己的資料（ADR-0009）：刪除我的所有資料。"""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlmodel import col
 
 from app.api.deps import CurrentUser, SessionDep, get_google_oauth_client
 from app.core.config import settings
 from app.core.google_grants import grant_of, revoke_grant
 from app.core.google_oauth import GoogleOAuthClient
-from app.models import Comparison, GoogleGrant, Policy
+from app.models import ApiToken, Comparison, GoogleGrant, Policy
 
 router = APIRouter(tags=["me"])
 
@@ -31,7 +32,7 @@ async def delete_my_data(
     session: SessionDep, user: CurrentUser, google: OptionalGoogleDep
 ) -> Response:
     """刪除這位使用者的所有資料：保單（連帶對話、訊息、事件、待辦、文件紀錄、送件紀錄）、
-    方案比較與 Google 授權。
+    方案比較與 Google 授權，並撤銷所有存取權杖。
 
     保留 `user` 與登入身分 `identity`：使用者仍可登入，只是回到沒有資料的狀態；
     要連帳號都不留，是另一個決定（目前沒有需求）。
@@ -44,5 +45,11 @@ async def delete_my_data(
     await session.exec(delete(Policy).where(col(Policy.user_id) == user.id))
     await session.exec(delete(Comparison).where(col(Comparison.user_id) == user.id))
     await session.exec(delete(GoogleGrant).where(col(GoogleGrant.user_id) == user.id))
+    # 存取權杖（ADR-0032）：刪資料後外部代理不能再讀；權杖紀錄留著，使用者仍看得到已撤銷
+    await session.exec(
+        update(ApiToken)
+        .where(col(ApiToken.user_id) == user.id, col(ApiToken.revoked_at).is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
     await session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
