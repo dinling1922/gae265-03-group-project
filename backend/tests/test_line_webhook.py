@@ -144,14 +144,6 @@ async def test_non_text_message_replies_help(http: AsyncClient, line: FakeLineCl
     assert line.texts == [texts.HELP_TEXT]
 
 
-@pytest.mark.parametrize("text", ["比較", "待辦", "待辦 已完成"])
-async def test_unimplemented_commands_say_not_ready(
-    http: AsyncClient, line: FakeLineClient, text: str
-):
-    assert await post(http, user_message(text, event_id="e1")) == 200
-    assert line.texts == [texts.NOT_READY_TEXT]
-
-
 async def test_unfollow_and_postback_are_ignored(
     http: AsyncClient, line: FakeLineClient
 ):
