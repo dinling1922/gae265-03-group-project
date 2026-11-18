@@ -9,6 +9,8 @@
 
 | `incident_scenarios.json` | 8 個劇本 | 5 號穩定度量測（`make eval-incident`，程式在 `app/eval/incident_stability.py`）。每個劇本是一句事故描述加上「題目含這個關鍵字就這樣回答」的清單（自然語句，依序比對），用真模型走完整對話，預期的文件代碼（`expect_documents`）都出現在適用的待辦裡才算成功。預期要對照條款與 `incident_catalog.json` 寫。劇本可以選填 `follow_up`（`say` 是問完之後再送的一句，`expect` 是 `new_situation`〔回新狀況的固定訊息〕或 `qa`〔有出處、不是退回貼原文的條款問答〕），回覆種類由程式判斷，而且這一句前後已記下的狀況與結論都不能變；結果另列在報告的「後續句」，不影響上面的成功判定，也不算進輪數與秒數。動到 5 號的提示詞、`adapters.py` 或答案後處理的 PR，描述裡要附這次的結果。 |
 
+| `trip_extraction_questions.json` | e01–e21 | `create_comparison`（ADR-0034、#510）的抽取評估 21 題：目的地與日期、相對日期（「今天」固定 2026-11-19）、在意事項、不支援需求、資訊不足。`make eval-trip-extraction` 用真 LLM 走線上同一條抽取與驗證，報告寫到 `docs/reports/`，開頭註明供應商與模型。 |
+
 ## 判定方式
 
 見 `src/insurance_agent/rag/evaluate.py` 的 `is_pass`：`expect` 的每一項，前 k 筆結果中都要有一筆**公司相同**、且**標題＋內文含有 `text_has`**。
