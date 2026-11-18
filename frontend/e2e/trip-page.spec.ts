@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { expectPaper, login } from "./helpers";
+import { expectPaper, login, scrolledTo, spyScrollIntoView } from "./helpers";
 
 // 行程頁（/trip/$policyId，ADR-0029）：一張保單的所有事故收在一頁。
 // 事故用 API 快速備好（假 5 號問到結束）。需要測試登入與條款庫、方案資料（make seed）。
@@ -71,6 +71,14 @@ test("行程頁：行程資訊列、事故卡、待辦依事故分組並有「�
   await expect(page.getByTestId("todos")).toContainText("填寫理賠申請書");
   // 右欄問答：選中事故的名稱
   await expect(page.getByTestId("qa-title")).toContainText("班機延誤");
+});
+
+test("行程頁載入時問答框沒有被自動對焦（手機一進頁面不該彈鍵盤）", async ({ page }) => {
+  const { policyId } = await setup(page, "no-autofocus", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+
+  await expect(page.getByTestId("message")).toBeVisible();
+  await expect(page.getByTestId("message")).not.toBeFocused();
 });
 
 test("勾選待辦後完成度更新；行程頁與事件資料一致", async ({ page }) => {
@@ -370,6 +378,75 @@ test("手機：問答面板占下半、沒有遮罩，上方待辦仍可捲動�
   await expect(panel).toBeHidden();
 });
 
+test("手機：只有一個事故時，選中的事故卡也有「問答」，能打開、收起、再打開；桌機沒有（#422）", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "single-mobile", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const panel = page.getByRole("region", { name: "問答" });
+  const ask = page.getByTestId("trip-incident").getByTestId("incident-ask-mobile");
+  await expect(panel).toBeHidden();
+
+  await expect(ask).toBeVisible();
+  await ask.click();
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("qa-title")).toContainText("班機");
+
+  await page.getByTestId("qa-close").click();
+  await expect(panel).toBeHidden();
+  await ask.click();
+  await expect(panel).toBeVisible();
+
+  // 桌機：右欄固定顯示，沒有這個鈕
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(ask).toBeHidden();
+  await expect(panel).toBeVisible();
+});
+
+test("手機：有兩個事故時，選中的事故卡也有「問答」（#422）", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { policyId } = await setup(page, "two-mobile", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const cards = page.getByTestId("trip-incident");
+  await expect(cards.nth(0).getByTestId("incident-ask-mobile")).toBeVisible();
+  await expect(cards.nth(1).getByTestId("incident-ask-mobile")).toHaveCount(0);
+  await expect(cards.nth(1).getByTestId("incident-ask")).toBeVisible();
+});
+
+test("手機橫式矮視窗：問答面板是貼右的整高欄位，輸入框看得到、不蓋住說明文字（#410）", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 920, height: 337 });
+  const { policyId } = await setup(page, "landscape", ["班機延誤了六小時", "班機取消了"]);
+  await page.goto(`/trip/${policyId}`);
+  const panel = page.getByRole("region", { name: "問答" });
+  await page.getByTestId("trip-incident").nth(1).getByTestId("incident-ask").click();
+  await expect(panel).toBeVisible();
+
+  const box = await panel.boundingBox();
+  if (!box) throw new Error("找不到問答面板");
+  expect(box.x).toBeGreaterThan(920 * 0.4); // 貼右，不是整排寬
+  expect(box.x + box.width).toBeCloseTo(920, 0);
+  expect(box.y).toBeCloseTo(0, 0);
+  expect(box.height).toBeGreaterThanOrEqual(337 - 2); // 整高，不是 50dvh
+
+  const input = await page.getByTestId("message").boundingBox();
+  const caption = await page.getByText("回答由 AI 依條款整理").boundingBox();
+  if (!input || !caption) throw new Error("找不到輸入框或說明文字");
+  expect(input.y).toBeGreaterThanOrEqual(0);
+  expect(input.y + input.height).toBeLessThanOrEqual(337); // 輸入框在可見範圍內
+  expect(input.y + input.height).toBeLessThanOrEqual(caption.y + 1); // 沒有蓋到說明文字
+
+  // 直式同一頁還是下方滑出的面板
+  await page.setViewportSize({ width: 390, height: 800 });
+  const portrait = await panel.boundingBox();
+  if (!portrait) throw new Error("直式找不到問答面板");
+  expect(portrait.x).toBeCloseTo(0, 0);
+  expect(portrait.width).toBeCloseTo(390, 0);
+  expect(portrait.y).toBeGreaterThan(800 * 0.4);
+});
+
 // 設計者 11/14 的調整：不符保障與資訊不足分開標示、結案後說明。5 號的假實作產不出「資訊不足」，
 // 所以改行程 API 的回應來看畫面（只改回應，不動資料）。
 async function stubTrip(page: Page, policyId: string, change: (trip: any) => void) {
@@ -401,7 +478,10 @@ test("資訊不足：事故卡標「資訊不足，尚無法判斷」，送件�
   const card = page.getByTestId("trip-incident");
   await expect(card.getByTestId("insufficient")).toHaveText("資訊不足，尚無法判斷");
   await expect(card.getByTestId("not-covered")).toHaveCount(0);
-  await expect(card.getByTestId("insufficient-note")).toContainText("可以在問答補充說明");
+  // 資訊不足補了資訊就會有待辦：卡上明講現在還沒有待辦、補充後會重新判斷（#445）
+  await expect(card.getByTestId("insufficient-note")).toHaveText(
+    "目前的資訊還無法判斷能不能理賠，所以還沒有待辦。在問答補充說明後會重新判斷，符合的話就會產生待辦。",
+  );
   await expect(page.getByTestId("send-box")).toContainText("資訊不足，還不能送件");
   await expect(page.getByTestId("close-note")).toContainText("也可以結案");
 });
@@ -418,6 +498,8 @@ test("不符保障的事故裡有範本待辦：反灰，組小標題下說明�
   await page.goto(`/trip/${policyId}`);
 
   await expect(page.getByTestId("not-covered")).toHaveText("不符保障");
+  // 不在保障範圍的事故補資訊也不會有待辦：不顯示資訊不足的說明（#445）
+  await expect(page.getByTestId("insufficient-note")).toHaveCount(0);
   await expect(page.getByTestId("group-not-covered").first()).toHaveText(
     "這個事故依條款不在保障範圍，這些文件不需要準備",
   );
@@ -605,4 +687,97 @@ test("捲動自動切換：手機問答面板拉開時，捲動不換問答", as
   await page.waitForTimeout(1000);
 
   expect(await selectedIndex(page)).toBe(1);
+});
+
+// 行程頁問答補完資訊後再確認（#445）：後端判斷「問完 + 結論或適用待辦有變」才回 show_confirm。
+// 假 5 號只要使用者的話裡有「不理賠」，就把保障改成 excluded（結論有變）。
+async function askInTrip(page: Page, text: string) {
+  const replied = page.waitForResponse(
+    (r) => r.url().endsWith("/messages") && r.request().method() === "POST",
+  );
+  await page.getByTestId("message").fill(text);
+  await page.getByTestId("send").click();
+  await replied;
+}
+
+test("問答補完資訊讓結論有變：再跳確認彈窗，「確認」只關彈窗，不呼叫確認 API", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm", ["班機延誤了六小時"]);
+  await spyScrollIntoView(page);
+  await page.goto(`/trip/${policyId}`);
+  const confirmCalls: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().endsWith("/confirm")) confirmCalls.push(r.url());
+  });
+
+  await askInTrip(page, "這樣不理賠嗎？");
+
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("您補充的內容讓判斷有變");
+  // 事故早就確認過：按鈕不寫「進入行程頁」
+  await expect(dialog.getByTestId("confirm-yes")).toHaveText("確認");
+  // 背景已經先更新：事故卡不再有可能適用的項目
+  await expect(page.getByTestId("not-covered")).toBeVisible();
+
+  await dialog.getByTestId("confirm-yes").click();
+  await expect(dialog).toBeHidden();
+  expect(confirmCalls).toEqual([]);
+  await expect(page).toHaveURL(new RegExp(`/trip/${policyId}`));
+  // 這裡補完後變成不在保障範圍、沒有待辦：不捲到理賠待辦（#449）
+  expect(await scrolledTo(page)).not.toContain("todos-section");
+});
+
+// 假 5 號補完後只會變成不在保障範圍（沒有待辦），所以用行程 API 的回應模擬「補完後有待辦」：
+// 補充前照原樣，補充後把待辦與「在保障內」補回去（只改回應，不動資料）
+test("再跳的確認彈窗按「確認」：該事故有待辦就捲到理賠待辦（#449）", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm-scroll", ["班機延誤了六小時"]);
+  let before: { covered: boolean; todos: unknown[] } | null = null;
+  await page.route(`**/api/v1/policies/${policyId}/trip`, async (route) => {
+    try {
+      const response = await route.fetch();
+      const body = await response.json();
+      const incident = body.incidents[0];
+      if (!before) before = { covered: incident.covered, todos: incident.todos };
+      else {
+        incident.covered = before.covered;
+        incident.todos = before.todos;
+      }
+      await route.fulfill({ response, json: body });
+    } catch {
+      // 測試結束時還在進行的重新讀取：不算錯
+    }
+  });
+  await spyScrollIntoView(page);
+  await page.goto(`/trip/${policyId}`);
+  await expect(page.getByTestId("trip-incident")).toBeVisible();
+  await askInTrip(page, "這樣不理賠嗎？");
+
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible();
+  expect(await scrolledTo(page)).not.toContain("todos-section"); // 彈窗還開著，還沒捲
+  await dialog.getByTestId("confirm-yes").click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => scrolledTo(page)).toContain("todos-section");
+  await expect(page.getByTestId("todos-section")).toBeInViewport();
+});
+
+test("再跳的確認彈窗按「還要補充或修改」：關彈窗，焦點回到問答輸入框", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm-supplement", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  await askInTrip(page, "這樣不理賠嗎？");
+
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByTestId("confirm-supplement").click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("message")).toBeFocused();
+});
+
+test("問答只問條款、結論沒變：不跳確認彈窗", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm-none", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  await askInTrip(page, "診斷書要正本嗎？");
+
+  await expect(page.getByTestId("messages")).toContainText("診斷書要正本嗎？");
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
 });

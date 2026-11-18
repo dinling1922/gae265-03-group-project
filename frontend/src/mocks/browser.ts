@@ -26,8 +26,10 @@ import type {
   ScenarioOut,
   SearchHitOut,
   UserOut,
+  WouldRemoveConflict,
 } from "../client/types.gen";
 import { incidentHandlers } from "./incident";
+import { activitiesOutside, itineraryHandlers, removeActivitiesOutside } from "./itinerary";
 
 // 假資料模式的登入狀態：存在這個分頁的 sessionStorage，關掉分頁就登出。
 // 不能只放記憶體：登入成功後整頁跳轉，記憶體會清空。
@@ -267,9 +269,8 @@ const seedComparison = (
     destination,
     depart_date: `2026-12-0${n}`,
     return_date: `2026-12-0${n + 4}`,
-    age: 30,
+    city: "",
     concerns,
-    note: "",
     created_at: at,
     updated_at: at,
     recommendation: mockRecommendation(concerns),
@@ -376,6 +377,10 @@ function mockScenarios(comparison: ComparisonOut): ScenarioOut[] {
 // 假資料模式（`VITE_MOCK=true`）攔下的 API；回應型別用產生的 client，後端 schema 改了這裡會型別錯誤
 const handlers = [
   ...incidentHandlers,
+  ...itineraryHandlers((id) => {
+    const c = mockComparisons.get(id);
+    return c && { depart: c.depart_date, returnDate: c.return_date };
+  }),
   http.get("*/api/v1/health", () =>
     HttpResponse.json<HealthStatus>({ status: "ok", db: "ok (mock)", pgvector: "ok (mock)" }),
   ),
@@ -442,8 +447,8 @@ const handlers = [
     const body = (await request.json()) as ComparisonIn;
     const now = new Date().toISOString();
     const comparison: ComparisonOut = {
+      city: "",
       concerns: [],
-      note: "",
       ...body,
       id: crypto.randomUUID(),
       created_at: now,
@@ -501,7 +506,22 @@ const handlers = [
     // 前端只送有值的欄位，不會送 null
     const { recommended_sum_insured, alternative_sum_insured, ...body } =
       (await request.json()) as ComparisonPatch;
-    const merged = { ...comparison, ...body } as ComparisonOut;
+    const { confirm_remove, ...fields } = body;
+    const merged = { ...comparison, ...fields } as ComparisonOut;
+    const outside = activitiesOutside(merged.id, merged.depart_date, merged.return_date);
+    if (outside.length > 0 && !confirm_remove) {
+      return HttpResponse.json<WouldRemoveConflict>(
+        {
+          detail: {
+            code: "WOULD_REMOVE_ACTIVITIES",
+            message: `縮短日期會移除 ${outside.length} 個活動，確認後帶 confirm_remove: true`,
+            activities: outside,
+          },
+        },
+        { status: 409 },
+      );
+    }
+    removeActivitiesOutside(merged.id, merged.depart_date, merged.return_date);
     const rec = comparison.recommendation;
     const recommendation =
       body.concerns === undefined && rec
@@ -511,7 +531,12 @@ const handlers = [
             alternative_sum_insured ?? rec.alternative.sum_insured,
           )
         : mockRecommendation(merged.concerns);
-    const updated = { ...merged, recommendation, updated_at: new Date().toISOString() };
+    const updated = {
+      ...merged,
+      recommendation,
+      removed_activity_count: outside.length,
+      updated_at: new Date().toISOString(),
+    };
     mockComparisons.set(updated.id, updated);
     return HttpResponse.json<ComparisonOut>(updated);
   }),

@@ -7,10 +7,12 @@ import { listIncidentsQueryKey } from "../../client/@tanstack/react-query.gen";
 import type { IncidentContext } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn } from "../../components/ui/buttons";
+import { LoadingOverlay } from "../../components/ui/LoadingOverlay";
 import { PageHead } from "../../components/ui/PageHead";
+import { SHORT_LANDSCAPE_QUERY, useMediaQuery } from "../../hooks/useMediaQuery";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { type ChatLine, DescribeChat, FIRST_QUESTION } from "./DescribeChat";
-import { errorText, policyMeta, tripTitle, useIncident } from "./shared";
+import { errorText, policyMeta, SCROLL_TO_TODOS_STATE, tripTitle, useIncident } from "./shared";
 
 /** 2-2g-3 按「還要補充或修改」後對話裡顯示的固定句（Leon 的模擬畫面）；前端顯示，不送給 5 號、不存。 */
 export const SUPPLEMENT_PROMPT = "好的，請說明要補充或修改的地方。";
@@ -25,10 +27,13 @@ export function ClarifyingView({
   id,
   ctx,
   confirmation: initialConfirmation = "clarifying",
+  focusAsk = false,
 }: {
   id: string;
   ctx: IncidentContext;
   confirmation?: string;
+  /** 從建立事故頁送出描述後進來（路由 state，#441）：輸入框自動對焦，旅客可以直接答第一題。 */
+  focusAsk?: boolean;
 }) {
   const { refresh } = useIncident(id);
   const navigate = useNavigate();
@@ -36,6 +41,8 @@ export function ClarifyingView({
   const [confirmation, setConfirmation] = useState(initialConfirmation);
   const [dialogOpen, setDialogOpen] = useState(initialConfirmation === "awaiting");
   const [confirming, setConfirming] = useState(false);
+  // 一進來就跳確認彈窗（5 號一輪就問完）時不對焦：焦點留給彈窗，不搶到它後面的輸入框
+  const [focusInput] = useState(focusAsk && initialConfirmation !== "awaiting");
   const [confirmError, setConfirmError] = useState<string | null>(null);
   // 按「還要補充或修改」後顯示的固定句；下一次送出就換成真正的對話
   const [supplementPrompt, setSupplementPrompt] = useState(false);
@@ -44,6 +51,8 @@ export function ClarifyingView({
   // 剛送出、回覆還沒回來的那句話：先顯示在對話最下面，回覆回來換成真正的訊息
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 橫式矮視窗、鍵盤開著時，底部的動作列會被鍵盤蓋住：「回到確認」搬到輸入列旁邊（#409）
+  const shortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
 
   const messages = ctx.messages ?? [];
   const last = messages.at(-1);
@@ -105,8 +114,16 @@ export function ClarifyingView({
       params: { policyId: res.data.policy_id },
       search: { incident: id },
       replace: true,
+      // 有待辦就捲到理賠待辦（#449）
+      state: (prev) => ({ ...prev, ...SCROLL_TO_TODOS_STATE }),
     });
   }
+
+  const backToConfirm = confirmation === "awaiting" && !dialogOpen && (
+    <Button className={btn} onClick={() => setDialogOpen(true)} data-testid="back-to-confirm">
+      回到確認
+    </Button>
+  );
 
   return (
     <main data-page-paper className="mx-auto flex max-w-[1040px] flex-col gap-6 font-ui md:px-6">
@@ -134,6 +151,8 @@ export function ClarifyingView({
         busy={busy}
         typingLabel="正在整理您的回答"
         onSend={(content, mode) => void send(content, mode)}
+        askLeading={shortLandscape ? backToConfirm : undefined}
+        focusInput={focusInput}
       />
 
       <ConfirmDialog
@@ -148,12 +167,11 @@ export function ClarifyingView({
         onConfirm={() => void confirm()}
       />
 
+      {/* 按確認後到行程頁之間：遮住畫面，行程頁讀好才拿掉（#445）；成功後會換頁，所以不用再關 */}
+      {confirming && <LoadingOverlay>正在整理您的行程…</LoadingOverlay>}
+
       <ActionBar>
-        {confirmation === "awaiting" && !dialogOpen && (
-          <Button className={btn} onClick={() => setDialogOpen(true)} data-testid="back-to-confirm">
-            回到確認
-          </Button>
-        )}
+        {!shortLandscape && backToConfirm}
         <ActionBar.Push>
           <Link to="/" className={btn}>
             回首頁

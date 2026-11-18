@@ -98,7 +98,6 @@ async def seed_user(session: AsyncSession, email: str) -> tuple[User, Policy]:
             destination="日本",
             depart_date=date(2026, 12, 1),
             return_date=date(2026, 12, 5),
-            age=30,
         )
     )
     session.add(

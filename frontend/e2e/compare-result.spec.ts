@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { login } from "./helpers";
+import { login, nextSkippingItinerary } from "./helpers";
 
 // 推薦結果依開發資料庫的 seed（make seed）：6 天「班機延誤 → 突然生病就醫」。
 
@@ -15,8 +15,7 @@ async function fillTrip(page: Page) {
   await page.getByLabel("目的地").selectOption("日本");
   await page.getByLabel("出發日").fill(day(7));
   await page.getByLabel("回程日").fill(day(12));
-  await page.getByLabel("年齡").fill("30");
-  await page.getByRole("button", { name: "下一步" }).click();
+  await nextSkippingItinerary(page);
   await expect(page).toHaveURL(/\/compare\/[0-9a-f-]{36}\/concerns$/);
 }
 
@@ -37,7 +36,7 @@ test("1-3 顯示推薦、依據、比較表與名詞解釋；改次推薦保額�
   // 2026/07/05～07/10：回程跨年才寫年份
   const ret = day(12).startsWith(day(7).slice(0, 4)) ? day(12).slice(5) : day(12);
   const range = `${day(7)}～${ret}`.replaceAll("-", "/");
-  await expect(page.getByText(`日本 · ${range} · 6 天 · 30 歲`)).toBeVisible();
+  await expect(page.getByText(`日本 · ${range} · 6 天`)).toBeVisible();
   const rec = page.getByRole("region", { name: "推薦", exact: true });
   const alt = page.getByRole("region", { name: "次推薦", exact: true });
   await expect(rec.getByRole("heading")).toHaveText("富邦國外旅平險-進階型");
