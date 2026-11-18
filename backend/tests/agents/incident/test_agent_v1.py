@@ -198,7 +198,8 @@ async def test_不知道實際起飛時間_資訊不足以判斷() -> None:
 
 async def test_保單有保險期間但不知道事故日期_資訊不足以判斷() -> None:
     ctx = make_ctx(
-        facts={**ALMOST_DONE, "date": "不知道"},
+        # 實際起飛日期也不知道：有實際日期時會用它推定事故日（#451），這裡測的是兩個日期都沒有
+        facts={**ALMOST_DONE, "date": "不知道", "dep_act_date": "不知道"},
         start=date(2026, 11, 1),
         end=date(2026, 11, 8),
     )

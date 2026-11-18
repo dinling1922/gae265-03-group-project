@@ -34,8 +34,12 @@ class OfflineGoogleApi:
         )
 
 
+# 整個程式共用一個轉接器：連線池跨請求沿用，不用每次寄件都重新連到 Google
+_GOOGLE_API = HttpGoogleApi()
+
+
 def create_gmail_packager() -> GmailClaimPackager:
-    return GmailClaimPackager(google_api=HttpGoogleApi())
+    return GmailClaimPackager(google_api=_GOOGLE_API)
 
 
 def create_offline_packager() -> GmailClaimPackager:

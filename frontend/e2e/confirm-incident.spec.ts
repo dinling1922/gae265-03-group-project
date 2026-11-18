@@ -1,5 +1,11 @@
 import { expect, type Page, test } from "@playwright/test";
-import { login, tripTransition, watchTripTransition } from "./helpers";
+import {
+  login,
+  scrolledTo,
+  spyScrollIntoView,
+  tripTransition,
+  watchTripTransition,
+} from "./helpers";
 
 // 2-2g 現況確認彈窗（#345）：第一次描述問完才跳；「還要補充或修改」回對話、有「回到確認」；
 // 沒確認就離開，重新開啟回 2-2 再跳；確認才進行程頁。用假 5 號（問兩輪後結束）。
@@ -53,6 +59,7 @@ test.beforeEach(async ({ request }) => {
 
 test("問完跳彈窗，沒有關閉鈕；補充再回到確認；確認才進行程頁", async ({ page }) => {
   const policyId = await setup(page, "flow");
+  await spyScrollIntoView(page);
   await describeUntilFinished(page, policyId);
 
   const dialog = page.getByTestId("confirm-dialog");
@@ -80,6 +87,39 @@ test("問完跳彈窗，沒有關閉鈕；補充再回到確認；確認才進�
   await expect(page.getByTestId("trip-incident")).toHaveCount(1);
   // 按確認後到行程頁之間要有載入遮罩（#445）
   expect((await tripTransition(page)).overlay, "換頁時要有「正在整理您的行程」遮罩").toBe(true);
+  // 第一個事故也一樣：有待辦就捲到理賠待辦（#449）
+  await expect(page.getByTestId("todos-section")).toBeInViewport();
+  expect(await scrolledTo(page)).toContain("todos-section");
+});
+
+// #449：正式站已有用舊流程建立（不用確認、狀態 confirmed）還在追問的事故，部署後問完仍要有遮罩並進行程頁
+test("舊流程建立（不用確認）的事故問完：有遮罩，不跳彈窗，直接進行程頁並捲到理賠待辦", async ({
+  page,
+}) => {
+  const policyId = await setup(page, "legacy");
+  await spyScrollIntoView(page);
+  const created = await (
+    await page.request.post(`/api/v1/policies/${policyId}/incidents`, {
+      data: { description: "班機延誤了六小時", require_confirmation: false },
+    })
+  ).json();
+  await page.goto(`/incident/${created.incident.incident_id}`);
+  await expect(page.getByTestId("message")).toBeVisible();
+
+  await say(page, "班機延誤了六小時");
+  await watchTripTransition(page);
+  await say(page, "昨天在東京成田機場");
+
+  await expect(page).toHaveURL(new RegExp(`/trip/${policyId}\\?incident=[0-9a-f-]{36}$`), {
+    timeout: SLOW,
+  });
+  await expect(page.getByTestId("trip-incident")).toHaveCount(1);
+  await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
+  const seen = await tripTransition(page);
+  expect(seen.overlay, "換頁時要有「正在整理您的行程」遮罩").toBe(true);
+  expect(seen.cardCounts, "不能先閃出別的張數").toEqual([1]);
+  await expect(page.getByTestId("todos-section")).toBeInViewport();
+  expect(await scrolledTo(page)).toContain("todos-section");
 });
 
 test("沒確認就離開：首頁「我的行程」顯示描述中，點進去回 2-2 再跳彈窗", async ({ page }) => {

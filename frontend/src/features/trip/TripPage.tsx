@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { deleteTripDocument, patchTripTodo, sendIncidentMessage } from "../../client";
-import type { DocumentView, TodoView, TripOut } from "../../client/types.gen";
+import type { DocumentView, TodoView, TripIncidentOut, TripOut } from "../../client/types.gen";
 import { ActionBar } from "../../components/ui/ActionBar";
 import { btn, btnPri, btnSm } from "../../components/ui/buttons";
 import { Dialog, DialogShell } from "../../components/ui/DialogShell";
@@ -9,11 +9,13 @@ import { Pill, ProgressPill } from "../../components/ui/Tag";
 import { GoogleAuthResult } from "../google/GoogleAuthResult";
 import { ConfirmDialog } from "../incident/ConfirmDialog";
 import { type ChatLine, DescribeChat } from "../incident/DescribeChat";
+import { ReminderNotice } from "../incident/ReminderNotice";
 import { card, errorText, policyMeta, tripTitle, useIncident, wideMain } from "../incident/shared";
 import { TripIncidentCard } from "./TripIncidentCard";
 import { TripSendBox } from "./TripSendBox";
-import { TripTodoCards, tripProgress } from "./TripTodoCards";
+import { TripTodoCards, tripPending, tripProgress } from "./TripTodoCards";
 import { TripUploader } from "./TripUploader";
+import { useReminderPolling } from "./useReminderPolling";
 import { useTrip } from "./useTrip";
 
 const H2 = "m-0 t-section-title text-heading";
@@ -30,6 +32,13 @@ const QA_SIDE_HANDLE = "max-lg:[@media(orientation:landscape)_and_(max-height:50
 // 程式觸發的捲動最多等這麼久（ms）才放開自動切換
 const READING_LINE = 48;
 const AUTO_SCROLL_MS = 1200;
+// `scrollTo` 放事故 id 就是捲到那張事故卡；放這個值是捲到「理賠待辦」區塊（#449）
+const TODOS_TARGET = "@todos";
+
+/** 這個事故有待辦（在保障內而且有待辦項目）：資訊不足、不在保障範圍的事故沒有 */
+function hasTodos(incident: TripIncidentOut): boolean {
+  return incident.covered && incident.todos.length > 0;
+}
 
 /**
  * 行程頁（規格 2-3，ADR-0029）：一張保單的所有事故收在一頁——事故卡、重大注意事項、待辦（依事故分組加
@@ -41,14 +50,19 @@ export function TripPage({
   trip,
   googleUser,
   initialIncidentId,
+  scrollToTodos = false,
 }: {
   policyId: string;
   trip: TripOut;
   googleUser: boolean;
   /** 從某個事故導過來（`?incident=`）：預設選中並展開它；不在這個行程裡就忽略 */
   initialIncidentId?: string;
+  /** 在 2-2g 按確認進來（#449）：選中的事故有待辦就捲到理賠待辦，不是捲到事故卡 */
+  scrollToTodos?: boolean;
 }) {
   const { setTrip, refresh } = useTrip(policyId);
+  // 提醒信寄出後不用重新整理：這一輪還有信沒寄時自動重新讀取（只有 Google 登入的使用者會收到信）
+  useReminderPolling(trip.reminder_rounds, googleUser && !trip.locked, refresh);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // 選中的事故一定展開；其他的按「▸」展開，展開過的維持展開（規格 7.3.1）
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -58,13 +72,14 @@ export function TripPage({
   const [error, setError] = useState<string | null>(null);
   // 每個事故的問答分開：輸入框裡打到一半的字也各存各的（規格 7.3.5）
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  // 按「問答」後左欄要捲到哪個事故（規格 7.3：該事故總結頂端對齊問答框頂端）
+  // 按「問答」後左欄要捲到哪個事故（規格 7.3：該事故總結頂端對齊問答框頂端）；也可以是理賠待辦區塊（#449）
   const [scrollTo, setScrollTo] = useState<string | null>(null);
   // 剛問完的事故：快取裡可能還是舊的行程（還沒有這個事故），資料更新後才找得到，所以用 effect 套用一次
   const appliedInitial = useRef<string | null>(null);
   // 程式觸發的捲動進行中（按「問答」、從事故導過來）：這段時間不自動切換問答
   const programmaticScroll = useRef(false);
   const summaryRef = useRef<HTMLElement>(null); // 「狀況總結」區塊：捲動自動切換以它為範圍
+  const todosRef = useRef<HTMLElement>(null); // 「理賠待辦」區塊：確認後有待辦就捲到這裡（#449）
   const [qaOpen, setQaOpen] = useState(false); // 只在手機有意義：問答面板是否拉開
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
@@ -87,9 +102,15 @@ export function TripPage({
     appliedInitial.current = initialIncidentId;
     setSelectedId(initialIncidentId);
     setExpanded((prev) => new Set(prev).add(initialIncidentId));
-    // 導過來的事故不是第一個時，捲到它
-    if (initialIncidentId !== trip.incidents[0]?.id) setScrollTo(initialIncidentId);
-  }, [initialIncidentId, trip.incidents]);
+    const incident = trip.incidents.find((i) => i.id === initialIncidentId);
+    if (scrollToTodos && incident && hasTodos(incident)) {
+      // 剛在 2-2g 確認、有待辦：直接帶到待辦（第一個事故也一樣）
+      setScrollTo(TODOS_TARGET);
+    } else if (initialIncidentId !== trip.incidents[0]?.id) {
+      // 導過來的事故不是第一個時，捲到它（資訊不足沒有待辦，也停在事故卡）
+      setScrollTo(initialIncidentId);
+    }
+  }, [initialIncidentId, scrollToTodos, trip.incidents]);
   const { done, total } = tripProgress(trip);
 
   // 事故卡展開、面板拉開後再捲：先等這一輪畫面更新完。問答框固定在上方（top-6），事故卡留同樣的上緣
@@ -101,22 +122,22 @@ export function TripPage({
     // 它的 scrollend 比平滑捲動早，太早放開會讓途中的卡片把選中搶走，平滑捲動也跟著被打斷
     programmaticScroll.current = true;
     const target = scrollTo;
+    const targetEl = () =>
+      target === TODOS_TARGET
+        ? todosRef.current
+        : document.querySelector(`[data-incident-id="${target}"]`);
     const release = () => {
       programmaticScroll.current = false;
       window.removeEventListener("scrollend", onScrollEnd);
       window.clearTimeout(timer);
     };
     const onScrollEnd = () => {
-      const top = document
-        .querySelector(`[data-incident-id="${target}"]`)
-        ?.getBoundingClientRect().top;
+      const top = targetEl()?.getBoundingClientRect().top;
       if (top === undefined || top <= READING_LINE) release();
     };
     const timer = window.setTimeout(release, reduce ? 100 : AUTO_SCROLL_MS);
     window.addEventListener("scrollend", onScrollEnd);
-    document
-      .querySelector(`[data-incident-id="${scrollTo}"]`)
-      ?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
+    targetEl()?.scrollIntoView({ block: "start", behavior: reduce ? "auto" : "smooth" });
     setScrollTo(null);
   }, [scrollTo]);
 
@@ -345,7 +366,12 @@ export function TripPage({
             </section>
           )}
 
-          <section className="flex flex-col gap-4" aria-label="理賠待辦">
+          <section
+            ref={todosRef}
+            className="flex flex-col gap-4"
+            aria-label="理賠待辦"
+            data-testid="todos-section"
+          >
             <h2 className={H2}>理賠待辦</h2>
             {total === 0 ? (
               <p className="m-0 t-body text-muted" data-testid="no-todos">
@@ -384,6 +410,14 @@ export function TripPage({
             )}
           </section>
 
+          {/* 提醒信說明（ADR-0031）：只有 Google 登入的使用者會收到。
+              送件或結案後不再寄，但寄過信的話仍顯示寄送進度（最後一輪標成已結束） */}
+          {googleUser && (!locked || trip.reminder_rounds.length > 0) && (
+            <ReminderNotice
+              missingUploads={tripPending(trip).missingUploads}
+              rounds={trip.reminder_rounds}
+            />
+          )}
           <TripSendBox policyId={policyId} trip={trip} />
         </div>
 
@@ -456,8 +490,11 @@ export function TripPage({
           busy={false}
           error={null}
           mode="update"
-          // 事故早就確認過（再呼叫 confirmIncident 會回 409）：「確認」只關彈窗
-          onConfirm={() => setReconfirmId(null)}
+          // 事故早就確認過（再呼叫 confirmIncident 會回 409）：「確認」只關彈窗；有待辦就捲到理賠待辦（#449）
+          onConfirm={() => {
+            setReconfirmId(null);
+            if (selected && hasTodos(selected)) setScrollTo(TODOS_TARGET);
+          }}
           onSupplement={() => {
             focusAskAfterClose.current = true;
             setReconfirmId(null);

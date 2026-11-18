@@ -1,5 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
-import { expectPaper, login } from "./helpers";
+import { expectPaper, login, scrolledTo, spyScrollIntoView } from "./helpers";
 
 // 行程頁（/trip/$policyId，ADR-0029）：一張保單的所有事故收在一頁。
 // 事故用 API 快速備好（假 5 號問到結束）。需要測試登入與條款庫、方案資料（make seed）。
@@ -702,6 +702,7 @@ async function askInTrip(page: Page, text: string) {
 
 test("問答補完資訊讓結論有變：再跳確認彈窗，「確認」只關彈窗，不呼叫確認 API", async ({ page }) => {
   const { policyId } = await setup(page, "reconfirm", ["班機延誤了六小時"]);
+  await spyScrollIntoView(page);
   await page.goto(`/trip/${policyId}`);
   const confirmCalls: string[] = [];
   page.on("request", (r) => {
@@ -722,6 +723,42 @@ test("問答補完資訊讓結論有變：再跳確認彈窗，「確認」只�
   await expect(dialog).toBeHidden();
   expect(confirmCalls).toEqual([]);
   await expect(page).toHaveURL(new RegExp(`/trip/${policyId}`));
+  // 這裡補完後變成不在保障範圍、沒有待辦：不捲到理賠待辦（#449）
+  expect(await scrolledTo(page)).not.toContain("todos-section");
+});
+
+// 假 5 號補完後只會變成不在保障範圍（沒有待辦），所以用行程 API 的回應模擬「補完後有待辦」：
+// 補充前照原樣，補充後把待辦與「在保障內」補回去（只改回應，不動資料）
+test("再跳的確認彈窗按「確認」：該事故有待辦就捲到理賠待辦（#449）", async ({ page }) => {
+  const { policyId } = await setup(page, "reconfirm-scroll", ["班機延誤了六小時"]);
+  let before: { covered: boolean; todos: unknown[] } | null = null;
+  await page.route(`**/api/v1/policies/${policyId}/trip`, async (route) => {
+    try {
+      const response = await route.fetch();
+      const body = await response.json();
+      const incident = body.incidents[0];
+      if (!before) before = { covered: incident.covered, todos: incident.todos };
+      else {
+        incident.covered = before.covered;
+        incident.todos = before.todos;
+      }
+      await route.fulfill({ response, json: body });
+    } catch {
+      // 測試結束時還在進行的重新讀取：不算錯
+    }
+  });
+  await spyScrollIntoView(page);
+  await page.goto(`/trip/${policyId}`);
+  await expect(page.getByTestId("trip-incident")).toBeVisible();
+  await askInTrip(page, "這樣不理賠嗎？");
+
+  const dialog = page.getByTestId("confirm-dialog");
+  await expect(dialog).toBeVisible();
+  expect(await scrolledTo(page)).not.toContain("todos-section"); // 彈窗還開著，還沒捲
+  await dialog.getByTestId("confirm-yes").click();
+  await expect(dialog).toBeHidden();
+  await expect.poll(() => scrolledTo(page)).toContain("todos-section");
+  await expect(page.getByTestId("todos-section")).toBeInViewport();
 });
 
 test("再跳的確認彈窗按「還要補充或修改」：關彈窗，焦點回到問答輸入框", async ({ page }) => {
