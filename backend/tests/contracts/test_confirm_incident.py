@@ -41,7 +41,20 @@ async def talk_until_finished(client: AsyncClient, incident_id: str) -> dict:
 
 def test_狀態轉換表() -> None:
     f = next_confirmation
+    # 已確認：只有「問完 + 結論或適用待辦有變」才跳（補完資訊後再確認，#445），狀態維持已確認
     assert f("confirmed", finished=True, changed=True) == ("confirmed", False)
+    assert f("confirmed", finished=True, changed=True, outcome_changed=False) == (
+        "confirmed",
+        False,
+    )
+    assert f("confirmed", finished=True, changed=True, outcome_changed=True) == (
+        "confirmed",
+        True,
+    )
+    assert f("confirmed", finished=False, changed=True, outcome_changed=True) == (
+        "confirmed",
+        False,
+    )
     assert f("clarifying", finished=True, changed=False) == ("awaiting", True)
     assert f("clarifying", finished=False, changed=True) == ("clarifying", False)
     # 等確認時：沒變不論 finished 都維持、不跳；有變且 finished 再跳；有變但沒問完退回
@@ -202,3 +215,109 @@ async def test_還在問的事件不能確認(client: AsyncClient, policy: Polic
 async def test_別人的事件確認回_404(client: AsyncClient) -> None:
     response = await client.post(f"/incidents/{uuid.uuid4()}/confirm")
     assert response.status_code == 404
+
+
+class _InsufficientUntilActual(FakeIncidentAgent):
+    """問完先是資訊不足（沒有待辦）；使用者補了「實際」的資訊才變成可能適用（Demo 的班機延誤）。"""
+
+    async def reply(self, ctx, user_message, input_mode, services):  # type: ignore[override]
+        reply = await super().reply(ctx, user_message, input_mode, services)
+        if not reply.finished:
+            return reply
+        actual = any("實際" in m.content for m in ctx.messages if m.role == "user")
+        if actual:
+            return reply
+        return reply.model_copy(
+            update={
+                "clauses": [
+                    c.model_copy(update={"conclusion": "insufficient"})
+                    for c in reply.clauses or []
+                ],
+                "todos": [],
+            }
+        )
+
+
+async def _confirmed_incident(client: AsyncClient, policy: Policy) -> str:
+    """一般建立（不經確認彈窗，像行程已有事件時的新狀況）並問完；問完的每一輪都不該跳彈窗。"""
+    created = await client.post(
+        f"/policies/{policy.id}/incidents", json={"description": "班機延誤了"}
+    )
+    assert created.status_code == 201, created.text
+    incident_id = created.json()["incident"]["incident_id"]
+    for i in range(6):
+        body = (
+            await client.post(
+                f"/incidents/{incident_id}/messages",
+                json={"content": "班機延誤了六小時" if i == 0 else "不知道"},
+            )
+        ).json()
+        assert body["confirmation"] == "confirmed"
+        assert body["show_confirm"] is False  # 第一次問完不是「補完資訊後」，不跳
+        if body["reply"]["finished"]:
+            return incident_id
+    raise AssertionError("5 號一直沒結束")
+
+
+async def test_已確認的事件_補完資訊讓結論從資訊不足變成可申請_跳彈窗_狀態維持已確認(
+    client: AsyncClient, policy: Policy, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "app.api.routes.incidents.get_incident_agent", _InsufficientUntilActual
+    )
+    incident_id = await _confirmed_incident(client, policy)
+    before = (await client.get(f"/incidents/{incident_id}")).json()
+    assert {c["conclusion"] for c in before["clauses"]} == {"insufficient"}
+
+    body = (
+        await client.post(
+            f"/incidents/{incident_id}/messages", json={"content": "實際 16:45 起飛"}
+        )
+    ).json()
+    assert body["changed"] is True
+    assert body["show_confirm"] is True
+    assert body["confirmation"] == "confirmed"
+    after = (await client.get(f"/incidents/{incident_id}")).json()
+    assert {c["conclusion"] for c in after["clauses"]} == {"applicable"}
+
+
+async def test_已確認的事件_只問條款_結論沒變_不跳彈窗(
+    client: AsyncClient, policy: Policy
+) -> None:
+    incident_id = await _confirmed_incident(client, policy)
+    body = (
+        await client.post(
+            f"/incidents/{incident_id}/messages", json={"content": "這樣會賠嗎？"}
+        )
+    ).json()
+    assert body["changed"] is False
+    assert body["show_confirm"] is False
+    assert body["confirmation"] == "confirmed"
+
+
+async def test_已確認的事件_只改了事實_結論與待辦沒變_不跳彈窗(
+    client: AsyncClient, policy: Policy, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.contracts import FactUpdate
+
+    incident_id = await _confirmed_incident(client, policy)
+
+    class OnlyFact(FakeIncidentAgent):
+        async def reply(self, ctx, user_message, input_mode, services):  # type: ignore[override]
+            reply = await super().reply(ctx, user_message, input_mode, services)
+            return reply.model_copy(
+                update={
+                    "facts": [
+                        FactUpdate(fact_key="place", label="發生地點", value="成田機場")
+                    ]
+                }
+            )
+
+    monkeypatch.setattr("app.api.routes.incidents.get_incident_agent", OnlyFact)
+    body = (
+        await client.post(
+            f"/incidents/{incident_id}/messages", json={"content": "在成田機場"}
+        )
+    ).json()
+    assert body["changed"] is True  # 事實有變
+    assert body["show_confirm"] is False  # 但結論與待辦都沒變，不跳

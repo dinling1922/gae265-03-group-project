@@ -141,6 +141,37 @@ test.describe("共用元件預覽", () => {
     );
     expect(overflow).toBe(false);
   });
+
+  test("提醒信說明：點「查看預設提醒信內容」打開內容來源與範例，關閉後回到原處", async ({
+    page,
+  }) => {
+    const section = page.getByRole("region", { name: "提醒信說明" });
+    const notice = section.getByTestId("reminder-notice");
+    await expect(notice).toContainText(
+      "還缺文件滿 24 小時，會寄提醒信到你的 Google 信箱；之後每 3 天一封，最多 3 封。",
+    );
+    await expect(notice).toContainText(
+      "寄出提醒信後再新增理賠待辦，計時即重新開始，前次還沒寄的信就不繼續寄。",
+    );
+    await section.getByTestId("reminder-template-open").click();
+    const dialog = page.getByTestId("reminder-template");
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByTestId("reminder-template-source")).toContainText(
+      "你的 Google 帳號名稱",
+    );
+    await expect(dialog.getByTestId("reminder-template-rules")).toContainText(
+      "（11/21 新增事故「生病或受傷就醫 · 2026/11/21」重新提醒）",
+    );
+    await expect(dialog.getByTestId("reminder-template-sample")).toContainText(
+      "【好險有你 Tripcare】日本 2026/07/05～07/10 還有理賠文件尚未上傳",
+    );
+    await expect(dialog.getByTestId("reminder-template-sample")).toContainText(
+      "提醒：理賠申請有規定期限，應盡早準備。",
+    );
+    await dialog.getByRole("button", { name: "關閉" }).click();
+    await expect(dialog).toBeHidden();
+    await expect(section.getByTestId("reminder-template-open")).toBeFocused();
+  });
 });
 
 // 處理清單原型（#290、規格 #287）：靜態示意，涵蓋票上所有狀態

@@ -6,7 +6,8 @@ import { card } from "../incident/shared";
 const TAG = "rounded-xl px-2.5 py-0.5 text-[13px] leading-5 font-bold";
 
 /**
- * 行程頁的事故卡（規格 2-3a）：標題列＝事故類型與發生日期、標籤；沒選中的事故右側有「問答」與「▸」。
+ * 行程頁的事故卡（規格 2-3a）：標題列＝事故類型與發生日期、標籤；沒選中的事故右側有「問答」與「▸」，
+ * 選中的事故在手機版也有「問答」（桌機的右欄已經在顯示它）。
  * 選中的事故一定展開（右欄問答顯示它的對話）；其他預設收起，按「▸」展開。
  */
 export function TripIncidentCard({
@@ -80,10 +81,21 @@ export function TripIncidentCard({
             </button>
           </span>
         )}
+        {selected && !locked && (
+          // 桌機問答是固定右欄、已經在顯示選中的事故；手機面板預設收起，選中的事故也要有入口（#422）
+          <button
+            type="button"
+            className={`${btnSm} ml-auto lg:hidden`}
+            onClick={onAsk}
+            data-testid="incident-ask-mobile"
+          >
+            問答
+          </button>
+        )}
       </div>
       {insufficient && (
         <p className="m-0 t-caption text-muted" data-testid="insufficient-note">
-          目前的資訊還無法判斷能不能理賠，可以在問答補充說明。
+          目前的資訊還無法判斷能不能理賠，所以還沒有待辦。在問答補充說明後會重新判斷，符合的話就會產生待辦。
         </p>
       )}
       <IncidentCardBody ctx={incident} id={bodyId} hidden={!open} />

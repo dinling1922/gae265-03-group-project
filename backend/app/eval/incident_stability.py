@@ -35,7 +35,7 @@ UNKNOWN = "不知道"
 ASK_AGAIN = "沒有聽懂"  # 5 號重問同一題時的說法
 # 問答退回貼條款原文時的開頭（adapters._original）；出現就表示沒有白話說明
 ORIGINAL_NOTICE = "（無法產生白話說明，以下直接列出條款原文。）"
-FOLLOW_UP_KINDS = ("new_situation", "qa", "excluded")
+FOLLOW_UP_KINDS = ("new_situation", "qa", "excluded", "applicable")
 
 
 @dataclass(frozen=True)
@@ -46,6 +46,8 @@ class FollowUp:
       所以前後一律比對。
     - excluded：旅客更正延誤時數或起飛時間（#384），重新判斷後結論要是不在保障範圍，劇本預期的文件
       不再適用；狀況會跟著更正，所以不比對狀況。
+    - applicable：旅客補充了原本缺的資訊（#451），問完那一刻的結論還不是可申請，補充後重新判斷要變成可申請，
+      而且劇本預期的文件要出現在適用的待辦裡（這種劇本的成功判定看的是補充之後，不是問完那一刻）。
     """
 
     say: str
@@ -148,6 +150,10 @@ def judge_follow_up(
     message = reply["message"]
     if expect == "excluded":
         return _judge_excluded(message, after, expect_documents, after_documents)
+    if expect == "applicable":
+        return _judge_applicable(
+            message, before, after, expect_documents, after_documents
+        )
     if expect == "new_situation":
         if message != NEW_SITUATION_MESSAGE:
             return "沒有回新狀況的固定訊息"
@@ -187,6 +193,29 @@ def _judge_excluded(
     return None
 
 
+def _judge_applicable(
+    message: str,
+    before: Snapshot,
+    after: Snapshot,
+    expect_documents: frozenset[str],
+    after_documents: frozenset[str],
+) -> str | None:
+    """補充資訊之後要重新下結論：不能被守門反問、貼條款原文或當成新狀況，結論變成可申請、預期的文件適用。"""
+    if message == NEW_SITUATION_MESSAGE:
+        return "回了新狀況的固定訊息，沒有重新判斷"
+    if message in GATE_MESSAGES.values():
+        return "被守門擋下，沒有重新判斷"
+    if message.startswith(ORIGINAL_NOTICE):
+        return "退回貼條款原文，沒有重新判斷"
+    if "applicable" in before[1]:
+        return "問完那一刻就已經是可申請，劇本沒有測到補充後的回填"
+    if "applicable" not in after[1]:
+        return f"補充後結論沒有變成可申請（{'、'.join(after[1]) or '沒有結論'}）"
+    if missing := expect_documents - after_documents:
+        return f"預期的文件沒有出現：{'、'.join(sorted(missing))}"
+    return None
+
+
 async def _post(client: httpx.AsyncClient, url: str, body: dict[str, Any]) -> Any:
     response = await client.post(url, json=body)
     response.raise_for_status()
@@ -221,6 +250,7 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
     follow_up_problem: str | None = None
     follow_up_reply: str | None = None
     follow_up_conclusions: list[str] = []
+    after_documents: list[str] | None = None
     if s.follow_up:
         # 後續句不算進輪數與秒數，原本的待辦與結論也只看問完那一刻的事件
         if data["reply"].get("finished"):
@@ -234,19 +264,24 @@ async def run_once(client: httpx.AsyncClient, policy_id: str, s: Scenario) -> Ru
             after = data["incident"]
             follow_up_reply = data["reply"]["message"]
             follow_up_conclusions = _snapshot(after)[1]
+            after_documents = _applicable_documents(after)
             follow_up_problem = judge_follow_up(
                 s.follow_up.expect,
                 data["reply"],
                 before,
                 _snapshot(after),
                 expect_documents=s.expect_documents,
-                after_documents=frozenset(_applicable_documents(after)),
+                after_documents=frozenset(after_documents),
             )
         else:
             follow_up_problem = "對話沒有問完，沒有送後續句"
     documents = _applicable_documents(incident)
+    # 補充類後續句的劇本：問完那一刻本來就還不是可申請，成功與否看補充之後（後續句的判斷已含文件）
+    supplement = s.follow_up is not None and s.follow_up.expect == "applicable"
     return Run(
-        ok=s.expect_documents <= set(documents),
+        ok=(follow_up_problem is None)
+        if supplement
+        else s.expect_documents <= set(documents),
         documents=documents,
         conclusions=[c["conclusion"] for c in incident["clauses"]],
         facts={f["fact_key"]: f["value"] for f in incident["facts"]},
@@ -369,10 +404,10 @@ def render_report(
         corrections = [
             s
             for s in with_follow_up
-            if s.follow_up and s.follow_up.expect == "excluded"
+            if s.follow_up and s.follow_up.expect in ("excluded", "applicable")
         ]
         if corrections:
-            lines += ["### 更正類後續句的每次回覆與結論", ""]
+            lines += ["### 更正、補充類後續句的每次回覆與結論", ""]
             for s in corrections:
                 for i, r in enumerate(results[s.name], 1):
                     lines.append(

@@ -2,12 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { createIncident } from "../client";
-import { listPoliciesOptions, listTripsOptions } from "../client/@tanstack/react-query.gen";
+import { listPoliciesOptions } from "../client/@tanstack/react-query.gen";
 import { ActionBar } from "../components/ui/ActionBar";
 import { btn, lnk } from "../components/ui/buttons";
 import { PageHead } from "../components/ui/PageHead";
 import { DescribeChat, FIRST_QUESTION } from "../features/incident/DescribeChat";
-import { errorText, policyMeta, tripTitle } from "../features/incident/shared";
+import { errorText, FOCUS_ASK_STATE, policyMeta, tripTitle } from "../features/incident/shared";
 
 export const Route = createFileRoute("/_authed/incident/new/$policyId")({
   component: DescribePage,
@@ -25,9 +25,6 @@ function DescribePage() {
   const navigate = useNavigate();
   const policies = useQuery(listPoliciesOptions());
   const policy = policies.data?.find((p) => p.id === policyId);
-  // 行程已經有事件時，這是行程頁的「新狀況」：不跳 2-2g 確認彈窗（規格 v3.10）；第一次描述才要確認
-  const trips = useQuery(listTripsOptions());
-  const hasTrip = trips.data?.some((t) => t.policy_id === policyId && t.incident_count > 0);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   // 剛送出、事件還沒建好的那句話：先顯示在對話裡，換頁後由追問頁的訊息接手
@@ -41,8 +38,8 @@ function DescribePage() {
     setError(null);
     const res = await createIncident({
       path: { policy_id: policyId },
-      // 第一次描述的事件要等使用者在確認彈窗按確認才進行程（#345）
-      body: { description: content, require_confirmation: !hasTrip },
+      // 事件要等使用者在 2-2g 確認彈窗按確認才進行程（#345）；行程頁的「新狀況」也一樣（#449）
+      body: { description: content, require_confirmation: true },
     });
     if (!res.data) {
       setPending(null);
@@ -53,10 +50,12 @@ function DescribePage() {
       to: "/incident/$id",
       params: { id: res.data.incident.incident_id },
       replace: true,
+      // 告訴追問頁：旅客剛送出描述，輸入框要自動對焦（只有這一次換頁，#441）
+      state: (prev) => ({ ...prev, ...FOCUS_ASK_STATE }),
     });
   }
 
-  if (policies.isPending || trips.isPending) return <p className="font-ui">載入中…</p>;
+  if (policies.isPending) return <p className="font-ui">載入中…</p>;
   if (!policy) {
     return (
       <main data-page-paper className="mx-auto flex max-w-[1040px] flex-col gap-4 font-ui md:px-6">

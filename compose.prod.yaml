@@ -2,6 +2,25 @@
 # 設定讀根目錄 .env（範例見 .env.prod.example）；沒有 pgAdmin，資料庫不對外開 port
 name: gae265_03_group_project_prod
 
+# worker、beat、Flower 共用 backend 的 image 與設定（ADR-0031）；不套用 migration，由 backend 負責
+x-celery-common: &celery-common
+  image: ghcr.io/kurotyan514/gae265-03-group-project-backend:${IMAGE_TAG:-local}
+  restart: unless-stopped
+  env_file: .env
+  environment:
+    ENVIRONMENT: production
+    POSTGRES_SERVER: db
+    POSTGRES_PORT: 5432
+    POSTGRES_USER: ${POSTGRES_USER:-postgres}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請在 .env 設定 POSTGRES_PASSWORD}
+    POSTGRES_DB: ${POSTGRES_DB:-gae265_03_group_project}
+    REDIS_URL: redis://redis:6379/0
+  depends_on:
+    redis:
+      condition: service_healthy
+    backend:
+      condition: service_healthy
+
 services:
   db:
     image: pgvector/pgvector:pg18
@@ -35,6 +54,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?請在 .env 設定 POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-gae265_03_group_project}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       db:
         condition: service_healthy
@@ -44,6 +64,44 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  # 背景工作（ADR-0031）：Redis 只當佇列，不保存資料、不對外開 port
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    <<: *celery-common
+    command: ["celery", "-A", "app.worker:celery_app", "worker", "--loglevel=INFO", "--concurrency=1"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker:celery_app inspect ping -d celery@$$HOSTNAME --timeout 5"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 20s
+
+  beat:
+    <<: *celery-common
+    command: ["celery", "-A", "app.worker:celery_app", "beat", "--loglevel=INFO", "--schedule=/tmp/celerybeat-schedule"]
+
+  # 一直開著，由 Caddy 轉到 https://<網域>/flower；帳號密碼是 .env 的 FLOWER_BASIC_AUTH（Flower 自己讀）。
+  # 沒設帳號密碼就拒絕啟動，不會出現免登入的 Flower；不對外開 port，只能經過 Caddy
+  flower:
+    <<: *celery-common
+    # 沒設帳號密碼時只重試幾次就停，不一直重啟
+    restart: on-failure:3
+    command:
+      - sh
+      - -c
+      - >-
+        test -n "$$FLOWER_BASIC_AUTH" || { echo '請在 .env 設定 FLOWER_BASIC_AUTH（帳號:密碼）' >&2; exit 1; };
+        exec celery -A app.worker:celery_app flower --port=5555 --url_prefix=flower
 
   caddy:
     image: ghcr.io/kurotyan514/gae265-03-group-project-caddy:${IMAGE_TAG:-local}

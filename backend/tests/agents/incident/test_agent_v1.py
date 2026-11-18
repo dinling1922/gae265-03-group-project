@@ -9,6 +9,7 @@ from datetime import date
 import pytest
 from app.agents.incident import ExtractResult, IncidentAgentV1, QAResult
 from app.agents.incident.adapters import agent_answerer
+from app.agents.incident.agent import NOT_UNDERSTOOD_MESSAGE
 from app.contracts import AgentServices, IncidentContext, IncidentReply
 from app.contracts.common import (
     ClauseView,
@@ -197,7 +198,8 @@ async def test_不知道實際起飛時間_資訊不足以判斷() -> None:
 
 async def test_保單有保險期間但不知道事故日期_資訊不足以判斷() -> None:
     ctx = make_ctx(
-        facts={**ALMOST_DONE, "date": "不知道"},
+        # 實際起飛日期也不知道：有實際日期時會用它推定事故日（#451），這裡測的是兩個日期都沒有
+        facts={**ALMOST_DONE, "date": "不知道", "dep_act_date": "不知道"},
         start=date(2026, 11, 1),
         end=date(2026, 11, 8),
     )
@@ -1295,6 +1297,24 @@ async def test_問答不是更正時_照樣守門() -> None:
     )
 
     assert "這和旅途中的事故或保險理賠有關嗎" in reply.message
+
+
+async def unrelated(_text: str) -> str:
+    return "unrelated"
+
+
+async def test_已有結論的事故_問答裡被判無關的句子_回看不懂_狀況與待辦不變() -> None:
+    """只回「是」這類句子守門判成無關，不能回「沒有可以申請理賠的項目」（#426）。"""
+    ctx = make_ctx(facts={**ALMOST_DONE, "first_alt": "是"}, type_code="flight_delay")
+
+    reply = await agent(gate=unrelated, revise=revising()).reply(
+        ctx, "是", "text", SERVICES
+    )
+
+    assert reply.message == NOT_UNDERSTOOD_MESSAGE
+    assert "沒有可以申請理賠的項目" not in reply.message
+    assert reply.facts == [] and reply.clauses is None and reply.todos is None
+    assert reply.incident_type_code is None
 
 
 async def test_問到一半更正前面的答案_更新後繼續問目前這題() -> None:

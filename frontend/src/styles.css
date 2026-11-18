@@ -308,3 +308,173 @@ body {
 body:has([data-page-paper]) {
   background-color: var(--color-paper);
 }
+
+/* 保單上傳的縮圖流光（#444）：一道淡綠色的光掃過縮圖；解析中循環、完成時掃一次；系統設為減少動態就不顯示 */
+@keyframes policy-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.policy-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--color-leaf) 35%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+}
+
+.policy-sweep[data-run="loop"] {
+  animation: policy-sweep 1.4s ease-in-out infinite;
+}
+
+.policy-sweep[data-run="once"] {
+  animation: policy-sweep 0.9s ease-out 1 forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .policy-sweep {
+    display: none;
+  }
+}
+
+/* 送件等待視窗（SubmitProgressDialog）：寄出時信封往右飛、建立草稿時鉛筆一行一行寫；系統設為減少動態就不動 */
+@keyframes send-fly {
+  0% {
+    transform: translate(-24px, 4px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    transform: translate(18px, -4px);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(52px, -10px);
+    opacity: 0;
+  }
+}
+
+@keyframes send-speed {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translateX(8px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.send-fly {
+  animation: send-fly 1.4s ease-in-out infinite;
+}
+
+.send-speed {
+  animation: send-speed 0.7s ease-in-out infinite;
+}
+
+@keyframes draft-line {
+  0%,
+  8% {
+    stroke-dashoffset: 64;
+  }
+  30%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draft-pencil {
+  0% {
+    transform: translate(48px, 22px);
+  }
+  30% {
+    transform: translate(112px, 22px);
+  }
+  33% {
+    transform: translate(48px, 36px);
+  }
+  63% {
+    transform: translate(112px, 36px);
+  }
+  66% {
+    transform: translate(48px, 50px);
+  }
+  86%,
+  100% {
+    transform: translate(88px, 50px);
+  }
+}
+
+.draft-line {
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: draft-line 2.4s linear infinite;
+}
+
+.draft-line-2 {
+  animation-name: draft-line-2;
+}
+
+.draft-line-3 {
+  animation-name: draft-line-3;
+}
+
+@keyframes draft-line-2 {
+  0%,
+  33% {
+    stroke-dashoffset: 64;
+  }
+  63%,
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes draft-line-3 {
+  0%,
+  66% {
+    stroke-dashoffset: 64;
+  }
+  86%,
+  100% {
+    stroke-dashoffset: 24;
+  }
+}
+
+.draft-pencil {
+  animation: draft-pencil 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .send-fly,
+  .send-speed,
+  .draft-pencil {
+    animation: none;
+  }
+
+  .send-fly {
+    opacity: 1;
+  }
+
+  .draft-pencil {
+    transform: translate(112px, 36px);
+  }
+
+  .draft-line {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
