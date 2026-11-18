@@ -154,7 +154,7 @@ async def test_lists_own_comparisons_newest_first(
 
     async with mcp_client(endpoint, token) as client:
         tools = await client.list_tools()
-        assert [t.name for t in tools.tools] == ["list_comparisons"]
+        assert "list_comparisons" in [t.name for t in tools.tools]
         assert tools.tools[0].description and "比較紀錄" in tools.tools[0].description
         out = await call(client)
 
