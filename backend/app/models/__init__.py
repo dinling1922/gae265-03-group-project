@@ -30,6 +30,7 @@ from app.models.insurance import (
     RuleEmbedding,
 )
 from app.models.itinerary import ItineraryActivity
+from app.models.mcp_call_log import McpCallLog
 from app.models.plan_data import PlanBenefit, PlanPremium
 from app.models.policy import Policy, PolicyAddon
 from app.models.reminder import ReminderLetter
@@ -56,6 +57,7 @@ __all__ = [
     "ExcludedRule",
     "InsuranceRule",
     "ItineraryActivity",
+    "McpCallLog",
     "Message",
     "MessageCitation",
     "PlanBenefit",
