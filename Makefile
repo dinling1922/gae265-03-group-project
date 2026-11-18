@@ -104,6 +104,14 @@ e2e: ## 執行 e2e 冒煙測試（先 make up；前端不在 localhost:5173 時�
 e2e-fake: ## 另起「假 5 號」的後端與前端（埠 8001／5174）再跑 e2e；docker 開發環境的 5 號是真實實作，完整 e2e 要用這個（先 make up；args 傳給 playwright）
 	scripts/e2e-fake.sh $(args)
 
+.PHONY: worktree-setup
+worktree-setup: ## 新開的 git worktree 先跑這個：.env 連回主目錄、mise trust、uv sync、pnpm install
+	@scripts/worktree-setup.sh
+
+.PHONY: dev-worktree
+dev-worktree: ## 起這個 worktree 的後端與前端（埠 8001／5174，連 docker 的資料庫），在 worktree 驗證改動（先在主目錄 make up）
+	@scripts/dev-worktree.sh
+
 .PHONY: client
 client: ## 從後端的 OpenAPI 產生前端 API client（frontend/src/client/）；改了 API 的 schema 要重跑
 	# 測試登入端點要有開旗標才會註冊；client 要包含它，所以不依賴各人的 .env
