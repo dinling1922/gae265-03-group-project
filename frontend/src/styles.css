@@ -478,3 +478,101 @@ body:has([data-page-paper]) {
     stroke-dashoffset: 0;
   }
 }
+
+/* 1-2 依日程推薦的時間軸（SuggestionTimeline）：等待時日子逐列浮現、卡片依序閃框；
+   揭曉時有風險的日子依序亮起（--d 是延遲）、上方卡片跟著勾選，其餘日子收合；系統設為減少動態就不動 */
+@keyframes sg-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes sg-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes sg-pop {
+  50% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes sg-badge {
+  0% {
+    transform: scale(0);
+  }
+  60% {
+    transform: scale(1.35);
+  }
+}
+
+@keyframes sg-collapse {
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+@keyframes sg-glow {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-leaf) 55%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 12px transparent;
+  }
+}
+
+.sg-fade-up {
+  animation: sg-fade-up 0.3s ease-out backwards;
+}
+
+.sg-day-in {
+  animation: sg-fade-up 0.3s ease-out backwards;
+  animation-delay: calc(var(--i) * 160ms + 150ms);
+}
+
+.sg-reveal-date {
+  animation: sg-pop 0.4s ease-out;
+  animation-delay: var(--d);
+}
+
+.sg-reveal-in {
+  animation: sg-slide-in 0.32s ease-out backwards;
+  animation-delay: calc(var(--d) + 80ms);
+}
+
+.sg-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  animation: sg-collapse 0.4s ease-in-out forwards;
+  animation-delay: var(--d);
+}
+
+.sg-prefill {
+  animation: sg-glow 0.9s ease-out;
+  animation-delay: var(--d);
+}
+
+.sg-prefill [data-order-badge] {
+  animation: sg-badge 0.36s ease-out backwards;
+  animation-delay: var(--d);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sg-fade-up,
+  .sg-day-in,
+  .sg-reveal-date,
+  .sg-reveal-in,
+  .sg-prefill,
+  .sg-prefill [data-order-badge] {
+    animation: none;
+  }
+
+  .sg-collapse {
+    display: none;
+  }
+}
