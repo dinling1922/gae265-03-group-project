@@ -118,7 +118,7 @@ async def get_status(session: AsyncSession, user_id: uuid.UUID) -> LineBindingSt
 # ---- 解除 ----
 
 
-async def _revoke_token_row(session: AsyncSession, token_id: uuid.UUID) -> None:
+async def revoke_token_row(session: AsyncSession, token_id: uuid.UUID) -> None:
     """撤銷權杖（不 commit）；已撤銷的不改第一次的時間。"""
     await session.exec(
         update(ApiToken)
@@ -129,7 +129,7 @@ async def _revoke_token_row(session: AsyncSession, token_id: uuid.UUID) -> None:
 
 async def remove_binding(session: AsyncSession, binding: LineBinding) -> None:
     """刪綁定並撤銷那把權杖，一個交易（不 commit，呼叫端決定）。"""
-    await _revoke_token_row(session, binding.api_token_id)
+    await revoke_token_row(session, binding.api_token_id)
     await session.delete(binding)
     await session.flush()
 
@@ -298,7 +298,7 @@ async def bind_line(
             )
         ).first()
         if consumed is None:  # 並行的另一個請求先用掉了
-            await _revoke_token_row(session, token_id)
+            await revoke_token_row(session, token_id)
             await session.commit()
             return BindResult(BindOutcome.USED)
         if old is not None:
@@ -321,7 +321,7 @@ async def bind_line(
         await session.commit()
     except IntegrityError:  # 並行的另一個請求搶先綁了同一個 LINE 或帳號
         await session.rollback()
-        await _revoke_token_row(session, token_id)
+        await revoke_token_row(session, token_id)
         await session.commit()
         return BindResult(BindOutcome.LINE_TAKEN)
     return BindResult(BindOutcome.SUCCESS, replaced=replaced)
