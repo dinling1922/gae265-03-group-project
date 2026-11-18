@@ -1,6 +1,7 @@
 """`/mcp` 端點：官方 SDK 的 streamable HTTP，外面包一層只認 Bearer 的 ASGI 守門層。
 
 守門層順序：Bearer → `authenticate_bearer`（撤銷與到期每次都查）→ scope 含 read → 每把權杖限流 → SDK。
+工具所需的範圍（write）與每個工具各自的限流在 `registry._audited` 檢查（ADR-0034）。
 - 只看 `Authorization` 標頭，完全不讀 cookie，所以 cookie session 在這條路徑沒有作用
 - 不開 CORS（不加 CORSMiddleware，也不回 Access-Control 標頭）
 - 無權杖、壞權杖、過期、撤銷都回同樣的 401，不洩漏是哪一種
@@ -18,6 +19,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.core.config import settings
 from app.domain.access_tokens import SCOPE_READ, authenticate_bearer
 from app.mcp_server.context import (
     SessionMaker,
@@ -45,11 +47,18 @@ def _bearer(scope: Scope) -> str | None:
 
 class BearerGate:
     def __init__(
-        self, inner: ASGIApp, session_maker: SessionMaker, limiter: RateLimiter
+        self,
+        inner: ASGIApp,
+        session_maker: SessionMaker,
+        limiter: RateLimiter,
+        tool_limiter: RateLimiter | None = None,
+        llm_tool_rate_limit_per_minute: int = 10,
     ) -> None:
         self.inner = inner
         self.session_maker = session_maker
         self.limiter = limiter
+        self.tool_limiter = tool_limiter
+        self.llm_tool_rate_limit_per_minute = llm_tool_rate_limit_per_minute
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -80,7 +89,14 @@ class BearerGate:
                 headers={"Retry-After": str(max(ceil(wait), 1))},
             )
             return await response(scope, receive, send)
-        token = set_tool_env(ToolEnv(identity, self.session_maker))
+        token = set_tool_env(
+            ToolEnv(
+                identity,
+                self.session_maker,
+                self.tool_limiter,
+                self.llm_tool_rate_limit_per_minute,
+            )
+        )
         try:
             await self.inner(scope, receive, send)
         finally:
@@ -103,10 +119,11 @@ def build_endpoint(
     session_maker: SessionMaker,
     rate_limit_per_minute: int,
     clock: Callable[[], float] = time.monotonic,
+    llm_tool_rate_limit_per_minute: int | None = None,
 ) -> McpEndpoint:
     server = MCPServer(
         "好險有你",
-        instructions="好險有你的唯讀資料查詢：只能讀取權杖擁有者自己的資料。",
+        instructions="好險有你的資料查詢：只能存取權杖擁有者自己的資料；需要寫入權的工具要用有寫入權的權杖。",
     )
     register_all(server)
     sdk_app = server.streamable_http_app(
@@ -120,6 +137,13 @@ def build_endpoint(
         ),
     )
     gate = BearerGate(
-        sdk_app, session_maker, RateLimiter(rate_limit_per_minute, clock=clock)
+        sdk_app,
+        session_maker,
+        RateLimiter(rate_limit_per_minute, clock=clock),
+        # 工具層限流的鍵是（權杖, 工具名稱），上限由各工具的註冊決定，所以視窗上限在這裡不用
+        RateLimiter(rate_limit_per_minute, clock=clock),
+        settings.MCP_LLM_TOOL_RATE_LIMIT_PER_MINUTE
+        if llm_tool_rate_limit_per_minute is None
+        else llm_tool_rate_limit_per_minute,
     )
     return McpEndpoint(asgi=gate, server=server)

@@ -1,9 +1,8 @@
-"""每把權杖的呼叫頻率限制（滑動視窗，單一程序內）。"""
+"""呼叫頻率限制（滑動視窗，單一程序內）：每把權杖一個、每把權杖每個工具各一個（鍵不同，互不影響）。"""
 
 import time
-import uuid
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Hashable
 
 
 class RateLimiter:
@@ -18,15 +17,16 @@ class RateLimiter:
         self.limit = limit
         self.window = window_seconds
         self._clock = clock
-        self._hits: dict[uuid.UUID, deque[float]] = defaultdict(deque)
+        self._hits: dict[Hashable, deque[float]] = defaultdict(deque)
 
-    def check(self, key: uuid.UUID) -> float | None:
-        """放行回 None 並記一次；超過回需要等幾秒。"""
+    def check(self, key: Hashable, limit: int | None = None) -> float | None:
+        """放行回 None 並記一次；超過回需要等幾秒。`limit` 給了就覆寫這次的上限（每個工具各自的上限）。"""
+        cap = self.limit if limit is None else limit
         now = self._clock()
         hits = self._hits[key]
         while hits and hits[0] <= now - self.window:
             hits.popleft()
-        if len(hits) >= self.limit:
+        if len(hits) >= cap:
             return max(hits[0] + self.window - now, 0.0)
         hits.append(now)
         return None
