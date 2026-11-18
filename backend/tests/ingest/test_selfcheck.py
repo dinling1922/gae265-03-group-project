@@ -1,4 +1,4 @@
-"""檢索自檢（上傳 API 的接縫）：入庫後每一條用標題加第一句檢索，前 N 名找得到自己算通過。
+"""檢索自檢（上傳 API 的接縫）：入庫後每一條用章、節、標題加內文開頭檢索，前 N 名找得到自己算通過。
 
 向量是確定性的假向量（相同文字相同向量）；真實 PDF、真實資料庫。
 「某幾條找不到」靠換掉檢索函式製造（假向量下很難自然重現）。
@@ -6,6 +6,7 @@
 
 import logging
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from app.api.routes import ingest as ingest_route
@@ -14,6 +15,9 @@ from app.core.config import settings
 from app.domain.rag.hybrid import search_rules
 from app.ingest import agent, selfcheck
 from app.ingest.agent import Classification
+from app.models import Insurance, InsuranceRule
+from langchain_core.embeddings import DeterministicFakeEmbedding
+from sqlmodel import select
 
 from tests.ingest.test_agent import other_company_pdf
 from tests.ingest.test_verify_upload import (  # noqa: F401
@@ -191,3 +195,160 @@ async def test_沒有待處理條文時檢索不留_log(client, session, caplog)
         await search_rules(session, "班機延誤", insurance_codes=["FUBON07"])
 
     assert not [r for r in caplog.records if "待確認條文" in r.getMessage()]
+
+
+# ---- 查詢句組法：章＋節＋標題＋內文前 120 字；內容相同的條文算找到自己 ----
+
+CLAIM_OPENING = "被保險人向本公司申請理賠時，應檢具下列文件：一、理賠申請書。"
+SAME_CONTENT = (
+    "本公司依本保險契約給付保險金後，於給付金額範圍內代位行使被保險人對第三人之請求權。"
+)
+
+
+async def add_rules(session, rules: list[tuple[int, str, str, str]]) -> None:
+    """建一個小險種 SELF01；rules 是（條號、章、標題、內文）。"""
+    insurance = Insurance(code="SELF01", name="自檢測試險種")
+    session.add(insurance)
+    await session.flush()
+    for no, section, title, content in rules:
+        session.add(
+            InsuranceRule(
+                insurance_id=insurance.id,
+                article_no=no,
+                chapter=f"條文{no}",
+                title=title,
+                content=content,
+                section=section,
+                source_file="self.pdf",
+                page_start=1,
+                page_end=1,
+            )
+        )
+    await session.commit()
+
+
+def bigram_search(session_rules: list[InsuranceRule]):
+    """只看查詢句的假檢索：跟條文（章、節、標題、內文）共有的二字詞越多排越前。
+
+    結果只由查詢句決定，所以兩條查詢句一字不差時，結果也一模一樣（真實檢索也是如此）。
+    """
+
+    def grams(text: str) -> set[str]:
+        return {text[i : i + 2] for i in range(len(text) - 1)}
+
+    async def search(_session, query, *, k, **_) -> list[Any]:
+        q = grams(query)
+        scored = sorted(
+            session_rules,
+            key=lambda r: (
+                -len(
+                    q
+                    & grams(
+                        f"{r.section or ''}{r.subsection or ''}{r.title}{r.content}"
+                    )
+                ),
+                r.article_no,
+            ),
+        )
+        return scored[:k]
+
+    return search
+
+
+async def all_rules(session) -> list[InsuranceRule]:
+    return list((await session.exec(select(InsuranceRule))).all())
+
+
+async def test_兩章都有理賠文件且第一句相同_兩條都找得到自己(session, monkeypatch):
+    monkeypatch.setattr(settings, "INGEST_SELFCHECK_TOP_N", 1)
+    await add_rules(
+        session,
+        [
+            (
+                10,
+                "第二章 旅程取消保險",
+                "理賠文件",
+                CLAIM_OPENING + "二、旅程取消證明。",
+            ),
+            (
+                20,
+                "第三章 班機延誤保險",
+                "理賠文件",
+                CLAIM_OPENING + "二、班機延誤證明。",
+            ),
+        ],
+    )
+
+    checked, failed = await selfcheck.check_articles(
+        session,
+        "SELF01",
+        None,
+        embeddings=DeterministicFakeEmbedding(size=8),
+        model="fake",
+        search=bigram_search(await all_rules(session)),
+    )
+
+    assert checked == 2
+    assert failed == []
+
+
+def test_查詢句含章與節_不在第一個句號切斷():
+    query = selfcheck.build_query(
+        "【理賠文件】",
+        "被保險人申請理賠時，應檢具下列文件：一、理賠申請書。二、班機延誤證明。",
+        section="第三章 個人海外旅行不便保險",
+        subsection="第二節 班機延誤保險",
+    )
+
+    assert query.startswith("第三章 個人海外旅行不便保險 第二節 班機延誤保險 理賠文件 ")
+    assert "班機延誤證明" in query  # 第一句之後的內文也在
+
+
+def test_查詢句的內文最多取_120_字():
+    query = selfcheck.build_query("標題", "字" * 300)
+
+    assert query == "標題 " + "字" * 120
+
+
+async def test_前_N_名有內容完全相同的條文_算找到自己(session, monkeypatch):
+    monkeypatch.setattr(settings, "INGEST_SELFCHECK_TOP_N", 1)
+    await add_rules(
+        session,
+        [
+            (5, "第二章 旅程取消保險", "代位", SAME_CONTENT),
+            (
+                9,
+                "第三章 班機延誤保險",
+                "代位",
+                " " + SAME_CONTENT.replace("，", "，\n"),
+            ),
+            (12, "第四章 行李延誤保險", "其他保險", "內容不同的條文。"),
+        ],
+    )
+    rules = {r.article_no: r for r in await all_rules(session)}
+
+    async def always(no: int):
+        async def search(*_a, **_k) -> list[Any]:
+            return [rules[no]]
+
+        return search
+
+    _, twin = await selfcheck.check_articles(
+        session,
+        "SELF01",
+        [9],
+        embeddings=DeterministicFakeEmbedding(size=8),
+        model="fake",
+        search=await always(5),  # 只找到內容相同（空白不同）的第 5 條
+    )
+    _, other = await selfcheck.check_articles(
+        session,
+        "SELF01",
+        [12],
+        embeddings=DeterministicFakeEmbedding(size=8),
+        model="fake",
+        search=await always(5),  # 內容不同，不算
+    )
+
+    assert twin == []
+    assert other == [12]

@@ -1,7 +1,7 @@
 """檢索自檢：條文入庫後，確認每一條真的檢索得到。
 
-每一條用「標題＋第一句」當問題，限定在該險種內，用跟問答一樣的混合檢索；
-自己出現在前 N 名就算通過。單條沒通過只是警告，不擋入庫；
+每一條用「章＋節＋標題＋內文前 120 字」當問題，限定在該險種內，用跟問答一樣的混合檢索；
+自己出現在前 N 名就算通過；前 N 名有內文（去空白後）與自己完全相同的條文，也算找到自己。單條沒通過只是警告，不擋入庫；
 整個險種的通過率低於門檻時標示「檢索品質異常」。N 與門檻是設定。
 
 通過率以檢查當下該險種資料庫裡的條文為準；之後逐條放行的條文，由 `merge_article` 增量更新。
@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.domain.rag.hybrid import MAX_K, RuleHit, search_rules
 from app.models import Insurance, InsuranceRule
 
-FIRST_SENTENCE_CHARS = 120
+QUERY_BODY_CHARS = 120
 Search = Callable[..., Awaitable[list[RuleHit]]]
 
 
@@ -50,11 +50,29 @@ class SelfCheck(BaseModel):
     failed: list[int] = Field(description="前 N 名找不到自己的條號")
 
 
-def build_query(title: str, content: str) -> str:
-    """標題（去掉【】）加上內文第一句。"""
-    body = re.sub(r"\s+", "", content)
-    first = body.split("。", 1)[0][:FIRST_SENTENCE_CHARS]
-    return f"{title.strip('【】 ')} {first}".strip()
+def _compact(text: str) -> str:
+    return re.sub(r"\s+", "", text)
+
+
+def build_query(
+    title: str,
+    content: str,
+    *,
+    section: str | None = None,
+    subsection: str | None = None,
+) -> str:
+    """章、節、標題（去掉【】）加上內文（去空白）前 QUERY_BODY_CHARS 字。
+
+    不在第一個「。」切斷：綜合險種每一章都有「理賠文件」，第一句都是「…應檢具下列文件：一、理賠申請書」，
+    只取第一句會讓同一險種好幾條的問題一字不差，必定有條找不到自己。章與節本來就在條文的檢索文字裡。
+    """
+    parts = (
+        section,
+        subsection,
+        title.strip("【】 "),
+        _compact(content)[:QUERY_BODY_CHARS],
+    )
+    return " ".join(p.strip() for p in parts if p and p.strip())
 
 
 def summarize(
@@ -83,7 +101,7 @@ async def check_articles(
 ) -> tuple[int, list[int]]:
     """回傳（檢查幾條、沒通過的條號）。article_nos 是 None 就檢查該險種全部條文。"""
     stmt = (
-        select(InsuranceRule.article_no, InsuranceRule.title, InsuranceRule.content)
+        select(InsuranceRule)
         .join(Insurance)
         .where(Insurance.code == code)
         .order_by(col(InsuranceRule.article_no))
@@ -92,13 +110,16 @@ async def check_articles(
         stmt = stmt.where(col(InsuranceRule.article_no).in_(article_nos))
     rules = (await session.exec(stmt)).all()
     failed: list[int] = []
-    queries = [build_query(title, content) for _, title, content in rules]
+    queries = [
+        build_query(r.title, r.content, section=r.section, subsection=r.subsection)
+        for r in rules
+    ]
     if queries:
         vectors = await embeddings.aembed_documents(queries)
         embeddings = _BatchedEmbeddings(
             embeddings, dict(zip(queries, vectors, strict=True))
         )
-    for (article_no, _, _), query in zip(rules, queries, strict=True):
+    for rule, query in zip(rules, queries, strict=True):
         hits = await (search or search_rules)(
             session,
             query,
@@ -107,8 +128,12 @@ async def check_articles(
             embeddings=embeddings,
             model=model,
         )
-        if not any(h.article_no == article_no for h in hits):
-            failed.append(article_no)
+        own = _compact(rule.content)
+        # 內容完全相同的條文（例如各章都有的「代位」）檢索分不出來，找到哪一條都算找到自己
+        if not any(
+            h.article_no == rule.article_no or _compact(h.content) == own for h in hits
+        ):
+            failed.append(rule.article_no)
     return len(rules), failed
 
 
