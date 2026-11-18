@@ -122,6 +122,14 @@ class Settings(BaseSettings):
     # MCP 伺服器（ADR-0032）：每把存取權杖每分鐘最多呼叫幾次（每個 worker 各算各的）
     MCP_RATE_LIMIT_PER_MINUTE: int = 60
 
+    # LINE bot 轉接層（ADR-0033）：兩個都設定才啟用，沒設時 /line/webhook 回 404
+    LINE_CHANNEL_SECRET: SecretStr = SecretStr("")
+    LINE_CHANNEL_ACCESS_TOKEN: SecretStr = SecretStr("")
+    # 綁定碼防暴力猜測：同一個 LINE userId 在視窗內最多傳錯幾次；全部 LINE 帳號合計的上限（防多帳號輪流猜）
+    LINE_BIND_MAX_FAILURES: int = 5
+    LINE_BIND_FAILURE_WINDOW_MINUTES: int = 10
+    LINE_BIND_GLOBAL_MAX_FAILURES: int = 100
+
     # 背景工作（ADR-0031）：Celery 的 broker；compose 裡的服務會覆寫成 redis://redis:6379/0
     REDIS_URL: str = "redis://localhost:6379/0"
 
@@ -182,6 +190,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "TOKEN_ENCRYPTION_KEY 不是合法的 Fernet 金鑰（產生方式見 .env.prod.example）"
             ) from None
+
+    @property
+    def line_enabled(self) -> bool:
+        return bool(
+            self.LINE_CHANNEL_SECRET.get_secret_value()
+            and self.LINE_CHANNEL_ACCESS_TOKEN.get_secret_value()
+        )
 
     @property
     def google_login_enabled(self) -> bool:
