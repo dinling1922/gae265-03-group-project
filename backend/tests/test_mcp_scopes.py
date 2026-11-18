@@ -279,7 +279,8 @@ def test_registry_is_clean_after_fixture_teardown():
 
 
 def test_real_tools_default_to_read_scope_and_no_tool_limit():
+    # 只看原本的唯讀工具；之後新增的寫入或 LLM 工具各自的測試檔鎖自己的註冊參數
     registry.load_tool_modules()
-    for fn in registry.TOOLS:
-        spec = registry.SPECS[fn.__name__]
-        assert spec.scope == "read" and spec.rate_limit_per_minute is None, fn.__name__
+    for name in ("list_comparisons", "get_comparison", "list_todos"):
+        spec = registry.SPECS[name]
+        assert spec.scope == "read" and spec.rate_limit_per_minute is None, name
