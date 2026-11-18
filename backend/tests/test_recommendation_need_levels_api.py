@@ -4,6 +4,7 @@ LLM 用假的函式注入，不打真的 API。預期的方案與保費取自共
 """
 
 import asyncio
+import uuid
 from collections.abc import AsyncGenerator, Generator
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -11,10 +12,10 @@ from zoneinfo import ZoneInfo
 import pytest
 from app.api.deps import current_user
 from app.core.config import settings
-from app.domain.need_levels import get_need_leveler
+from app.domain.need_levels import get_need_leveler, user_prompt
 from app.ingest.plan_matrix import read_plan_data
 from app.main import app
-from app.models import User
+from app.models import Comparison, ItineraryActivity, User
 from app.seed import load_plan_data
 from httpx import AsyncClient
 from sqlmodel.ext.asyncio.session import AsyncSession
@@ -177,6 +178,9 @@ async def test_llm_levels_decide_the_recommendation(
         ),
         levels((MEDICAL, "high", "滑雪"), (MEDICAL, "enough", "滑雪")),  # 重複
         levels((MEDICAL, "high", "看病可能要花 50 萬"), (FLIGHT, "enough", "搭機")),
+        # 9 出自日程的「09:00」、能過數字白名單，但 5 天的行程沒有第 9 天
+        levels((MEDICAL, "high", "第 9 天滑雪"), (FLIGHT, "enough", "搭機")),
+        levels((MEDICAL, "high", "滑雪"), (FLIGHT, "enough", "1/2 搭機")),  # 寫日期
     ],
 )
 async def test_bad_llm_output_falls_back_to_default_levels(
@@ -235,3 +239,28 @@ async def test_itinerary_change_clears_and_next_patch_recommends_again(
         assert r.json()["recommendation"] is not None
     # 新增、修改、刪除後都還有活動，每次重算都呼叫 LLM
     assert leveler.calls == 4
+
+
+@pytest.mark.parametrize(
+    ("month", "typhoon"), [(6, False), (7, True), (10, True), (11, False)]
+)
+def test_user_prompt_marks_days_and_typhoon_season(month: int, typhoon: bool) -> None:
+    depart = DEPART.replace(month=month, day=1)
+    c = Comparison(
+        user_id=uuid.uuid4(),
+        destination="日本",
+        depart_date=depart,
+        return_date=depart + timedelta(days=4),
+        concerns=[FLIGHT],
+    )
+    a = ItineraryActivity(
+        comparison_id=c.id,
+        date=depart + timedelta(days=2),
+        hour=9,
+        duration=2,
+        category="explore",
+        title="苗場滑雪",
+    )
+    text = user_prompt(c, [a])
+    assert "第 3 天 09:00" in text
+    assert ("颱風季出發" in text) is typhoon
