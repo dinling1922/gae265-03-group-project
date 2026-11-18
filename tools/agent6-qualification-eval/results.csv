@@ -1,0 +1,59 @@
+name,code,field,label,version,expected,lang,why,status,document_kind,missing,found_fields,reason,outcome
+d01_period_ok_zh_times,D01,delay_period,延誤期間,complete,pass,zh,有原定與實際起飛時間,recognized,D01 延誤／取消證明,,延誤期間、延誤原因,,正確
+d01_period_ok_en_hours,D01,delay_period,延誤期間,complete,pass,en,寫了延誤時數 6.5 小時,recognized,D01 延誤／取消證明,,延誤期間、延誤原因,,正確
+d01_period_ok_ja_times,D01,delay_period,延誤期間,complete,pass,ja,有定刻與實際出發時刻（日文）,recognized,D01 延誤／取消證明,,延誤期間、延誤原因,,正確
+d01_period_ok_ja_duration,D01,delay_period,延誤期間,complete,pass,ja,日文寫延誤時數「遅延時間：約6時間」，等同延誤時數,recognized,D01 延誤／取消證明,,延誤期間、延誤原因,,正確
+d01_period_ok_en_minutes,D01,delay_period,延誤期間,complete,pass,en,原定時間加延誤分鐘數，算得出延誤期間,recognized,D01 延誤／取消證明,,延誤期間、延誤原因,,正確
+d01_period_ok_zh_cancel,D01,delay_period,延誤期間,complete,pass,zh,班機取消且有原定時間；規則 clauses 寫明取消時只有原定時間也算,recognized,D01 延誤／取消證明,,延誤期間、延誤原因,,正確
+d01_period_missing_zh,D01,delay_period,延誤期間,missing,fail,zh,只寫延誤，沒有任何時間或時數,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d01_period_missing_en,D01,delay_period,延誤期間,missing,fail,en,只寫 was delayed，沒有時間或時數,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d01_period_missing_ja_one_time,D01,delay_period,延誤期間,missing,fail,ja,只有定刻時間，沒有實際出發時間或延誤時數,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d01_period_trap_boarding_std,D01,delay_period,延誤期間,trap,fail,zh,兩個時間是登機時間與原定起飛時間，沒有實際起飛時間或延誤時數,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d01_period_trap_issue_time,D01,delay_period,延誤期間,trap,fail,en,兩個時間是原定起飛與證明開立時間，不是實際起飛,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d01_period_trap_24h_note,D01,delay_period,延誤期間,trap,fail,zh,「24 小時」是申請期限的說明，不是延誤時數,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d01_period_trap_cancel_policy,D01,delay_period,延誤期間,trap,fail,en,cancel 是改退票說明，班機沒有取消；只有原定時間,incomplete,D01 延誤／取消證明,延誤期間,延誤原因,延誤證明上看不到延誤期間（原定與實際起飛時間，或延誤時數）,正確
+d13_dx_ok_zh,D13,diagnosis,病名,complete,pass,zh,有病名,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_dx_ok_en,D13,diagnosis,病名,complete,pass,en,有 Diagnosis,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_dx_ok_ja_shobyomei,D13,diagnosis,病名,complete,pass,ja,日文「傷病名」有寫病名,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_dx_ok_ja_shindanmei,D13,diagnosis,病名,complete,pass,ja,日文「診断名」是常見的病名欄名,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_dx_ok_en_table,D13,diagnosis,病名,complete,pass,en,表格版面：欄名與病名在不同行（PDF 表格常這樣讀出來）,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_dx_missing_zh,D13,diagnosis,病名,missing,fail,zh,只有症狀與處置，沒有病名,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_dx_missing_en,D13,diagnosis,病名,missing,fail,en,只有症狀與處置，沒有病名,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_dx_missing_ja,D13,diagnosis,病名,missing,fail,ja,只有症狀與治療，沒有病名,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_dx_trap_underscore,D13,diagnosis,病名,trap,fail,zh,診斷欄只有底線（空白欄位）,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_dx_trap_see_attached,D13,diagnosis,病名,trap,fail,en,寫「見附件」，這份文件上沒有病名,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_dx_trap_pending_ja,D13,diagnosis,病名,trap,fail,ja,寫「等檢查結果」，沒有病名,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_dx_trap_blank_colon,D13,diagnosis,病名,trap,fail,zh,「診斷：」後面空白,incomplete,D13 診斷書,病名,就診日期,診斷書上看不到病名,正確
+d13_visit_ok_zh_roc,D13,visit_date,就診日期,complete,pass,zh,民國年就診日期,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_visit_ok_en_sentence,D13,visit_date,就診日期,complete,pass,en,句子寫明就診日期,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_visit_ok_ja_reiwa,D13,visit_date,就診日期,complete,pass,ja,令和年號的受診日,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_visit_ok_ja_shinsatsu,D13,visit_date,就診日期,complete,pass,ja,日文「診察日」就是就診日期,recognized,D13 診斷書,,病名、就診日期,,正確
+d13_visit_missing_zh,D13,visit_date,就診日期,missing,fail,zh,只有開立日期，沒有就診日期,incomplete,D13 診斷書,就診日期,病名,診斷書上看不到就診日期,正確
+d13_visit_missing_en,D13,visit_date,就診日期,missing,fail,en,只有開立日期，沒有就診日期,incomplete,D13 診斷書,就診日期,病名,診斷書上看不到就診日期,正確
+d13_visit_missing_ja,D13,visit_date,就診日期,missing,fail,ja,只有發行日，沒有受診日,incomplete,D13 診斷書,就診日期,病名,診斷書上看不到就診日期,正確
+d13_visit_trap_examined_at_address,D13,visit_date,就診日期,trap,fail,en,examined at 後面的數字是地址，不是日期；文件只有開立日期,incomplete,D13 診斷書,就診日期,病名,診斷書上看不到就診日期,正確
+d13_visit_trap_next_visit_ja,D13,visit_date,就診日期,trap,fail,ja,「次回受診日」是下次回診日，不是這次就診日期,incomplete,D13 診斷書,就診日期,病名,診斷書上看不到就診日期,正確
+d13_visit_trap_blank_with_record_no,D13,visit_date,就診日期,trap,fail,zh,就診日期欄空白，同一行的數字是病歷號碼（兩欄並排的表格）,incomplete,D13 診斷書,就診日期,病名,診斷書上看不到就診日期,正確
+d14_amt_ok_zh,D14,amount,金額,complete,pass,zh,有實收金額,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_amt_ok_en,D14,amount,金額,complete,pass,en,有 Total amount,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_amt_ok_ja_yen,D14,amount,金額,complete,pass,ja,有合計金額（円）,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_amt_ok_ja_fullwidth_yen,D14,amount,金額,complete,pass,ja,"日本收據常見的「ご請求額 ￥10,640－」（全形￥）",recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_amt_missing_zh,D14,amount,金額,missing,fail,zh,只有項目，沒有任何金額,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_amt_missing_en,D14,amount,金額,missing,fail,en,只有項目，沒有任何金額,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_amt_missing_ja,D14,amount,金額,missing,fail,ja,只有項目，沒有任何金額,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_amt_trap_card_digits,D14,amount,金額,trap,fail,en,Paid 後面的數字是卡號末四碼，不是金額,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_amt_trap_item_count,D14,amount,金額,trap,fail,zh,「合計」後面是項目數，不是金額,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_amt_trap_invoice_phone,D14,amount,金額,trap,fail,zh,只有發票號碼與電話這類數字，沒有金額,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_amt_trap_ja_amount_word,D14,amount,金額,trap,fail,ja,「上記の金額」是套語，同一行的數字是日期，金額本身沒寫,incomplete,D14 醫療費用收據,金額,日期,收據上看不到金額,正確
+d14_date_ok_zh,D14,date,日期,complete,pass,zh,有日期,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_date_ok_en,D14,date,日期,complete,pass,en,有日期（日 月 年）,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_date_ok_ja_kanji,D14,date,日期,complete,pass,ja,有日期（年月日）,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_date_ok_ja_reiwa,D14,date,日期,complete,pass,ja,令和年號的日期，日本收據很常見,recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_date_ok_en_us,D14,date,日期,complete,pass,en,"美式日期「July 8, 2026」",recognized,D14 醫療費用收據,,金額、日期,,正確
+d14_date_missing_zh,D14,date,日期,missing,fail,zh,沒有任何日期,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
+d14_date_missing_en,D14,date,日期,missing,fail,en,沒有任何日期,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
+d14_date_missing_ja,D14,date,日期,missing,fail,ja,沒有任何日期,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
+d14_date_trap_receipt_no,D14,date,日期,trap,fail,ja,收據號碼 R-26-07-0153 長得像日期，但不是日期,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
+d14_date_trap_clinic_hours,D14,date,日期,trap,fail,ja,診療時間 9.00-12.30 長得像日期，但不是日期,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
+d14_date_trap_birthdate,D14,date,日期,trap,fail,zh,唯一的日期是病人生日，不是收據日期,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
+d14_date_trap_phone,D14,date,日期,trap,fail,en,唯一像日期的是電話號碼,incomplete,D14 醫療費用收據,日期,金額,收據上看不到日期,正確
