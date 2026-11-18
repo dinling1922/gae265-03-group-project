@@ -5,6 +5,7 @@
 
 import re
 
+import pytest
 from app.agents.package import GmailClaimPackager
 from app.contracts import (
     ClaimPackage,
@@ -383,3 +384,30 @@ async def test_未隨信附上的文件也照行程頁的順序() -> None:
         "・班機延誤：費用收據（另行提供）\n"
         "・理賠申請書（另行提供）"
     ) in package.body
+
+
+async def test_有設定建議收件者時_事件版與行程版的送件包都帶上() -> None:
+    packager = GmailClaimPackager(recipient_hint="claims@example.com")
+    incident = _delay()
+
+    assert (await packager.build(incident)).recipient_hint == "claims@example.com"
+    assert (await packager.build_trip(_trip(incident))).recipient_hint == (
+        "claims@example.com"
+    )
+
+
+async def test_沒設定建議收件者時不帶() -> None:
+    for hint in (None, ""):
+        packager = GmailClaimPackager(recipient_hint=hint)
+        assert (await packager.build_trip(_trip(_delay()))).recipient_hint is None
+
+
+def test_平台建立的7號用設定裡的建議收件者(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.agents.package import factory
+
+    monkeypatch.setattr(
+        factory.settings, "AGENT_7_RECIPIENT_HINT", "claims@example.com"
+    )
+
+    assert factory.create_gmail_packager().recipient_hint == "claims@example.com"
+    assert factory.create_offline_packager().recipient_hint == "claims@example.com"

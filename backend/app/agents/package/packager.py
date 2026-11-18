@@ -465,7 +465,11 @@ class _Attachments:
     unavailable: list[UnavailableAttachment]
 
     def package(
-        self, subject: str, sections: list[str | None], todos: list[TodoView]
+        self,
+        subject: str,
+        sections: list[str | None],
+        todos: list[TodoView],
+        recipient_hint: str | None = None,
     ) -> ClaimPackage:
         return ClaimPackage(
             subject=subject,
@@ -477,14 +481,19 @@ class _Attachments:
                 t.id for t in todos if t.status == "pending" or t.id in self.blocking
             ],
             unavailable_attachments=self.unavailable,
+            recipient_hint=recipient_hint,
         )
 
 
 class GmailClaimPackager:
-    def __init__(self, google_api: GoogleApi | None = None) -> None:
+    def __init__(
+        self, google_api: GoogleApi | None = None, recipient_hint: str | None = None
+    ) -> None:
         # 平台用 factory 建立時一定會給（正式版或離線版）；只做送件包預覽時可以不給，
         # 這時 send 回「開發中」，什麼都不寄
         self.google_api = google_api
+        # 建議的收件者（設定 AGENT_7_RECIPIENT_HINT）：送件頁預先帶入，使用者可以改
+        self.recipient_hint = recipient_hint or None
 
     async def build(
         self,
@@ -504,7 +513,9 @@ class GmailClaimPackager:
             CLOSING,
             DISCLAIMER,
         ]
-        return found.package(_subject(ctx.policy), sections, ctx.todos)
+        return found.package(
+            _subject(ctx.policy), sections, ctx.todos, self.recipient_hint
+        )
 
     async def build_trip(
         self,
@@ -532,7 +543,9 @@ class GmailClaimPackager:
             CLOSING,
             DISCLAIMER,
         ]
-        return found.package(_subject(trip.policy), sections, trip.todos)
+        return found.package(
+            _subject(trip.policy), sections, trip.todos, self.recipient_hint
+        )
 
     async def _check_attachments(
         self,
