@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import { login, nextSkippingItinerary } from "./helpers";
 
 // 推薦結果依開發資料庫的 seed（make seed）：6 天「班機延誤 → 突然生病就醫」。
-// 跳過日程（沒有活動）不呼叫 LLM，用預設需求等級：班機延誤越高越好、突然生病就醫有就好。
+// 跳過日程（沒有活動）不呼叫 LLM，用預設需求等級：班機延誤加強保障、突然生病就醫基本保障。
 
 /** 今天往後 offset 天的 YYYY-MM-DD（瀏覽器的本地日期）。 */
 function day(offset: number): string {
@@ -52,11 +52,11 @@ test("1-3 顯示推薦、依據、比較表與名詞解釋；改次推薦保額�
     "_blank",
   );
   await expect(page.getByTestId("concern-levels").getByRole("listitem")).toHaveText([
-    "班機延誤：越高越好",
-    "突然生病就醫：有就好",
+    "班機延誤：加強保障",
+    "突然生病就醫：基本保障",
   ]);
   const reason =
-    "依你排的順序，最在意的「班機延誤」越高越好、其餘有就好；在這些需求都滿足的方案中，選保費最低的富邦國外旅平險-進階型。";
+    "依你排的順序，最在意的「班機延誤」需要加強保障、其餘基本保障即可；在這些需求都滿足的方案中，選保費最低的富邦國外旅平險-進階型。";
   await expect(page.getByTestId("reason")).toHaveText(reason);
 
   // 推薦依據

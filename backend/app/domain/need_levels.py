@@ -1,4 +1,4 @@
-"""需求等級（spec #457、ADR-0032）：LLM 依旅遊日程替使用者選的在意事項判斷「越高越好」或「有就好」。
+"""需求等級（spec #457、ADR-0032）：LLM 依旅遊日程替使用者選的在意事項判斷「加強保障」或「基本保障」。
 
 LLM 不看方案資料、不產生金額。輸出由程式驗證：恰好是使用者選的那幾項、不重複，
 原因裡的數字都要出自日程（天數、日期、時間），「第 N 天」不能超出行程。失敗、逾時或不合格就整次改用預設等級。
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class _Level(BaseModel):
     concern: Concern
-    level: Level = Field(description="high = 越高越好；enough = 有就好")
+    level: Level = Field(description="high = 加強保障；enough = 基本保障")
     reason: str = Field(
         description="點名日程活動的一句原因：用「第 N 天」不寫日期，40 字以內，不含金額"
     )
@@ -43,8 +43,8 @@ NeedLeveler = Callable[[Comparison, Sequence[ItineraryActivity]], Awaitable[obje
 SYSTEM_PROMPT = """你是旅遊保險推薦助理。依旅遊日程，替使用者選的每個在意事項判斷需求等級，各寫一句原因。
 
 需求等級只有兩種：
-- high（越高越好）：日程裡有下表列出的加重情況，保障額度越高越值得多付保費。
-- enough（有就好）：日程裡沒有加重情況，有基本保障即可。
+- high（加強保障）：日程裡有下表列出的加重情況，保障額度越高越值得多付保費。
+- enough（基本保障）：日程裡沒有加重情況，有基本保障即可。
 
 判斷方法（照做，不要自由發揮）：
 1. 逐項對照下表。只認表上寫的情況與舉例，表上沒列的一律不算；不因為「旅途中可能發生」就判 high。

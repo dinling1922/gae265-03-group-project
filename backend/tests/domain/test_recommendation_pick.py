@@ -69,7 +69,7 @@ def test_high_keeps_eighty_percent_of_the_max_including_higher_sums() -> None:
 
 
 def test_enough_filters_run_before_high_in_concern_order() -> None:
-    # 越高越好排第 1，但「有就好」先篩：泰安盜刷不夠被刷掉，醫療最高的就不是它
+    # 加強保障排第 1，但「基本保障」先篩：泰安盜刷不夠被刷掉，醫療最高的就不是它
     q = quotes(
         {
             ("taian", 2 * M): (100, {MEDICAL: 1000, CARD: 0}),

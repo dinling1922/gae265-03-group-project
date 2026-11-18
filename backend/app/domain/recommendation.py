@@ -1,6 +1,6 @@
 """1-3 推薦方案與比較表（spec #61、spec #457、ADR-0032）。
 
-推薦規則：在該天數下所有「方案 × 身故保額」組合中，依需求等級先篩「有就好」、再篩「越高越好」，
+推薦規則：在該天數下所有「方案 × 身故保額」組合中，依需求等級先篩「基本保障」、再篩「加強保障」，
 取保費最低的。對照方案（畫面上的「次推薦」）是不同方案：在比推薦便宜的組合中用同一套規則選，
 推薦已是最便宜時在其他所有組合中選。依據與比較表是固定句型，數字全部由程式填入（ADR-0004）；
 推薦理由由需求等級的原因加上固定句型的結論組成，不含數字。
@@ -55,12 +55,12 @@ class Quotes:
         )
 
 
-Level = Literal["high", "enough"]  # 越高越好、有就好
+Level = Literal["high", "enough"]  # 加強保障、基本保障
 Source = Literal["llm", "default"]  # 需求等級來自 LLM，或是預設等級
 
 
 class ConcernLevel(BaseModel):
-    """需求等級：某個在意事項要「越高越好」（high）還是「有就好」（enough）。"""
+    """需求等級：某個在意事項要「加強保障」（high）還是「基本保障」（enough）。"""
 
     concern: Concern
     level: Level
@@ -70,7 +70,7 @@ class ConcernLevel(BaseModel):
 
 
 def default_levels(concerns: list[Concern]) -> list[ConcernLevel]:
-    """判斷不出需求等級時：第 1 名越高越好、其餘有就好。"""
+    """判斷不出需求等級時：第 1 名加強保障、其餘基本保障。"""
     return [
         ConcernLevel(concern=c, level="high" if i == 0 else "enough")
         for i, c in enumerate(concerns)
@@ -133,7 +133,7 @@ Pair = tuple[str, int]  # (方案, 身故保額)
 
 
 def _select(quotes: Quotes, pairs: list[Pair], levels: list[ConcernLevel]) -> Pair:
-    """依在意事項順序先篩「有就好」、再篩「越高越好」，剩下的取保費最低的。
+    """依在意事項順序先篩「基本保障」、再篩「加強保障」，剩下的取保費最低的。
 
     pairs 已依 plans.json 順序、保額由小到大排好；min 取第一個最小值，所以同保費照這個順序。
     """
@@ -172,10 +172,8 @@ def _reason(levels: list[ConcernLevel], source: Source, plan_name: str) -> str:
     if source == "llm":
         reasons = "；".join((x.reason or "").rstrip("。.") for x in levels)
         return f"{reasons}。所以{conclusion}"
-    others = "、其餘有就好" if len(levels) > 1 else ""
-    return (
-        f"依你排的順序，最在意的「{levels[0].concern}」越高越好{others}；{conclusion}"
-    )
+    others = "、其餘基本保障即可" if len(levels) > 1 else ""
+    return f"依你排的順序，最在意的「{levels[0].concern}」需要加強保障{others}；{conclusion}"
 
 
 def _basis(

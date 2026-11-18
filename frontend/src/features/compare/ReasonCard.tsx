@@ -8,7 +8,7 @@ import { lnk } from "../../components/ui/buttons";
  * 推薦理由卡（DESIGN.md 6.12）：標題、需求等級清單、理由、「看推薦依據」展開（箭頭旋轉 200ms）。
  * 理由與依據的文字由後端程式組好，這裡只負責畫。
  */
-const LEVEL_LABEL: Record<ConcernLevel["level"], string> = { high: "越高越好", enough: "有就好" };
+const LEVEL_LABEL: Record<ConcernLevel["level"], string> = { high: "加強保障", enough: "基本保障" };
 
 export function ReasonCard({
   levels,

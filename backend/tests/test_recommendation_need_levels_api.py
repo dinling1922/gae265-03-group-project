@@ -110,7 +110,7 @@ def picked(body: dict) -> tuple:
 @pytest.mark.usefixtures("user", "seed")
 async def test_without_activities_uses_default_levels(client: AsyncClient, use) -> None:
     leveler = use(FakeLeveler(AssertionError("不該呼叫")))
-    # 試算表第 1 列：生病越高越好、延誤有就好（正是預設等級）
+    # 試算表第 1 列：生病加強保障、延誤基本保障（正是預設等級）
     body = await recommend(client, [MEDICAL, FLIGHT], ski=False)
     assert leveler.calls == 0
     assert picked(body) == (
@@ -124,7 +124,7 @@ async def test_without_activities_uses_default_levels(client: AsyncClient, use) 
     ]
     assert rec["recommended"]["recommended_sum_insured"] == 10_000_000
     assert rec["reason"] == (
-        "依你排的順序，最在意的「突然生病就醫」越高越好、其餘有就好；"
+        "依你排的順序，最在意的「突然生病就醫」需要加強保障、其餘基本保障即可；"
         "在這些需求都滿足的方案中，選保費最低的華南國外旅平險-基礎型。"
     )
 
@@ -133,12 +133,12 @@ async def test_without_activities_uses_default_levels(client: AsyncClient, use) 
 @pytest.mark.parametrize(
     ("output", "expected"),
     [
-        # 試算表第 2 列：只在意延誤、有就好
+        # 試算表第 2 列：只在意延誤、基本保障
         (
             levels((FLIGHT, "enough", "第 2 天搭機去新潟")),
             (("huanan_basic", 3_000_000, 409), ("taian", 2_000_000, 146)),
         ),
-        # 試算表第 3 列：生病、盜刷都有就好
+        # 試算表第 3 列：生病、盜刷都只要基本保障
         (
             levels(
                 (MEDICAL, "enough", "第 2 天滑雪，天冷容易感冒"),

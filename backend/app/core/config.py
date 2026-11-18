@@ -113,7 +113,7 @@ class Settings(BaseSettings):
 
     # 1-3 推薦（ADR-0032）：LLM 判斷需求等級的上限秒數，逾時改用預設等級
     RECOMMEND_LLM_TIMEOUT: float = 15
-    # 「有就好」：額度達到剩下組合最高額度的這個比例；「越高越好」：同上
+    # 「基本保障」：額度達到剩下組合最高額度的這個比例；「加強保障」：同上
     RECOMMEND_ENOUGH_RATIO: float = 0.5
     RECOMMEND_HIGH_RATIO: float = 0.8
 

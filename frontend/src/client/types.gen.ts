@@ -869,7 +869,7 @@ export type ConcernAmountOut = {
 /**
  * ConcernLevel
  *
- * 需求等級：某個在意事項要「越高越好」（high）還是「有就好」（enough）。
+ * 需求等級：某個在意事項要「加強保障」（high）還是「基本保障」（enough）。
  */
 export type ConcernLevel = {
     concern: Concern;
