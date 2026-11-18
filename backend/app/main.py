@@ -13,6 +13,7 @@ from app.core.auth import SESSION_MAX_AGE, session_secret
 from app.core.config import settings
 from app.core.db import engine
 from app.ingest.agent import fail_stale_jobs
+from app.line_bot.webhook import build_route as build_line_route
 from app.mcp_server.endpoint import MCP_PATH, build_endpoint
 
 # app 自己的 INFO log（例如方案問答改寫後的問題與 Jev 的判斷）要出現在 server log；
@@ -61,3 +62,7 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 # MCP 伺服器（ADR-0032）：只收 Bearer，自己驗證，不經過 cookie session 的依賴、不開 CORS
 app.router.routes.append(Route(MCP_PATH, mcp_endpoint.asgi))
+# LINE bot 轉接層（ADR-0033）：給 LINE 平台打的 webhook，自己驗簽，不進 OpenAPI；沒設定頻道時回 404
+app.router.routes.append(
+    build_line_route(lambda: AsyncSession(engine, expire_on_commit=False))
+)
