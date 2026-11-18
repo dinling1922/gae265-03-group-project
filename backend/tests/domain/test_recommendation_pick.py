@@ -1,4 +1,4 @@
-"""推薦方案與對照方案的選法（spec #457、ADR-0032）：用小型假報價測規則。"""
+"""推薦方案與對照方案的選法（spec #457、ADR-0034）：用小型假報價測規則。"""
 
 from app.domain.benefits import Concern
 from app.domain.recommendation import Benefit, ConcernLevel, Quotes, pick

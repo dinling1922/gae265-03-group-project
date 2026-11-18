@@ -223,6 +223,106 @@ export type ActivityPatch = {
 };
 
 /**
+ * ApiTokenCreate
+ */
+export type ApiTokenCreate = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * ApiTokenCreated
+ */
+export type ApiTokenCreated = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Scopes
+     */
+    scopes: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Revoked At
+     */
+    revoked_at: string | null;
+    /**
+     * Status
+     */
+    status: 'active' | 'expired' | 'revoked';
+    /**
+     * Token
+     *
+     * 權杖明文；只在建立時回傳這一次
+     */
+    token: string;
+};
+
+/**
+ * ApiTokenOut
+ */
+export type ApiTokenOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Scopes
+     */
+    scopes: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Revoked At
+     */
+    revoked_at: string | null;
+    /**
+     * Status
+     */
+    status: 'active' | 'expired' | 'revoked';
+};
+
+/**
  * AttachmentRef
  */
 export type AttachmentRef = {
@@ -1963,6 +2063,52 @@ export type InsuranceOut = {
      * 最近一次檢索自檢；沒做過為 None
      */
     retrieval_check?: RetrievalCheckOut | null;
+};
+
+/**
+ * LineBindCodeOut
+ */
+export type LineBindCodeOut = {
+    /**
+     * Code
+     *
+     * 6 位數綁定碼；只在產生時回傳這一次
+     */
+    code: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Ttl Seconds
+     *
+     * 有效秒數
+     */
+    ttl_seconds: number;
+};
+
+/**
+ * LineBindingStatusOut
+ */
+export type LineBindingStatusOut = {
+    /**
+     * Bound
+     *
+     * 是否已綁定 LINE
+     */
+    bound: boolean;
+    /**
+     * Bound At
+     *
+     * 綁定時間；未綁定時是 null
+     */
+    bound_at: string | null;
+    /**
+     * Code Expires At
+     *
+     * 有未過期、未使用的綁定碼時的到期時間；沒有時是 null。不含碼明文
+     */
+    code_expires_at: string | null;
 };
 
 /**
@@ -5363,6 +5509,127 @@ export type DeleteMyDataResponses = {
 };
 
 export type DeleteMyDataResponse = DeleteMyDataResponses[keyof DeleteMyDataResponses];
+
+export type ListApiTokensData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/api-tokens';
+};
+
+export type ListApiTokensResponses = {
+    /**
+     * Response List Api Tokens
+     *
+     * Successful Response
+     */
+    200: Array<ApiTokenOut>;
+};
+
+export type ListApiTokensResponse = ListApiTokensResponses[keyof ListApiTokensResponses];
+
+export type CreateApiTokenData = {
+    body: ApiTokenCreate;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/api-tokens';
+};
+
+export type CreateApiTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateApiTokenError = CreateApiTokenErrors[keyof CreateApiTokenErrors];
+
+export type CreateApiTokenResponses = {
+    /**
+     * Successful Response
+     */
+    201: ApiTokenCreated;
+};
+
+export type CreateApiTokenResponse = CreateApiTokenResponses[keyof CreateApiTokenResponses];
+
+export type RevokeApiTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Token Id
+         */
+        token_id: string;
+    };
+    query?: never;
+    url: '/api/v1/me/api-tokens/{token_id}';
+};
+
+export type RevokeApiTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeApiTokenError = RevokeApiTokenErrors[keyof RevokeApiTokenErrors];
+
+export type RevokeApiTokenResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeApiTokenResponse = RevokeApiTokenResponses[keyof RevokeApiTokenResponses];
+
+export type DeleteLineBindingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/line-binding';
+};
+
+export type DeleteLineBindingResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteLineBindingResponse = DeleteLineBindingResponses[keyof DeleteLineBindingResponses];
+
+export type GetLineBindingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/line-binding';
+};
+
+export type GetLineBindingResponses = {
+    /**
+     * Successful Response
+     */
+    200: LineBindingStatusOut;
+};
+
+export type GetLineBindingResponse = GetLineBindingResponses[keyof GetLineBindingResponses];
+
+export type CreateLineBindCodeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/line-binding/code';
+};
+
+export type CreateLineBindCodeResponses = {
+    /**
+     * Successful Response
+     */
+    201: LineBindCodeOut;
+};
+
+export type CreateLineBindCodeResponse = CreateLineBindCodeResponses[keyof CreateLineBindCodeResponses];
 
 export type ListComparisonsData = {
     body?: never;

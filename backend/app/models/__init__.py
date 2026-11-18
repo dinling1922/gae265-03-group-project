@@ -1,5 +1,6 @@
 from sqlmodel import SQLModel
 
+from app.models.api_token import ApiToken
 from app.models.base import BaseTable
 from app.models.bundle_split import BundleSplit
 from app.models.claim import (
@@ -29,12 +30,16 @@ from app.models.insurance import (
     RuleEmbedding,
 )
 from app.models.itinerary import ItineraryActivity
+from app.models.line_binding import LineBindCode, LineBindFailure, LineBinding
+from app.models.line_event import LineEvent
+from app.models.mcp_call_log import McpCallLog
 from app.models.plan_data import PlanBenefit, PlanPremium
 from app.models.policy import Policy, PolicyAddon
 from app.models.reminder import ReminderLetter
 from app.models.user import Identity, User
 
 __all__ = [
+    "ApiToken",
     "BaseTable",
     "Comparison",
     "Conversation",
@@ -54,6 +59,11 @@ __all__ = [
     "ExcludedRule",
     "InsuranceRule",
     "ItineraryActivity",
+    "LineBindCode",
+    "LineBindFailure",
+    "LineBinding",
+    "LineEvent",
+    "McpCallLog",
     "Message",
     "MessageCitation",
     "PlanBenefit",

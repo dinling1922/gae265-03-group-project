@@ -1,6 +1,6 @@
 # 1-3 LLM 推薦：實際 LLM 驗收交接
 
-給接手驗收的 session。規格見 spec #457（`gh issue view 457`）、[ADR-0032](../adr/0032-recommendation-by-llm-need-levels.md)、[討論共識與試算](llm-recommendation-consensus.md)；名詞見 GLOSSARY 的「需求等級」「推薦方案」「對照方案」「推薦保額」。
+給接手驗收的 session。規格見 spec #457（`gh issue view 457`）、[ADR-0034](../adr/0034-recommendation-by-llm-need-levels.md)、[討論共識與試算](llm-recommendation-consensus.md)；名詞見 GLOSSARY 的「需求等級」「推薦方案」「對照方案」「推薦保額」。
 
 ## 目前狀態（2026-11-17）
 

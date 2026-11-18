@@ -33,7 +33,7 @@ class Comparison(BaseTable, table=True):
     concern_suggestions: list[dict[str, Any]] | None = Field(
         default=None, sa_column=Column(JSON, nullable=True)
     )
-    # 推薦結果（ADR-0032）：天數或在意事項有變、或日程活動改了（清空後補算）才重算。
+    # 推薦結果（ADR-0034）：天數或在意事項有變、或日程活動改了（清空後補算）才重算。
     # 四個方案欄位都是空的代表還沒推薦。保費、額度、推薦理由與比較表不存，讀取時重算。
     recommended_plan_code: str | None = Field(default=None, description="推薦方案 id")
     recommended_sum_insured: int | None = Field(

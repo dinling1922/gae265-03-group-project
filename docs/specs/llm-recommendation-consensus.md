@@ -1,6 +1,6 @@
 # 1-3 LLM 推薦：討論共識（2026-11-17 grill）
 
-決策紀錄見 [ADR-0032](../adr/0032-recommendation-by-llm-need-levels.md)；名詞見 GLOSSARY 的「需求等級」「推薦方案」「對照方案」「推薦保額」。
+決策紀錄見 [ADR-0034](../adr/0034-recommendation-by-llm-need-levels.md)；名詞見 GLOSSARY 的「需求等級」「推薦方案」「對照方案」「推薦保額」。
 
 ## 流程
 
