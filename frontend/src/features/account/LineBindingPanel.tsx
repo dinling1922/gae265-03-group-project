@@ -301,7 +301,7 @@ export function LineBindingPanel() {
             )}
             {waiting && (
               <>
-                <ol className="m-0 space-y-1 pl-5 t-body text-ink">
+                <ol className="m-0 list-decimal space-y-1 pl-5 t-body text-ink">
                   <li>在 LINE 加好險有你的 bot 為好友。</li>
                   <li>
                     對 bot 傳送：<strong>綁定 {issued.code}</strong>
