@@ -256,6 +256,25 @@ async def test_rotates_when_under_14_days_and_revokes_old(
     assert user_id == after.user_id
 
 
+async def test_rotation_never_carries_write_scope_over(
+    session: AsyncSession, maker, endpoint: McpEndpoint
+):
+    """即使舊的 LINE 權杖被改成有 write，自動換新出來的也一定唯讀（ADR-0034）。"""
+    await bound_user(session)
+    before = await binding_of(session)
+    assert before is not None
+    old_id = before.api_token_id
+    old = await token_row(session, old_id)
+    old.scopes = ["read", "write"]
+    old.expires_at = datetime.now(UTC) + timedelta(days=5)
+    session.add(old)
+    await session.commit()
+    await call_mcp_tool(maker, "U1", TOOL, asgi=endpoint.asgi)
+    after = await binding_of(session)
+    assert after is not None and after.api_token_id != old_id
+    assert (await token_row(session, after.api_token_id)).scopes == ["read"]
+
+
 async def test_rotation_skipped_when_token_limit_reached_keeps_old_working(
     session: AsyncSession, maker, endpoint: McpEndpoint
 ):

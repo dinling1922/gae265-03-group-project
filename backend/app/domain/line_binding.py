@@ -30,7 +30,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.core.config import settings
 from app.core.token_cipher import TokenCipher
-from app.domain.access_tokens import TokenLimitError, create_token
+from app.domain.access_tokens import SCOPE_READ, TokenLimitError, create_token
 from app.models import ApiToken, LineBindCode, LineBindFailure, LineBinding
 
 logger = logging.getLogger(__name__)
@@ -38,6 +38,8 @@ logger = logging.getLogger(__name__)
 CODE_TTL = timedelta(minutes=10)
 CODE_DIGITS = 6
 LINE_TOKEN_NAME = "LINE 綁定"
+# LINE 的權杖永遠唯讀（ADR-0034）；綁定與自動換新都用這個，不接受呼叫端指定
+LINE_TOKEN_SCOPES = (SCOPE_READ,)
 _MAX_ISSUE_ATTEMPTS = 10
 
 
@@ -264,7 +266,9 @@ async def bind_line(
     # 先建新權杖再動舊綁定：失敗時使用者還保有原本可用的綁定。
     # 只有「有效權杖滿 5 把、而其中一把正是舊綁定的」才先解除舊的騰出名額
     try:
-        token, plaintext = await create_token(session, owner_id, LINE_TOKEN_NAME)
+        token, plaintext = await create_token(
+            session, owner_id, LINE_TOKEN_NAME, scopes=LINE_TOKEN_SCOPES
+        )
     except TokenLimitError:
         # create_token 已 rollback，重新讀舊綁定
         old = (
@@ -278,7 +282,9 @@ async def bind_line(
         await session.commit()
         old = None
         try:
-            token, plaintext = await create_token(session, owner_id, LINE_TOKEN_NAME)
+            token, plaintext = await create_token(
+                session, owner_id, LINE_TOKEN_NAME, scopes=LINE_TOKEN_SCOPES
+            )
         except TokenLimitError:
             return BindResult(BindOutcome.TOKEN_LIMIT)
         replaced = True

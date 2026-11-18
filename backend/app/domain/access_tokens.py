@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import secrets
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Literal
@@ -23,12 +24,22 @@ DISPLAY_PREFIX_LEN = len(TOKEN_PREFIX) + 4
 DEFAULT_TTL = timedelta(days=90)
 MAX_ACTIVE_TOKENS = 5
 SCOPE_READ = "read"
+SCOPE_WRITE = "write"
+# 允許的組合：write 一定附帶 read（只有 write 的權杖連守門層都過不了），預設唯讀（ADR-0034）
+ALLOWED_SCOPE_SETS: tuple[tuple[str, ...], ...] = (
+    (SCOPE_READ,),
+    (SCOPE_READ, SCOPE_WRITE),
+)
 
 TokenStatus = Literal["active", "expired", "revoked"]
 
 
 class TokenLimitError(Exception):
     """有效權杖已達上限。"""
+
+
+class InvalidScopesError(ValueError):
+    """權限範圍不是允許的組合（只有 read，或 read 加 write）。"""
 
 
 @dataclass(frozen=True)
@@ -54,9 +65,19 @@ def token_status(token: ApiToken, now: datetime | None = None) -> TokenStatus:
 
 
 async def create_token(
-    session: AsyncSession, user_id: uuid.UUID, name: str
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    name: str,
+    scopes: Sequence[str] = (SCOPE_READ,),
 ) -> tuple[ApiToken, str]:
-    """建立權杖，回傳（資料列, 明文）；明文之後再也取不回來。有效權杖滿 5 把丟 TokenLimitError。"""
+    """建立權杖，回傳（資料列, 明文）；明文之後再也取不回來。有效權杖滿 5 把丟 TokenLimitError。
+
+    `scopes` 預設唯讀；只接受 read 或 read 加 write（順序與重複不拘），其他丟 InvalidScopesError。
+    LINE 綁定與換新一律用預設，不傳 write（ADR-0034）。
+    """
+    normalized = tuple(s for s in (SCOPE_READ, SCOPE_WRITE) if s in set(scopes))
+    if normalized not in ALLOWED_SCOPE_SETS or set(scopes) - set(normalized):
+        raise InvalidScopesError(f"不支援的權限範圍：{list(scopes)}")
     # 鎖住使用者列，同一人同時建立也不會超過上限
     await session.exec(select(User.id).where(User.id == user_id).with_for_update())
     now = datetime.now(UTC)
@@ -80,7 +101,7 @@ async def create_token(
         name=name,
         token_hash=hash_token(plaintext),
         prefix=plaintext[:DISPLAY_PREFIX_LEN],
-        scopes=[SCOPE_READ],
+        scopes=list(normalized),
         expires_at=now + DEFAULT_TTL,
     )
     session.add(token)

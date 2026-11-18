@@ -247,7 +247,7 @@ export const listApiTokens = <ThrowOnError extends boolean = false>(options?: Op
 /**
  * Create Api Token
  *
- * 建立存取權杖；有效權杖已滿 5 把回 409。
+ * 建立存取權杖；scopes 預設唯讀，不合法的組合回 422；有效權杖已滿 5 把回 409。
  */
 export const createApiToken = <ThrowOnError extends boolean = false>(options: Options<CreateApiTokenData, ThrowOnError>): RequestResult<CreateApiTokenResponses, CreateApiTokenErrors, ThrowOnError> => (options.client ?? client).post<CreateApiTokenResponses, CreateApiTokenErrors, ThrowOnError>({
     url: '/api/v1/me/api-tokens',
