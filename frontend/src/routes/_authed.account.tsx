@@ -6,6 +6,7 @@ import { btn } from "../components/ui/buttons";
 import { PageHead } from "../components/ui/PageHead";
 import { ApiTokensPanel } from "../features/account/ApiTokensPanel";
 import { DeleteMyDataPanel } from "../features/account/DeleteMyDataPanel";
+import { LineBindingPanel } from "../features/account/LineBindingPanel";
 import { MyPoliciesPanel } from "../features/account/MyPoliciesPanel";
 import { GoogleGrantPanel } from "../features/google/GoogleGrantPanel";
 
@@ -51,6 +52,7 @@ function AccountPage() {
       )}
       <MyPoliciesPanel />
       <ApiTokensPanel />
+      <LineBindingPanel />
       <DeleteMyDataPanel />
       {/* 登出在共用 header */}
       <Link to="/" className={btn}>
