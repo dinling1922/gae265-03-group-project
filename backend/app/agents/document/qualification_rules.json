@@ -1,5 +1,5 @@
 {
-  "_說明": "6 號的合格規範（#69）：逐欄寫出一份文件怎樣才算合格。每一條都要有出處（source.file 裡要找得到 source.quote，程式會檢查）；verified 為 true 才生效，只有使用者確認後才能改成 true。any_of 是幾種寫法，符合其中一種就算有這個欄位；每種寫法列出要同時成立的條件，pattern 是 Python 正規表示式（不分大小寫），min_count 是至少要有幾行符合。severity：incomplete 是缺了就不合格（不存檔，reason 用 missing_reason，下一步用公式「請向〈issuer〉索取載明〈label〉的〈文件名稱〉」組成）；remind 是缺了照樣通過，只在 reason 提醒（固定句子，不用 LLM）。issuer 是開立單位。",
+  "_說明": "6 號的合格規範（#69）：逐欄寫出一份文件怎樣才算合格。每一條都要有出處（source.file 裡要找得到 source.quote，程式會檢查）；verified 為 true 才生效，只有使用者確認後才能改成 true。any_of 是幾種寫法，符合其中一種就算有這個欄位；每種寫法列出要同時成立的條件，pattern 是 Python 正規表示式（不分大小寫），min_count 是至少要有幾行符合；exclude 是這一行同時符合就不算（例如「次回受診日」不是這次就診）；date 是 after（欄名後面要讀得出日期）或 line（這一行要讀得出日期），日期用 dates.py 讀；next_line 是欄名自己一行時，下一行要符合的樣式（表格版面）。寫法的依據與實測見 tools/agent6-qualification-eval/（埋錯集：欄名後面任何字都算會誤放登機時間、卡號、收據號碼、「見附件」）。severity：incomplete 是缺了就不合格（不存檔，reason 用 missing_reason，下一步用公式「請向〈issuer〉索取載明〈label〉的〈文件名稱〉」組成）；remind 是缺了照樣通過，只在 reason 提醒（固定句子，不用 LLM）；period 是只核對日期：找不到不擋也不提醒，找得到才看 within_policy_period。within_policy_period 為 true 時，讀得出的日期都不在保單的保險期間內就回「需要你確認」。issuer 是開立單位。",
   "rules": [
     {
       "code": "D01",
@@ -7,16 +7,16 @@
       "label": "延誤期間",
       "severity": "incomplete",
       "any_of": [
-        [{ "pattern": "\\d{1,2}\\s*[:：]\\s*\\d{2}", "min_count": 2 }],
         [
-          {
-            "pattern": "(延誤|延遲|delay).*\\d+(\\.\\d+)?\\s*(小時|個小時|hours?|hrs?)",
-            "min_count": 1
-          }
+          {"pattern": "(?:原定|原訂|預定|预定|scheduled|\\bSTD\\b|定刻|出発予定)[^\\d]{0,20}\\d{1,2}\\s*[:：]\\s*\\d{2}"},
+          {"pattern": "(?:實際|实际|actual|\\bATD\\b|実際|実出発)[^\\d]{0,20}\\d{1,2}\\s*[:：]\\s*\\d{2}"}
         ],
         [
-          { "pattern": "取消|cancel", "min_count": 1 },
-          { "pattern": "\\d{1,2}\\s*[:：]\\s*\\d{2}", "min_count": 1 }
+          {"pattern": "(?:延誤|延遲|延误|遅延|delay(?:ed)?)\\s*(?:時間|時數|期間|time)?\\s*(?:by|of|為|为)?\\s*[:：]?\\s*(?:約|约|approx\\.?|about)?\\s*\\d+(?:\\.\\d+)?\\s*(?:小時|個小時|小时|時間|hours?|hrs?|分鐘|分|minutes?|mins?)(?!\\s*(?:內|内|以內|以内|within))"}
+        ],
+        [
+          {"pattern": "(?:班機|航班|flight)[^\\n]{0,25}?(?:取消|cancell?ed)|欠航", "exclude": "延誤\\s*[／/、及或]\\s*取消|delay\\s*(?:/|or|and)\\s*cancel"},
+          {"pattern": "\\d{1,2}\\s*[:：]\\s*\\d{2}"}
         ]
       ],
       "issuer": "航空公司",
@@ -51,6 +51,44 @@
       "verified": true
     },
     {
+      "code": "D01",
+      "field": "flight_date",
+      "label": "班機日期",
+      "severity": "period",
+      "any_of": [
+        [{ "pattern": "(班機日期|航班日期|搭乘日期|搭機日期|起飛日期|出發日期|班機.*日期|flight\\s*date|date\\s*of\\s*(flight|travel|departure)|departure\\s*date|搭乗日).*(\\d{4}\\s*[-/.年]\\s*\\d{1,2}\\s*[-/.月]\\s*\\d{1,2}|\\d{1,2}\\s*[-/.]\\s*\\d{1,2}\\s*[-/.]\\s*\\d{4}|\\d{1,2}\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,?\\s*\\d{4}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2},?\\s*\\d{4}|令和\\s*(\\d{1,2}|元)\\s*年)", "min_count": 1 }],
+        [{ "pattern": "\\d{4}\\s*[-/.年]\\s*\\d{1,2}\\s*[-/.月]\\s*\\d{1,2}|\\d{1,2}\\s*[-/.]\\s*\\d{1,2}\\s*[-/.]\\s*\\d{4}|\\d{1,2}\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,?\\s*\\d{4}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2},?\\s*\\d{4}|令和\\s*(\\d{1,2}|元)\\s*年", "min_count": 1 }]
+      ],
+      "issuer": "航空公司",
+      "missing_reason": "讀不出班機日期，不核對保險期間",
+      "source": {
+        "file": "docs/agents/handoff/agent-6-document.md",
+        "quote": "讀得出班機日期時，也要落在保單的保險期間內"
+      },
+      "clauses": "承保範圍以「保險期間內」預定搭乘的班機發生延誤為限（例如 CHUBB05 第 21 條），所以延誤證明與機票、登機證上的班機日期都不在保險期間內時，請使用者確認。先找標明班機日期的那一行，找不到才用文件上所有讀得出的日期；有一個在期間內就算，因為開立、開票日期本來就可能早於或晚於保險期間",
+      "within_policy_period": true,
+      "verified": true
+    },
+    {
+      "code": "D02",
+      "field": "flight_date",
+      "label": "班機日期",
+      "severity": "period",
+      "any_of": [
+        [{ "pattern": "(班機日期|航班日期|搭乘日期|搭機日期|起飛日期|出發日期|班機.*日期|flight\\s*date|date\\s*of\\s*(flight|travel|departure)|departure\\s*date|搭乗日).*(\\d{4}\\s*[-/.年]\\s*\\d{1,2}\\s*[-/.月]\\s*\\d{1,2}|\\d{1,2}\\s*[-/.]\\s*\\d{1,2}\\s*[-/.]\\s*\\d{4}|\\d{1,2}\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,?\\s*\\d{4}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2},?\\s*\\d{4}|令和\\s*(\\d{1,2}|元)\\s*年)", "min_count": 1 }],
+        [{ "pattern": "\\d{4}\\s*[-/.年]\\s*\\d{1,2}\\s*[-/.月]\\s*\\d{1,2}|\\d{1,2}\\s*[-/.]\\s*\\d{1,2}\\s*[-/.]\\s*\\d{4}|\\d{1,2}\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?,?\\s*\\d{4}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s+\\d{1,2},?\\s*\\d{4}|令和\\s*(\\d{1,2}|元)\\s*年", "min_count": 1 }]
+      ],
+      "issuer": "航空公司",
+      "missing_reason": "讀不出班機日期，不核對保險期間",
+      "source": {
+        "file": "docs/agents/handoff/agent-6-document.md",
+        "quote": "讀得出班機日期時，也要落在保單的保險期間內"
+      },
+      "clauses": "承保範圍以「保險期間內」預定搭乘的班機發生延誤為限（例如 CHUBB05 第 21 條），所以延誤證明與機票、登機證上的班機日期都不在保險期間內時，請使用者確認。先找標明班機日期的那一行，找不到才用文件上所有讀得出的日期；有一個在期間內就算，因為開立、開票日期本來就可能早於或晚於保險期間",
+      "within_policy_period": true,
+      "verified": true
+    },
+    {
       "code": "D13",
       "field": "diagnosis",
       "label": "病名",
@@ -58,7 +96,10 @@
       "issuer": "醫院或診所",
       "any_of": [
         [
-          { "pattern": "(診斷病名|病名|診斷|diagnosis|impression|dx|การวินิจฉัย(?:โรค)?|診断)\\s*[:：]\\s*\\S", "min_count": 1 }
+          {"pattern": "(?:診斷病名|傷病名|病名|診斷|診断名?|diagnosis|impression|dx|การวินิจฉัย(?:โรค)?)\\s*[:：]\\s*(?:[\\u3040-\\u30ff\\u3400-\\u9fff\\u0e00-\\u0e7f]{2}|[A-Za-z]{3})", "exclude": "see attached|見附件|別紙|待ち|待定|待查|待檢|pending|未定|\\bn/?a\\b"}
+        ],
+        [
+          {"pattern": "^\\s*(?:診斷病名|傷病名|病名|診斷|診断名?|diagnosis|impression|dx|การวินิจฉัย(?:โรค)?)\\s*[:：]?\\s*$", "next_line": "^\\s*(?![^\\n]*[:：])(?![^\\n]*(?:see attached|見附件|別紙|待ち|待定|待查|待檢|pending|未定|\\bn/?a\\b))(?:[\\u3040-\\u30ff\\u3400-\\u9fff\\u0e00-\\u0e7f]{2}|[A-Za-z]{3})"}
         ]
       ],
       "missing_reason": "診斷書上看不到病名",
@@ -77,10 +118,10 @@
       "issuer": "醫院或診所",
       "any_of": [
         [
-          { "pattern": "(就診日期|看診日期|門診日期|診療日期|初診日期|受診日|date of (visit|consultation|examination|treatment)|visit date|วันที่ตรวจ).*\\d", "min_count": 1 }
+          {"pattern": "(?:就診日期|看診日期|門診日期|診療日期|初診日期|受診日|受診年月日|診察日|date of (?:visit|consultation|examination|treatment)|visit date|วันที่ตรวจ)\\s*[:：]?\\s*[^\\s＿_\\-－—:：].*\\d", "exclude": "次回|下次|下回|\\bnext\\b|予約|預約|回診"}
         ],
         [
-          { "pattern": "\\b(examined|treated|seen|visited)\\b.*\\b(on|at)\\b.*\\d", "min_count": 1 }
+          {"pattern": "\\b(?:examined|treated|seen|visited)\\b", "date": "after", "exclude": "次回|下次|下回|\\bnext\\b|予約|預約|回診"}
         ]
       ],
       "missing_reason": "診斷書上看不到就診日期",
@@ -100,10 +141,10 @@
       "issuer": "醫院或診所",
       "any_of": [
         [
-          { "pattern": "(合計|總計|總額|金額|實收|應收|小計|total|amount|paid|รวม|ยอด).*\\d", "min_count": 1 }
+          {"pattern": "(?:合計|總計|總額|金額|實收|應收|小計|total|amount|paid|請求額|お支払額|支払額|領収額|รวม|ยอด)\\s*(?:[(（][^)）]*[)）])?\\s*[:：]?\\s*(?:THB|TWD|NT\\$|USD|JPY|฿|\\$|¥|￥)?\\s*\\d[\\d,]*(?:\\.\\d{1,2})?(?![\\d,]|\\s*(?:項|件|頁|pages?|items?|年|月))"}
         ],
         [
-          { "pattern": "(THB|TWD|NT\\$|USD|JPY|฿|\\$|¥)\\s*\\d|\\d[\\d,]*(\\.\\d{1,2})?\\s*(THB|TWD|บาท|元|円)", "min_count": 1 }
+          {"pattern": "(?:THB|TWD|NT\\$|USD|JPY|฿|\\$|¥|￥)\\s*\\d|\\d[\\d,]*(?:\\.\\d{1,2})?\\s*(?:THB|TWD|JPY|บาท|元|円|日圓)"}
         ]
       ],
       "missing_reason": "收據上看不到金額",
@@ -122,7 +163,7 @@
       "issuer": "醫院或診所",
       "any_of": [
         [
-          { "pattern": "\\d{4}\\s*[-/.年]\\s*\\d{1,2}\\s*[-/.月]\\s*\\d{1,2}|\\d{1,2}\\s*[-/.]\\s*\\d{1,2}\\s*[-/.]\\s*\\d{2,4}|\\d{1,2}\\s*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?\\s*\\d{2,4}|\\d{1,2}\\s*(ม\\.ค|ก\\.พ|มี\\.ค|เม\\.ย|พ\\.ค|มิ\\.ย|ก\\.ค|ส\\.ค|ก\\.ย|ต\\.ค|พ\\.ย|ธ\\.ค)\\.?\\s*\\d{2,4}", "min_count": 1 }
+          {"pattern": "\\d", "date": "line", "exclude": "出生|生年月日|birth|\\bDOB\\b|日生|歳|years? old"}
         ]
       ],
       "missing_reason": "收據上看不到日期",
@@ -144,7 +185,7 @@
     {
       "code": "D02",
       "company": "全部",
-      "note": "理賠文件規則只要求保留機票與登機證，未列欄位；等規格書（#72）補出處後再加"
+      "note": "理賠文件規則只要求保留機票與登機證，未列必要欄位；目前只核對班機日期在不在保險期間內（severity=period），其他欄位等規格書（#72）補出處後再加"
     }
   ]
 }

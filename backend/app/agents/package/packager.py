@@ -4,10 +4,12 @@
 附件規則與寄送流程；行程版一封信涵蓋全部符合保障的事件，事故相關的空格用事故名稱區分。
 """
 
+import asyncio
 import html
 import json
 import re
 import uuid
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from email import policy
@@ -17,7 +19,6 @@ from typing import Literal
 
 from app.agents.package.google_api import (
     DriveFile,
-    DriveFileStatus,
     GoogleApi,
     GoogleApiError,
     GoogleErrorKind,
@@ -373,14 +374,23 @@ _NOT_READY: dict[SendMode, str] = {
 
 # 草稿的帶顏色版本：每個「（請填寫＋項目）」用黃底紅字標出（規格「寄送」2026-11-06 決定）
 _BLANK_STYLE = "background-color:#ffff00;color:#d00000;font-weight:bold"
+# 「未隨信附上的文件」整段紅字（寄出與草稿都有，規格「後續變更」2026-11-18）
+_UNATTACHED_STYLE = "color:#d00000"
+# 標題那一行到下一個空行（或內文結尾）為止
+_UNATTACHED = re.compile(r"(?:^|(?<=\n))未隨信附上的文件\n.*?(?=\n\n|\Z)", re.DOTALL)
 
 
-def _highlighted_html(body: str) -> str:
-    """內文的 HTML 版本：先整段跳脫，再把空格包上醒目的樣式；換行與空白照原樣保留。"""
-    escaped = html.escape(body, quote=False)
-    marked = _BLANK.sub(
-        lambda m: f'<span style="{_BLANK_STYLE}">{m[0]}</span>', escaped
+def _letter_html(body: str, *, highlight_blanks: bool) -> str:
+    """內文的 HTML 版本：先整段跳脫，「未隨信附上的文件」整段紅字；草稿再把空格包上醒目的樣式。
+    換行與空白照原樣保留。"""
+    marked = _UNATTACHED.sub(
+        lambda m: f'<span style="{_UNATTACHED_STYLE}">{m[0]}</span>',
+        html.escape(body, quote=False),
     )
+    if highlight_blanks:
+        marked = _BLANK.sub(
+            lambda m: f'<span style="{_BLANK_STYLE}">{m[0]}</span>', marked
+        )
     return f'<div style="white-space:pre-wrap">{marked}</div>'
 
 
@@ -409,7 +419,8 @@ def _message(
 ) -> bytes:
     """組成要寄出或存成草稿的信：寄出與草稿用同一份主旨、內文與附件（#154）。
 
-    純文字內文照送件包原樣；草稿另外加一份把空格標出來的 HTML 版本。
+    純文字內文照送件包原樣；草稿或有「未隨信附上的文件」時另外加一份 HTML 版本：
+    「未隨信附上的文件」整段紅字，草稿再把空格標出來。
     附件的類型與內容取自 Drive，檔名用 Drive 上的名字、重名時加序號。
     收件者是空的（草稿）時不帶 To，使用者到 Gmail 再填。
     """
@@ -419,8 +430,12 @@ def _message(
         message["To"] = recipient
     message["Subject"] = package.subject
     message.set_content(package.body)
-    if highlight_blanks:
-        message.add_alternative(_highlighted_html(package.body), subtype="html")
+    # 有東西要上色才加 HTML 版本：草稿的空格、「未隨信附上的文件」；都沒有的信維持純文字
+    if highlight_blanks or _UNATTACHED.search(package.body):
+        message.add_alternative(
+            _letter_html(package.body, highlight_blanks=highlight_blanks),
+            subtype="html",
+        )
     for file, name in zip(files, _unique_names([f.name for f in files]), strict=True):
         maintype, _, subtype = file.mime_type.partition("/")
         message.add_attachment(
@@ -575,16 +590,15 @@ class GmailClaimPackager:
         token = await google.access_token(user, DRIVE_SCOPE)
         if token is None:
             return {}
+        statuses = await _limited(
+            documents, lambda d: api.file_status(token, d.storage_path)
+        )
         result: dict[uuid.UUID, Literal["not_found", "trashed"]] = {}
-        try:
-            for document in documents:
-                status: DriveFileStatus = await api.file_status(
-                    token, document.storage_path
-                )
-                if status != "ok":
-                    result[document.id] = status
-        except GoogleApiError:
-            return {}
+        for document, status in zip(documents, statuses, strict=True):
+            if isinstance(status, GoogleApiError):
+                return {}
+            if status != "ok":
+                result[document.id] = status
         return result
 
     async def send(
@@ -655,21 +669,25 @@ class GmailClaimPackager:
             return SendResult(status="failed", reason=_NOT_READY[mode])
         # 先取完所有附件才寄或建草稿：任一個取不到就什麼都不做（規格「寄送」）。
         # 找不到或在垃圾桶的每個都檢查完再一起列出（7-2）；授權失效、連不上就直接停
+        # 附件同時下載（最多 _PARALLEL 份），全部有結果後再照送件包的順序分類
+        fetched = await _limited(
+            package.attachments,
+            lambda a: api.fetch_file(drive_token, a.storage_path),
+        )
         files: list[DriveFile] = []
         not_found: list[str] = []
         trashed: list[str] = []
-        for attachment in package.attachments:
-            try:
-                files.append(await api.fetch_file(drive_token, attachment.storage_path))
-            except GoogleApiError as error:
-                if error.kind == "not_found":
-                    not_found.append(attachment.file_name)
-                elif error.kind == "trashed":
-                    trashed.append(attachment.file_name)
-                else:
-                    return SendResult(
-                        status="failed", reason=_reason(error, _DRIVE_ERRORS, mode)
-                    )
+        for attachment, item in zip(package.attachments, fetched, strict=True):
+            if not isinstance(item, GoogleApiError):
+                files.append(item)
+            elif item.kind == "not_found":
+                not_found.append(attachment.file_name)
+            elif item.kind == "trashed":
+                trashed.append(attachment.file_name)
+            else:
+                return SendResult(
+                    status="failed", reason=_reason(item, _DRIVE_ERRORS, mode)
+                )
         if not_found or trashed:
             return SendResult(
                 status="failed", reason=_missing_reason(not_found, trashed)
@@ -697,6 +715,29 @@ class GmailClaimPackager:
             message_id=message_id,
             gmail_url=gmail_url(user.email, "sent", message_id),
         )
+
+
+_PARALLEL = 4
+"""同時打 Drive 的上限：附件多時不一份一份等，也不一次全打出去被 Google 限流。"""
+
+
+async def _limited[T, R](
+    items: Sequence[T], call: Callable[[T], Awaitable[R]]
+) -> list[R | GoogleApiError]:
+    """對每個 item 呼叫 call，同時最多 _PARALLEL 個；照 items 的順序回傳結果。
+
+    Google 的錯誤當成結果回傳，不中途丟出，讓呼叫的人收齊每一個結果再分類。
+    """
+    gate = asyncio.Semaphore(_PARALLEL)
+
+    async def one(item: T) -> R | GoogleApiError:
+        async with gate:
+            try:
+                return await call(item)
+            except GoogleApiError as error:
+                return error
+
+    return await asyncio.gather(*(one(item) for item in items))
 
 
 def _reason(

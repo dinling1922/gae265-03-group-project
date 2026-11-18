@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from datetime import date
 
 import pytest
 from app.agents.document.reader import Line
@@ -213,7 +214,15 @@ async def test_one_boarding_certificate_finishes_the_todo() -> None:
 
 async def test_combined_ticket_boarding_sample_finishes_the_todo() -> None:
     content, content_type = sample_file("ticket_boarding")
+    # 範例的班機日期是 2026-07-10：保險期間要配合 demo 保單（07/05～07/11）
     ctx = context()
+    ctx = ctx.model_copy(
+        update={
+            "policy": ctx.policy.model_copy(
+                update={"start_date": date(2026, 7, 5), "end_date": date(2026, 7, 11)}
+            )
+        }
+    )
     drive = FakeDrive()
     result = await agent(drive=drive).recognize(
         ctx, upload(content, content_type=content_type), USER, FakeGoogle()
@@ -593,6 +602,55 @@ async def test_delay_period_can_be_a_duration_or_a_cancellation(text: str) -> No
         context(), upload(pdf(text)), USER, FakeGoogle()
     )
     assert result.status == "recognized"
+
+
+# 班機日期（D01、D02）：context() 的保險期間是 2026/11/01～11/10
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "班機延誤證明\n班機日期：2026-11-05\n延誤時間：6 小時\n原因：天候",
+        "FLIGHT DELAY CERTIFICATE\nFlight Date: 05 NOV 2026\nDelayed 5 hours\nReason: weather",
+        # 開立日期在期間外、班機日期在期間內：看標明班機日期的那一行
+        "班機延誤證明\n班機日期：2026-11-05\n延誤時間：6 小時\n原因：天候\n開立日期：2026-11-20",
+        # 沒有年份讀不出日期：不核對、不提醒、不擋
+        "班機延誤證明\nBR198 05NOV\n延誤時間：6 小時\n原因：天候",
+    ],
+    ids=["中文", "英文", "開立日期在期間外", "沒有年份"],
+)
+async def test_flight_date_inside_the_policy_period_or_unreadable_passes(
+    text: str,
+) -> None:
+    result = await agent(rules=load_rules()).recognize(
+        context(), upload(pdf(text)), USER, FakeGoogle()
+    )
+    assert result.status == "recognized", text
+    assert result.reason is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "班機延誤證明\n班機日期：2026-06-20\n延誤時間：6 小時\n原因：天候",
+        # 班機日期在期間外：就算開立日期在期間內也要確認
+        "班機延誤證明\n班機日期：2026-06-20\n延誤時間：6 小時\n原因：天候\n開立日期：2026-11-02",
+        "登機證 BOARDING PASS\n班機 BR198\n日期：2026-06-20",
+    ],
+    ids=["延誤證明", "開立日期在期間內", "登機證"],
+)
+async def test_flight_date_outside_the_policy_period_needs_the_user_to_confirm(
+    text: str,
+) -> None:
+    drive = FakeDrive()
+    result = await agent(drive=drive, rules=load_rules()).recognize(
+        context(), upload(pdf(text)), USER, FakeGoogle()
+    )
+    assert result.status == "needs_review", text
+    assert result.reason and "「班機日期」不在保單的保險期間內" in result.reason
+    assert "2026" not in result.reason  # 不寫出日期本身
+    assert not result.todo_complete
+    assert result.storage_path in drive.files  # 先存成待確認
 
 
 async def test_missing_delay_reason_only_reminds() -> None:

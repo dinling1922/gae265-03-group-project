@@ -40,7 +40,7 @@ IMAGE_TAG=$(git rev-parse HEAD) docker compose -f compose.prod.yaml exec backend
 
 ## 回滾
 
-手動部署舊的 tag。GHCR 已有該版 image 就不重新打包。
+手動部署舊的 tag。GHCR 已有該版 image 就不重新打包。每次部署完會清掉 VM 上沒在用的 image，所以回滾時會從 GHCR 重新 pull。
 
 注意：不會退回 migration。舊程式碼與新資料表結構不相容時，要寫新的 migration 修正，不能直接回滾。
 
