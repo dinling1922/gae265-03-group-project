@@ -15,15 +15,9 @@ from typing import Any
 
 from app.line_bot import texts
 from app.line_bot.client import QuickReply
+from app.line_bot.failures import reply_if_not_success
 from app.line_bot.limits import clamp_quick_replies, fit_text
-from app.line_bot.mcp_client import (
-    McpBindingInvalid,
-    McpFailure,
-    McpNotBound,
-    McpRateLimited,
-    McpSuccess,
-    call_mcp_tool,
-)
+from app.line_bot.mcp_client import McpSuccess, call_mcp_tool
 from app.line_bot.registry import LineContext, line_command
 
 # 列表最多幾筆：快速回覆上限是 13，取 10 與 `list_comparisons` 的預設一致，
@@ -135,24 +129,6 @@ NAV_QUICK_REPLIES = (
 )
 
 
-async def _reply_failure(ctx: LineContext, result: object) -> bool:
-    """McpSuccess 以外的結果統一在這裡回覆；回 True 表示已回覆。"""
-    match result:
-        case McpSuccess():
-            return False
-        case McpNotBound():
-            await ctx.reply(texts.NOT_BOUND_TEXT)
-        case McpBindingInvalid():
-            await ctx.reply(texts.BINDING_INVALID_TEXT)
-        case McpRateLimited():
-            await ctx.reply(texts.RATE_LIMITED_TEXT)
-        case McpFailure():
-            await ctx.reply(texts.MCP_ERROR_TEXT)
-        case _:
-            await ctx.reply(texts.MCP_ERROR_TEXT)
-    return True
-
-
 @line_command(texts.CMD_COMPARE)
 async def compare_command(ctx: LineContext) -> None:
     index: int | None = None
@@ -170,7 +146,7 @@ async def compare_command(ctx: LineContext) -> None:
         "list_comparisons",
         {"limit": LIST_LIMIT},
     )
-    if await _reply_failure(ctx, listed):
+    if await reply_if_not_success(ctx, listed):
         return
     assert isinstance(listed, McpSuccess)
     items: list[dict[str, Any]] = listed.content.get("comparisons", [])
@@ -196,7 +172,7 @@ async def compare_command(ctx: LineContext) -> None:
         "get_comparison",
         {"comparison_id": items[index - 1]["id"]},
     )
-    if await _reply_failure(ctx, detail):
+    if await reply_if_not_success(ctx, detail):
         return
     assert isinstance(detail, McpSuccess)
     await ctx.reply(format_detail(detail.content), NAV_QUICK_REPLIES)
