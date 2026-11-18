@@ -37,6 +37,7 @@ class TripPlanOut(BaseModel):
 
 
 class PlanOut(BaseModel):
+    plan_id: str = Field(description="方案代碼，可用在 get_plan_details 查保障明細")
     name: str = Field(description="方案名稱")
     company: str = Field(description="保險公司")
     sum_insured: int = Field(description="目前選的身故保額（元）")
@@ -63,6 +64,7 @@ class GetComparisonOut(BaseModel):
 
 def _plan(card: PlanCardOut) -> PlanOut:
     return PlanOut(
+        plan_id=card.plan_code,
         name=card.name,
         company=card.company,
         sum_insured=card.sum_insured,
