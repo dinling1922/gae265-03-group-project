@@ -40,7 +40,7 @@ async def list_comparisons(
     """列出使用者自己的旅遊保險比較紀錄，最新的在前。
 
     每筆包含比較紀錄代碼、目的地、出發與回程日期、天數、是否已有推薦結果、建立與更新時間。
-    只讀取，不會建立或修改任何資料。要看某次比較的推薦內容請用 get_comparison（若有提供）。
+    只讀取，不會建立或修改任何資料。要看某次比較的推薦內容請用 get_comparison。
     """
     env = tool_env()
     async with env.session_maker() as session:
