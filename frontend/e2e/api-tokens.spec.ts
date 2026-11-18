@@ -133,3 +133,61 @@ test("手機版：無橫向捲動、按鈕可點", async ({ page }) => {
   await page.getByTestId("api-token-revoke-yes").click();
   await expect(page.getByTestId("api-token-status")).toHaveText("已撤銷");
 });
+
+test("權限範圍：預設不勾、勾選有警告，送出 scopes 與列表標籤正確", async ({ page }) => {
+  await login(page, `e2e-token-scopes-${Date.now()}@example.com`);
+  await page.goto("/account");
+  const box = page.getByTestId("api-token-allow-write");
+  await expect(box).not.toBeChecked();
+  await expect(page.getByTestId("api-token-write-warning")).toHaveCount(0);
+
+  // 不勾：唯讀
+  let req = page.waitForRequest((r) => r.url().endsWith("/me/api-tokens") && r.method() === "POST");
+  await create(page, "唯讀的");
+  expect((await req).postDataJSON()).toMatchObject({ name: "唯讀的", scopes: ["read"] });
+  await expect(page.getByTestId("api-token-secret-box")).toContainText("唯讀");
+  await page.getByTestId("api-token-secret-close").click();
+
+  // 勾選：警告出現、送 read+write，建立後選項回到未勾
+  await box.check();
+  await expect(page.getByTestId("api-token-write-warning")).toContainText("不能刪除");
+  req = page.waitForRequest((r) => r.url().endsWith("/me/api-tokens") && r.method() === "POST");
+  await create(page, "可寫入的");
+  expect((await req).postDataJSON()).toMatchObject({
+    name: "可寫入的",
+    scopes: ["read", "write"],
+  });
+  await expect(page.getByTestId("api-token-secret-box")).toContainText("可寫入");
+  await expect(box).not.toBeChecked();
+  await expect(page.getByTestId("api-token-write-warning")).toHaveCount(0);
+
+  const rows = page.getByTestId("api-token");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.filter({ hasText: "唯讀的" }).getByTestId("api-token-scope")).toHaveText(
+    "唯讀",
+  );
+  await expect(rows.filter({ hasText: "可寫入的" }).getByTestId("api-token-scope")).toHaveText(
+    "可寫入",
+  );
+});
+
+test("權限範圍：已撤銷的仍顯示範圍；手機版勾選後無橫向捲動", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await login(page, `e2e-token-scopes-m-${Date.now()}@example.com`);
+  await page.request.post("/api/v1/me/api-tokens", {
+    data: { name: "已撤銷的寫入", scopes: ["read", "write"] },
+  });
+  await page.goto("/account");
+  await page.getByTestId("api-token-revoke").click();
+  await page.getByTestId("api-token-revoke-yes").click();
+  const row = page.getByTestId("api-token");
+  await expect(row.getByTestId("api-token-status")).toHaveText("已撤銷");
+  await expect(row.getByTestId("api-token-scope")).toHaveText("可寫入");
+
+  await page.getByTestId("api-token-allow-write").check();
+  await expect(page.getByTestId("api-token-write-warning")).toBeVisible();
+  const scrollsSideways = await page.evaluate(
+    () => document.documentElement.scrollWidth > window.innerWidth,
+  );
+  expect(scrollsSideways).toBe(false);
+});
