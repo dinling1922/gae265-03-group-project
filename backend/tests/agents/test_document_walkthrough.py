@@ -130,6 +130,7 @@ async def test_every_sample_can_be_downloaded_and_walked(
         "delay_missing": "recognized",  # 有寫延誤時數，算有延誤期間
         "delay_no_reason": "recognized",  # 沒寫原因只提醒，照樣通過
         "delay_no_period": "incomplete",  # 沒有延誤期間：不合格、不存檔
+        "delay_out_of_period": "needs_review",  # 班機日期在保險期間外：請使用者確認
         "boarding_pass": "recognized",
         "ticket": "recognized",
         "boarding_proof": "recognized",
@@ -147,6 +148,7 @@ async def test_every_sample_can_be_downloaded_and_walked(
         "med_certificate": "recognized",
         "med_receipt": "recognized",
         "med_certificate_no_diagnosis": "incomplete",  # 沒寫病名：不合格
+        "med_certificate_out_of_period": "needs_review",  # 就診日期在保險期間外
         "med_receipt_no_amount": "incomplete",  # 沒寫金額：不合格
         "photo_med_receipt": "needs_review",
         "med_passport_copy": "recognized",  # 受益人身分證明（D24）
@@ -183,6 +185,9 @@ async def test_every_sample_can_be_downloaded_and_walked(
             assert body["todo_complete"] and "原因" in (body["reason"] or "")
         if s["name"] == "delay_no_period":
             assert body["saved_path"] is None and "延誤期間" in (body["reason"] or "")
+        if s["name"].endswith("_out_of_period"):
+            assert "不在保單的保險期間內" in (body["reason"] or "")
+            assert not body["todo_complete"]
         if s["name"] == "ticket_locked":
             assert body["status_label"] == "無法辨識"
         if s["name"] == "ticket_boarding":

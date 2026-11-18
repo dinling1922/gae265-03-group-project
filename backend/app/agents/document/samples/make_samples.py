@@ -14,6 +14,7 @@ backend 容器只讀產出的 PDF，不需要這些字型。
 import io
 import logging
 import random
+from datetime import date
 from functools import cache
 from pathlib import Path
 from typing import Any
@@ -207,11 +208,21 @@ def rows(
     return y
 
 
-def delay_certificate(doc: pymupdf.Document, with_times: bool) -> None:
+# demo 保單的保險期間是 2026-07-05～07-11；「保險期間外」的範例改用這一天
+OUT_OF_PERIOD = date(2026, 6, 20)
+
+
+def delay_certificate(
+    doc: pymupdf.Document, with_times: bool, flight: date = date(2026, 7, 10)
+) -> None:
     s = Sheet(doc)
     airline_header(s, "班機延誤證明書", "FLIGHT DELAY CERTIFICATE")
     s.text(
-        40, 100, "證明編號 Certificate No.：NRT-DLY-20260710-0412", size=9, color=GRAY
+        40,
+        100,
+        f"證明編號 Certificate No.：NRT-DLY-{flight:%Y%m%d}-0412",
+        size=9,
+        color=GRAY,
     )
     s.text(40, 128, "茲證明下列旅客搭乘本公司班機，因故延誤起飛，特此證明。", size=11)
     s.text(
@@ -225,7 +236,7 @@ def delay_certificate(doc: pymupdf.Document, with_times: bool) -> None:
         ("Passenger Name", "旅客姓名：陳怡君　CHEN/YICHUN MS"),
         ("Booking Reference", "訂位代號：K7Q2MD"),
         ("Flight No.", "班機號碼：ZZ 198"),
-        ("Flight Date", "班機日期：2026-07-10"),
+        ("Flight Date", f"班機日期：{flight.isoformat()}"),
         ("Sector", "航段：東京成田 NRT → 台北桃園 TPE"),
     ]
     if with_times:
@@ -239,7 +250,7 @@ def delay_certificate(doc: pymupdf.Document, with_times: bool) -> None:
     items += [
         ("Reason", "延誤原因：天候不佳（成田機場強風）Adverse weather"),
         ("Issued at", "開立單位：成田機場站 NRT Airport Station"),
-        ("Date of Issue", "開立日期：2026-07-10"),
+        ("Date of Issue", f"開立日期：{flight.isoformat()}"),
     ]
     y = rows(s, 40, 166, items)
     s.text(
@@ -259,7 +270,7 @@ def delay_certificate(doc: pymupdf.Document, with_times: bool) -> None:
     s.text(330, y + 92, "站務主管 Duty Manager：", size=10)
     s.page.insert_font(fontname="H", fontbuffer=font(FONT_HAND))
     s.page.insert_text((450, y + 92), "林志明", fontname="H", fontsize=15, color=INK)
-    s.stamp(500, y + 140, AIRLINE_EN[:6], "成田站", "2026.07.10")
+    s.stamp(500, y + 140, AIRLINE_EN[:6], "成田站", f"{flight:%Y.%m.%d}")
     s.footer()
 
 
@@ -675,16 +686,31 @@ def clinic_header(s: Sheet, title_ja: str, title_en: str) -> None:
     s.text((w - ew) / 2, 152, title_en, size=10, color=GRAY)
 
 
-def medical_certificate(doc: pymupdf.Document, with_diagnosis: bool) -> None:
-    """診断書（D13）：日英並列。with_diagnosis=False 拿掉病名那一列（不合格範例）。"""
+WEEKDAYS_JA = "月火水木金土日"
+
+
+def _ja_date(d: date) -> str:
+    return f"{d.year}年{d.month}月{d.day}日"
+
+
+def medical_certificate(
+    doc: pymupdf.Document, with_diagnosis: bool, visit: date = date(2026, 7, 8)
+) -> None:
+    """診断書（D13）：日英並列。with_diagnosis=False 拿掉病名那一列（不合格範例）。
+
+    visit 是受診日；改成保險期間外的日期就是「需要你確認」的範例。
+    """
     s = JaSheet(doc)
     clinic_header(s, "診断書", "MEDICAL CERTIFICATE")
-    s.text(40, 178, "No. MC-20260708-0153", size=8.5, color=GRAY)
+    s.text(40, 178, f"No. MC-{visit:%Y%m%d}-0153", size=8.5, color=GRAY)
     items = [
         ("氏名 / Name", "Patient name: CHEN YICHUN 様"),
         ("生年月日 / Date of birth", "1992年3月14日生（34歳）"),
         ("国籍 / Nationality", "台湾 Taiwan（旅行者）"),
-        ("受診日 / Date of visit", "受診日：2026年7月8日（水）"),
+        (
+            "受診日 / Date of visit",
+            f"受診日：{_ja_date(visit)}（{WEEKDAYS_JA[visit.weekday()]}）",
+        ),
     ]
     if with_diagnosis:
         items.append(("病名 / Diagnosis", "病名：急性胃腸炎（Acute gastroenteritis）"))
@@ -702,14 +728,14 @@ def medical_certificate(doc: pymupdf.Document, with_diagnosis: bool) -> None:
         size=8,
         color=GRAY,
     )
-    s.text(300, y + 84, "発行日：2026年7月8日", size=9.5)
+    s.text(300, y + 84, f"発行日：{_ja_date(visit)}", size=9.5)
     s.text(300, y + 100, f"{CLINIC_CORP}　{CLINIC_JA}", size=9)
     s.text(300, y + 120, "医師　Physician：", size=10)
     s.page.insert_font(fontname="H", fontbuffer=font(FONT_HAND))
     s.page.insert_text(
         (400, y + 122), "デモ 太郎", fontname="H", fontsize=14, color=INK
     )
-    s.stamp(500, y + 165, "DEMO", "東京", "2026.07.08")
+    s.stamp(500, y + 165, "DEMO", "東京", f"{visit:%Y.%m.%d}")
     s.footer()
 
 
@@ -1024,6 +1050,9 @@ def id_card_copy(doc: pymupdf.Document) -> None:
 SAMPLE_FILES = {
     "delay": lambda d: delay_certificate(d, with_times=True),
     "delay_missing": lambda d: delay_certificate(d, with_times=False),
+    "delay_out_of_period": lambda d: delay_certificate(
+        d, with_times=True, flight=OUT_OF_PERIOD
+    ),
     "boarding_pass": boarding_pass,
     "ticket": e_ticket,
     "boarding_proof": boarding_certificate,
@@ -1035,6 +1064,9 @@ SAMPLE_FILES = {
     "med_certificate": lambda d: medical_certificate(d, with_diagnosis=True),
     "med_certificate_no_diagnosis": lambda d: medical_certificate(
         d, with_diagnosis=False
+    ),
+    "med_certificate_out_of_period": lambda d: medical_certificate(
+        d, with_diagnosis=True, visit=OUT_OF_PERIOD
     ),
     "med_receipt": lambda d: medical_receipt(d, with_amount=True),
     "med_receipt_no_amount": lambda d: medical_receipt(d, with_amount=False),
