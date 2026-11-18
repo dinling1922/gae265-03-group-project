@@ -167,3 +167,60 @@ async def test_cannot_list_or_revoke_others_tokens(
     assert (await client.get(URL)).json()[0]["status"] == "active"
     assert await authenticate_bearer(session, mine["token"]) is not None
     assert (await client.delete(f"{URL}/{uuid.uuid4()}")).status_code == 404
+
+
+# ---- 權限範圍（ADR-0034、#507） ----
+
+
+@pytest.mark.usefixtures("logged_in")
+async def test_default_scope_is_read_only(client: AsyncClient):
+    resp = await client.post(URL, json={"name": "預設"})
+    assert resp.status_code == 201 and resp.json()["scopes"] == ["read"]
+
+
+@pytest.mark.usefixtures("logged_in")
+async def test_create_with_write_scope_and_list_shows_scopes(
+    client: AsyncClient, session: AsyncSession
+):
+    resp = await client.post(
+        URL, json={"name": "可寫入", "scopes": ["write", "read", "read"]}
+    )
+    assert resp.status_code == 201, resp.text
+    created = resp.json()
+    assert created["scopes"] == ["read", "write"]  # 去重並固定順序
+    await create(client, "唯讀")
+    listed = {t["name"]: t["scopes"] for t in (await client.get(URL)).json()}
+    assert listed == {"可寫入": ["read", "write"], "唯讀": ["read"]}
+    identity = await authenticate_bearer(session, created["token"])
+    assert identity is not None and identity.scopes == frozenset({"read", "write"})
+
+
+@pytest.mark.usefixtures("logged_in")
+@pytest.mark.parametrize(
+    "scopes", [["write"], [], ["admin"], ["read", "admin"], "read", None]
+)
+async def test_invalid_scopes_are_rejected(client: AsyncClient, scopes):
+    resp = await client.post(URL, json={"name": "壞的", "scopes": scopes})
+    assert resp.status_code == 422
+    assert (await client.get(URL)).json() == []  # 什麼都沒建立
+
+
+@pytest.mark.usefixtures("logged_in")
+async def test_active_limit_counts_write_tokens_too(client: AsyncClient):
+    for i in range(5):
+        resp = await client.post(
+            URL, json={"name": f"t{i}", "scopes": ["read", "write"]}
+        )
+        assert resp.status_code == 201
+    resp = await client.post(URL, json={"name": "第六把"})
+    assert resp.status_code == 409
+
+
+async def test_create_token_rejects_bad_scopes_in_domain(
+    logged_in: User, session: AsyncSession
+):
+    from app.domain.access_tokens import InvalidScopesError, create_token
+
+    for bad in (("write",), (), ("read", "admin")):
+        with pytest.raises(InvalidScopesError):
+            await create_token(session, logged_in.id, "x", bad)
