@@ -223,6 +223,106 @@ export type ActivityPatch = {
 };
 
 /**
+ * ApiTokenCreate
+ */
+export type ApiTokenCreate = {
+    /**
+     * Name
+     */
+    name: string;
+};
+
+/**
+ * ApiTokenCreated
+ */
+export type ApiTokenCreated = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Scopes
+     */
+    scopes: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Revoked At
+     */
+    revoked_at: string | null;
+    /**
+     * Status
+     */
+    status: 'active' | 'expired' | 'revoked';
+    /**
+     * Token
+     *
+     * 權杖明文；只在建立時回傳這一次
+     */
+    token: string;
+};
+
+/**
+ * ApiTokenOut
+ */
+export type ApiTokenOut = {
+    /**
+     * Id
+     */
+    id: string;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Prefix
+     */
+    prefix: string;
+    /**
+     * Scopes
+     */
+    scopes: Array<string>;
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Last Used At
+     */
+    last_used_at: string | null;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Revoked At
+     */
+    revoked_at: string | null;
+    /**
+     * Status
+     */
+    status: 'active' | 'expired' | 'revoked';
+};
+
+/**
  * AttachmentRef
  */
 export type AttachmentRef = {
@@ -5338,6 +5438,79 @@ export type DeleteMyDataResponses = {
 };
 
 export type DeleteMyDataResponse = DeleteMyDataResponses[keyof DeleteMyDataResponses];
+
+export type ListApiTokensData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/api-tokens';
+};
+
+export type ListApiTokensResponses = {
+    /**
+     * Response List Api Tokens
+     *
+     * Successful Response
+     */
+    200: Array<ApiTokenOut>;
+};
+
+export type ListApiTokensResponse = ListApiTokensResponses[keyof ListApiTokensResponses];
+
+export type CreateApiTokenData = {
+    body: ApiTokenCreate;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/api-tokens';
+};
+
+export type CreateApiTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateApiTokenError = CreateApiTokenErrors[keyof CreateApiTokenErrors];
+
+export type CreateApiTokenResponses = {
+    /**
+     * Successful Response
+     */
+    201: ApiTokenCreated;
+};
+
+export type CreateApiTokenResponse = CreateApiTokenResponses[keyof CreateApiTokenResponses];
+
+export type RevokeApiTokenData = {
+    body?: never;
+    path: {
+        /**
+         * Token Id
+         */
+        token_id: string;
+    };
+    query?: never;
+    url: '/api/v1/me/api-tokens/{token_id}';
+};
+
+export type RevokeApiTokenErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RevokeApiTokenError = RevokeApiTokenErrors[keyof RevokeApiTokenErrors];
+
+export type RevokeApiTokenResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type RevokeApiTokenResponse = RevokeApiTokenResponses[keyof RevokeApiTokenResponses];
 
 export type ListComparisonsData = {
     body?: never;
