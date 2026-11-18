@@ -119,6 +119,9 @@ class Settings(BaseSettings):
     # 加密 Google refresh token 的 Fernet 金鑰
     TOKEN_ENCRYPTION_KEY: SecretStr | None = None
 
+    # MCP 伺服器（ADR-0032）：每把存取權杖每分鐘最多呼叫幾次（每個 worker 各算各的）
+    MCP_RATE_LIMIT_PER_MINUTE: int = 60
+
     # 背景工作（ADR-0031）：Celery 的 broker；compose 裡的服務會覆寫成 redis://redis:6379/0
     REDIS_URL: str = "redis://localhost:6379/0"
 
