@@ -41,6 +41,8 @@
 
 服務沒開、改動沒生效、要查 log 或資料庫、需要 `.env` 的設定值時，先讀 `docs/agents/dev-environment.md`。
 
+要讓外部 AI 助理連後端的 MCP 伺服器（存取權杖、`/mcp`、三個唯讀工具），讀 `docs/agents/mcp-server.md`。
+
 拉取最新 main 之後要同步資料庫／seed／檢查、或介面契約有更新時，讀 `docs/agents/sync-after-pull.md`；契約變更紀錄在 `docs/agents/handoff/contract-changelog.md`。
 
 整合進度與接下來要做的事（CI 閘門、契約 v2、待決事項）見 `docs/integration-plan.md`。
