@@ -1,5 +1,6 @@
 from sqlmodel import SQLModel
 
+from app.models.api_token import ApiToken
 from app.models.base import BaseTable
 from app.models.bundle_split import BundleSplit
 from app.models.claim import (
@@ -35,6 +36,7 @@ from app.models.reminder import ReminderLetter
 from app.models.user import Identity, User
 
 __all__ = [
+    "ApiToken",
     "BaseTable",
     "Comparison",
     "Conversation",
