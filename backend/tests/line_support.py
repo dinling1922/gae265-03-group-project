@@ -8,10 +8,13 @@ import pytest
 from app.core.config import settings
 from app.line_bot.client import TextMessage
 from app.line_bot.webhook import sign
+from cryptography.fernet import Fernet
 from pydantic import SecretStr
 
 CHANNEL_SECRET = "test-channel-secret"
 ACCESS_TOKEN = "test-channel-access-token"
+# 綁定要加密權杖、雜湊綁定碼，需要金鑰
+ENCRYPTION_KEY = Fernet.generate_key().decode()
 
 
 def use_line_settings(monkeypatch: pytest.MonkeyPatch, **overrides: Any) -> None:
@@ -19,6 +22,7 @@ def use_line_settings(monkeypatch: pytest.MonkeyPatch, **overrides: Any) -> None
     values = {
         "LINE_CHANNEL_SECRET": SecretStr(CHANNEL_SECRET),
         "LINE_CHANNEL_ACCESS_TOKEN": SecretStr(ACCESS_TOKEN),
+        "TOKEN_ENCRYPTION_KEY": SecretStr(ENCRYPTION_KEY),
         **overrides,
     }
     for name, value in values.items():

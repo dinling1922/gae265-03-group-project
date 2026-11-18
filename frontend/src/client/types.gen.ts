@@ -2047,6 +2047,52 @@ export type InsuranceOut = {
 };
 
 /**
+ * LineBindCodeOut
+ */
+export type LineBindCodeOut = {
+    /**
+     * Code
+     *
+     * 6 位數綁定碼；只在產生時回傳這一次
+     */
+    code: string;
+    /**
+     * Expires At
+     */
+    expires_at: string;
+    /**
+     * Ttl Seconds
+     *
+     * 有效秒數
+     */
+    ttl_seconds: number;
+};
+
+/**
+ * LineBindingStatusOut
+ */
+export type LineBindingStatusOut = {
+    /**
+     * Bound
+     *
+     * 是否已綁定 LINE
+     */
+    bound: boolean;
+    /**
+     * Bound At
+     *
+     * 綁定時間；未綁定時是 null
+     */
+    bound_at: string | null;
+    /**
+     * Code Expires At
+     *
+     * 有未過期、未使用的綁定碼時的到期時間；沒有時是 null。不含碼明文
+     */
+    code_expires_at: string | null;
+};
+
+/**
  * ManualPolicyIn
  */
 export type ManualPolicyIn = {
@@ -5511,6 +5557,54 @@ export type RevokeApiTokenResponses = {
 };
 
 export type RevokeApiTokenResponse = RevokeApiTokenResponses[keyof RevokeApiTokenResponses];
+
+export type DeleteLineBindingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/line-binding';
+};
+
+export type DeleteLineBindingResponses = {
+    /**
+     * Successful Response
+     */
+    204: void;
+};
+
+export type DeleteLineBindingResponse = DeleteLineBindingResponses[keyof DeleteLineBindingResponses];
+
+export type GetLineBindingData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/line-binding';
+};
+
+export type GetLineBindingResponses = {
+    /**
+     * Successful Response
+     */
+    200: LineBindingStatusOut;
+};
+
+export type GetLineBindingResponse = GetLineBindingResponses[keyof GetLineBindingResponses];
+
+export type CreateLineBindCodeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/me/line-binding/code';
+};
+
+export type CreateLineBindCodeResponses = {
+    /**
+     * Successful Response
+     */
+    201: LineBindCodeOut;
+};
+
+export type CreateLineBindCodeResponse = CreateLineBindCodeResponses[keyof CreateLineBindCodeResponses];
 
 export type ListComparisonsData = {
     body?: never;
