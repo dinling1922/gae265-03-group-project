@@ -43,9 +43,19 @@
 
 要讓外部 AI 助理連後端的 MCP 伺服器（存取權杖、`/mcp`、三個唯讀工具），讀 `docs/agents/mcp-server.md`。
 
+要接 LINE bot（綁定、指令、LINE 頻道與隧道設定），讀 `docs/agents/line-bot.md`。
+
 拉取最新 main 之後要同步資料庫／seed／檢查、或介面契約有更新時，讀 `docs/agents/sync-after-pull.md`；契約變更紀錄在 `docs/agents/handoff/contract-changelog.md`。
 
 整合進度與接下來要做的事（CI 閘門、契約 v2、待決事項）見 `docs/integration-plan.md`。
+
+## Git worktree
+
+在 worktree（`.claude/worktrees/` 或 `git worktree add` 開的目錄）工作時：
+
+- 開好 worktree 先跑 `make worktree-setup`；要驗證改動就跑 `make dev-worktree`（前景執行，前端 `http://127.0.0.1:5174`）。`make up` 只在主目錄跑，`localhost:5173` 是主目錄的程式碼。
+- 跑 `make migrate` 前先提醒使用者：worktree 和主目錄共用開發資料庫，這個 migration 也會改到主目錄的 schema。使用者同意才跑。
+- 刪除 worktree 前，照 `docs/agents/dev-environment.md` 的「刪除 worktree 前」檢查 migration，需要時提醒使用者先 downgrade。
 
 ## Commit
 
