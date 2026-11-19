@@ -689,6 +689,34 @@ test("捲動自動切換：手機問答面板拉開時，捲動不換問答", as
   expect(await selectedIndex(page)).toBe(1);
 });
 
+test("捲動自動切換：捲到頁面最底，最後一張卡的上緣還沒過閱讀線，問答也換成最後一件事故（#531）", async ({
+  page,
+}) => {
+  // 視窗夠高：最後一張卡下方只剩注意事項、待辦、送件，頁面捲到底時它的上緣還在閱讀線（48px）之下
+  await page.setViewportSize({ width: 1280, height: 1600 });
+  const { policyId } = await setup(page, "scroll-bottom", ["班機延誤了六小時", "行李遺失了被偷"]);
+  await page.goto(`/trip/${policyId}`);
+  await expect(page.getByTestId("trip-incident")).toHaveCount(2);
+  expect(await selectedIndex(page)).toBe(0); // 一進頁面選中的是第一件
+  const first = (await page.getByTestId("qa-title").textContent()) ?? "";
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+  // 前提：頁面真的有捲動（才有捲動事件），而且最後一張卡的上緣還沒過線（不然這個測試證明不了什麼）
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  const lastTop = await page.evaluate(
+    () =>
+      document.querySelectorAll('[data-testid="trip-incident"]')[1]?.getBoundingClientRect().top,
+  );
+  expect(lastTop).toBeGreaterThan(48);
+  await expect.poll(() => selectedIndex(page)).toBe(1);
+  await expect(page.getByTestId("qa-title")).not.toHaveText(first);
+
+  // 切換後最後一張卡展開、頁面變長：選中的事故不能又跳回第一件
+  await page.waitForTimeout(800);
+  expect(await selectedIndex(page)).toBe(1);
+});
+
 // 行程頁問答補完資訊後再確認（#445）：後端判斷「問完 + 結論或適用待辦有變」才回 show_confirm。
 // 假 5 號只要使用者的話裡有「不理賠」，就把保障改成 excluded（結論有變）。
 async function askInTrip(page: Page, text: string) {
