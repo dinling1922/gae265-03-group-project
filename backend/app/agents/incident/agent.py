@@ -20,6 +20,11 @@ from app.agents.incident.judge import (
     DATE_INFERRED_LABEL,
     DELAY_BAND_KEY,
     DELAY_HOURS_KEY,
+    ILLNESS,
+    ILLNESS_CODE,
+    INJURY,
+    INJURY_CODE,
+    KIND_KEY,
     PLANNED_DATE_KEY,
     DateBackfill,
     Judgement,
@@ -379,6 +384,21 @@ def _coverages_of(
         return event.coverages
     judged = JUDGED_INSURANCE_CODES[type_code]
     return [c for c in ctx.policy.coverages if c.insurance_code in judged]
+
+
+def _medical_matching(
+    coverages: list[CoverageRef], known: dict[str, str]
+) -> list[CoverageRef]:
+    """就醫：生病或受傷已確定時，只留符合的險種（生病 CHUBB04、受傷 CHUBB02），拿掉另一個已核對的就醫險種。
+
+    不符的險種列出來只會多一列紅色的「不在保障範圍」（Demo 的急性腸胃炎事故卡不該出現傷害醫療，#546）。
+    保單沒有符合的險種時不拿，照舊列出不符的並寫明原因，免得整張卡變成沒有就醫保障；
+    還不知道生病或受傷時兩個都留。其他險種（沒核對的）不動。"""
+    match = {ILLNESS: ILLNESS_CODE, INJURY: INJURY_CODE}.get(known.get(KIND_KEY, ""))
+    if match is None or not any(c.insurance_code == match for c in coverages):
+        return coverages
+    other = ({ILLNESS_CODE, INJURY_CODE} - {match}).pop()
+    return [c for c in coverages if c.insurance_code != other]
 
 
 def _clock_times_fix(text: str, known: dict[str, str]) -> dict[str, str]:
@@ -897,6 +917,9 @@ class IncidentAgentV1:
         """必問欄位都有答案：回報事故類型與每項保障的結論，平台依結論建立待辦（契約 v2）。"""
         event = next(t for t in ctx.event_types if t.code == type_code)
         coverages = _coverages_of(ctx, event, type_code)
+        if type_code == flow.MEDICAL:
+            # 要在算 codes、scope（出處）之前拿掉：出處只查列出的險種
+            coverages = _medical_matching(coverages, known)
         start, end = ctx.policy.start_date, ctx.policy.end_date
 
         def verdict_of(insurance_code: str) -> Judgement:
