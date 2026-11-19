@@ -1,5 +1,5 @@
 import type { ActivityCategory, ActivityIn, Destination } from "../../client/types.gen";
-import { addDays, today } from "./tripRules";
+import { addDays } from "./tripRules";
 import type { TripFields } from "./useItineraryActions";
 
 /**
@@ -27,8 +27,8 @@ export type DemoItinerary = {
   destination: Destination;
   city: string;
   days: number;
-  /** `next-sep-15`：下一個 9/15（颱風季）；`plus-30`：今天 +30 天。 */
-  departRule: "next-sep-15" | "plus-30";
+  /** 固定出發日 YYYY-MM-DD；2-2 落在颱風季（9/15）。 */
+  departDate: string;
   activities: DemoActivity[];
 };
 
@@ -42,11 +42,11 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
     destination: "日本",
     city: "東京",
     days: 7,
-    departRule: "plus-30",
+    departDate: "2026-07-05",
     activities: [
       {
         day: 1,
-        hour: 10,
+        hour: 13,
         title: "抵達成田機場",
         category: "explore",
         duration: 2,
@@ -56,7 +56,7 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
       },
       {
         day: 1,
-        hour: 13,
+        hour: 15,
         title: "飯店放行李",
         category: "stay",
         duration: 1,
@@ -136,73 +136,73 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
       },
       {
         day: 4,
-        hour: 11,
-        title: "銀座百貨公司購物",
+        hour: 8,
+        title: "河口湖・富士山一日遊（已付團費）",
         category: "explore",
-        duration: 3,
-        location: "銀座三越",
-        latitude: 35.6713,
-        longitude: 139.7657,
-      },
-      {
-        day: 4,
-        hour: 15,
-        title: "秋葉原買電器",
-        category: "explore",
-        duration: 3,
-        location: "Yodobashi Akiba",
-        latitude: 35.6988,
-        longitude: 139.7747,
-      },
-      {
-        day: 4,
-        hour: 19,
-        title: "澀谷逛街、看十字路口",
-        category: "explore",
-        duration: 2,
-        location: "澀谷十字路口",
-        latitude: 35.6595,
-        longitude: 139.7005,
+        duration: 8,
+        location: "河口湖",
+        latitude: 35.5163,
+        longitude: 138.7519,
       },
       {
         day: 5,
         hour: 10,
-        title: "明治神宮",
-        category: "culture",
+        title: "新宿 Sarabeth's 舒芙蕾",
+        category: "eat",
         duration: 2,
-        location: "明治神宮",
-        latitude: 35.6748,
-        longitude: 139.6996,
+        location: "Sarabeth's 新宿",
+        latitude: 35.6903,
+        longitude: 139.7006,
       },
       {
         day: 5,
         hour: 13,
-        title: "表參道下午茶",
-        category: "eat",
-        duration: 2,
-        location: "表參道之丘",
-        latitude: 35.6672,
-        longitude: 139.7089,
+        title: "teamLab Planets（已購票）",
+        category: "explore",
+        duration: 3,
+        location: "teamLab Planets TOKYO",
+        latitude: 35.6491,
+        longitude: 139.7897,
       },
       {
         day: 5,
-        hour: 18,
-        title: "竹下通逛街",
+        hour: 21,
+        title: "SHIBUYA SKY（已購票時段 21:00）",
         category: "explore",
-        duration: 2,
-        location: "竹下通",
-        latitude: 35.6712,
-        longitude: 139.705,
+        duration: 1,
+        location: "SHIBUYA SKY",
+        latitude: 35.6585,
+        longitude: 139.7021,
       },
       {
         day: 6,
         hour: 9,
-        title: "東京迪士尼樂園（門票已預購、不可退款）",
+        title: "淺草寺",
+        category: "culture",
+        duration: 2,
+        location: "淺草寺",
+        latitude: 35.7148,
+        longitude: 139.7967,
+      },
+      {
+        day: 6,
+        hour: 13,
+        title: "上野恩賜公園",
         category: "explore",
-        duration: 8,
-        location: "東京迪士尼樂園",
-        latitude: 35.6329,
-        longitude: 139.8804,
+        duration: 2,
+        location: "上野恩賜公園",
+        latitude: 35.7156,
+        longitude: 139.7745,
+      },
+      {
+        day: 6,
+        hour: 16,
+        title: "新宿御苑散步",
+        category: "explore",
+        duration: 2,
+        location: "新宿御苑",
+        latitude: 35.6852,
+        longitude: 139.71,
       },
       {
         day: 7,
@@ -217,7 +217,7 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
       {
         day: 7,
         hour: 14,
-        title: "搭機回台灣",
+        title: "搭機回台灣（14:00 成田起飛）",
         category: "explore",
         duration: 3,
         location: "成田國際機場 第 2 航廈",
@@ -232,7 +232,7 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
     destination: "日本",
     city: "京都",
     days: 4,
-    departRule: "plus-30",
+    departDate: "2026-12-10",
     activities: [
       { day: 1, hour: 7, title: "桃園→關西 早班機", category: "explore", duration: 3, ...TAOYUAN },
       {
@@ -263,7 +263,7 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
     destination: "日本",
     city: "大阪",
     days: 4,
-    departRule: "next-sep-15",
+    departDate: "2026-09-15",
     activities: [
       { day: 1, hour: 7, title: "桃園→關西 早班機", category: "explore", duration: 3, ...TAOYUAN },
       {
@@ -294,7 +294,7 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
     destination: "日本",
     city: "大阪",
     days: 4,
-    departRule: "plus-30",
+    departDate: "2026-12-10",
     activities: [
       { day: 1, hour: 7, title: "桃園→關西 早班機", category: "explore", duration: 3, ...TAOYUAN },
       {
@@ -325,7 +325,7 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
     destination: "日本",
     city: "大阪",
     days: 5,
-    departRule: "plus-30",
+    departDate: "2026-12-10",
     activities: [
       {
         day: 1,
@@ -357,15 +357,9 @@ export const DEMO_ITINERARIES: DemoItinerary[] = [
   },
 ];
 
-/** 下一個 9/15：今天在今年 9/15 當天或之前用今年，否則明年。 */
-function nextSep15(now: string): string {
-  const year = Number(now.slice(0, 4));
-  return `${now <= `${year}-09-15` ? year : year + 1}-09-15`;
-}
-
-/** 旅行規劃欄位：出發日依規則推算（今天之後），回程日 = 出發日 + 天數 − 1。`now` 預設今天。 */
-export function demoTrip(demo: DemoItinerary, now: string = today()): TripFields {
-  const depart = demo.departRule === "next-sep-15" ? nextSep15(now) : addDays(now, 30);
+/** 旅行規劃欄位：回程日 = 出發日 + 天數 − 1。 */
+export function demoTrip(demo: DemoItinerary): TripFields {
+  const depart = demo.departDate;
   return {
     destination: demo.destination,
     city: demo.city,
