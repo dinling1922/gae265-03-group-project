@@ -18,7 +18,7 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 
 ## Flex 卡片與 postback（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)）
 
-回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前有「說明」選單卡（FLEX-1）與待辦卡（FLEX-3），比較卡是 FLEX-2。
+回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前有「說明」選單卡（FLEX-1）、比較卡（FLEX-2）與待辦卡（FLEX-3）；聊天室底部的圖文選單見下方「圖文選單」（FLEX-4）。
 
 **組裝**：`backend/app/line_bot/flex.py` 放共用積木（`bubble`、`text`、`box`、`postback_button`、`uri_button`、`carousel`、`postback_data`、`check_contents`）與 LINE 上限常數；它只管排版，不放任何一張卡的內容。內容只來自既有文字或 MCP 工具輸出，不查資料庫、不產生數字（ADR-0004）。
 
@@ -53,6 +53,25 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 - **網址按鈕**：`flex.uri_button`，網址由 `PUBLIC_BASE_URL` 組成：只有一個行程時指到 `/trip/<行程 id>`（網頁行程頁），多個行程時指到 `/trip`；**沒設定 `PUBLIC_BASE_URL` 就不顯示按鈕**，其餘內容照常。
 - **內容上限**：每張卡最多列 15 項待辦，超過的註明「還有 N 項，請到網頁查看全部」；行程超過 12 個時前 11 個各一張，最後一張說明還有幾個行程；整則仍超過 50 KB 時逐步減少每張卡列的項目數，最後才降級。
 - **降級與不變的回覆**：降級純文字用 `commands/todo.format_todos`（和 FLEX 之前完全一樣）；沒有行程、未綁定、權杖失效、MCP 失敗、用法錯誤仍是原本的純文字。
+
+## 圖文選單（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)、FLEX-4）
+
+聊天室底部常駐的選單，用一次性腳本建立，不在啟動時自動建、也沒有後台介面。程式在 `backend/app/line_bot/richmenu.py`（LINE API 介面 `RichMenuClient`、驗證、流程）與 `richmenu_cli.py`（入口）；和回覆用的 `LineClient` 分開。
+
+**四個按鈕**（版面暫定，待設計者確認，設定在 `richmenu.BUTTONS`）：我的比較（postback `cmd=compare`）、理賠待辦（`cmd=todo`）、使用說明（`cmd=help`）、開啟網站（URI，`PUBLIC_BASE_URL`）。postback data 用 `flex.postback_data` 產生，和卡片按鈕走同一條處理路徑，不會在聊天室多出一句話。**不放「綁定」**（要輸入綁定碼，點一下做不到）。
+
+**圖片規格**（設計者交付，不放 repo）：PNG 或 JPEG、**2500×1686**（2×2 格，每格 1250×843）或 **2500×843**（1×4 格，每格 625×843）、**≤ 1 MB**。格子順序由左到右、由上到下：我的比較、理賠待辦、使用說明、開啟網站。
+
+**操作步驟**：
+1. `.env` 要有 `LINE_CHANNEL_ACCESS_TOKEN` 與 `PUBLIC_BASE_URL`（網址按鈕要用；沒設會明確報錯結束）。
+2. 先驗證：`make line-richmenu image=path/to/menu.png args=--dry-run`（檢查圖片、印出按鈕，不呼叫 LINE，也不需要權杖）。
+3. 正式建立：`make line-richmenu image=path/to/menu.png`。會呼叫 LINE API：建立選單 → 上傳圖片 → 設為所有使用者的預設。
+
+**重跑與換圖**：重跑同一個指令即可（換圖也是重跑，不需要部署）。腳本先建立新選單、上傳、設為預設，**成功之後**才刪掉所有同名（「好險有你 主選單」）的舊選單，所以不會留下重複，過程中也不會有空窗。新選單建立後上傳或設預設失敗，會把半成品刪掉、舊的原封不動；舊選單刪不掉只警告，重跑會再試。LINE 後台手動建的其他名稱的選單不會碰。
+
+**沒有設計圖時**：`make line-richmenu args="--placeholder /tmp/menu.png"` 用標準函式庫產生一張 2500×1686 的棋盤格佔位圖（沒有文字），只供本機驗證流程，**不可上線**；佔位圖不放進 repo。
+
+**驗證只做到假客戶端**：測試（`tests/test_line_richmenu.py`）用假客戶端與假 transport；實際打 LINE API 要用真權杖手動跑一次，確認選單顯示與按鈕動作。
 
 ## 你需要提供的東西
 
