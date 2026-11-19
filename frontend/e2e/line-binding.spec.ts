@@ -171,11 +171,41 @@ test.describe("後端啟用 LINE", () => {
     await expect(page.getByTestId("line-unbound")).toBeVisible();
     await expect(page.getByTestId("line-bound")).toHaveCount(0);
     expect((await (await page.request.get("/api/v1/me/line-binding")).json()).bound).toBe(false);
+    await expect(page.getByTestId("line-unbound-note")).toHaveText(
+      "如需重新綁定請於網站上登出登入更新狀態",
+    );
 
     // 解除後同一個 LINE 可以再綁
     const again = await generate(page);
     await sendLine(request, lineUser, `綁定 ${again}`);
     await expect(page.getByTestId("line-bound")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("在 LINE 傳「解除綁定」後，重新進入帳號頁顯示未綁定與提示，並可再綁", async ({
+    page,
+    request,
+  }) => {
+    await setup(page, "unbind-in-line");
+    const lineUser = `Ue2e${uniq()}`;
+    const code = await generate(page);
+    await sendLine(request, lineUser, `綁定 ${code}`);
+    await expect(page.getByTestId("line-bound")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("line-unbound-note")).toHaveCount(0); // 已綁定時不顯示
+
+    // 使用者在 LINE 傳「解除綁定」，之後重新進入帳號頁
+    await sendLine(request, lineUser, "解除綁定");
+    await page.reload();
+    await expect(page.getByTestId("line-unbound")).toBeVisible();
+    await expect(page.getByTestId("line-unbound-note")).toHaveText(
+      "如需重新綁定請於網站上登出登入更新狀態",
+    );
+    await expect(page.getByTestId("line-bound")).toHaveCount(0);
+    await expect(page.getByTestId("line-bound-done")).toHaveCount(0);
+
+    const again = await generate(page);
+    await sendLine(request, lineUser, `綁定 ${again}`);
+    await expect(page.getByTestId("line-bound")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("line-unbound-note")).toHaveCount(0);
   });
 
   test("換一個 LINE 帳號：說明取代目前綁定，新 LINE 綁定後自動更新", async ({ page, request }) => {

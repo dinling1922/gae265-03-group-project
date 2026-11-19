@@ -1,6 +1,6 @@
 import { Button } from "@base-ui/react/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createLineBindCode, deleteLineBinding, getLineBinding } from "../../client";
 import { getLineBindingQueryKey } from "../../client/@tanstack/react-query.gen";
 import type { LineBindingStatusOut } from "../../client/types.gen";
@@ -58,6 +58,7 @@ export function LineBindingPanel() {
   const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [justBound, setJustBound] = useState(false);
+  const prevBound = useRef<boolean | null>(null);
 
   const remaining = issued ? Math.max(0, Math.ceil((issued.expiresAt - now) / 1000)) : 0;
   const waiting = issued !== null && remaining > 0;
@@ -127,6 +128,13 @@ export function LineBindingPanel() {
       setJustBound(true);
     }
   }, [completed]);
+
+  const boundNow = result?.enabled === true && result.status.bound;
+  useEffect(() => {
+    if (!result?.enabled) return;
+    if (prevBound.current === true && !boundNow) setJustBound(false); // 舊的「綁定完成」不能留著
+    prevBound.current = boundNow;
+  }, [result, boundNow]);
 
   if (query.isPending) return null;
   if (result && !result.enabled) return null;
@@ -253,7 +261,13 @@ export function LineBindingPanel() {
         )}
 
         {status && !bound && !issued && (
-          <div className="space-y-2" data-testid="line-unbound">
+          <div className="space-y-3" data-testid="line-unbound">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <Pill tone="plain">未綁定</Pill>
+            </div>
+            <p className="m-0 t-body text-ink" data-testid="line-unbound-note">
+              如需重新綁定請於網站上登出登入更新狀態
+            </p>
             <Button
               className={btnSmPri}
               onClick={() => create.mutate()}
