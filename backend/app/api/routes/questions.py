@@ -10,7 +10,7 @@ from langchain_typesafe import TypeSafeClassifier
 from pydantic import BaseModel, Field, StringConstraints
 
 from app.api.deps import CurrentUser, SessionDep
-from app.api.routes.comparisons import own_comparison, plan_cards
+from app.api.routes.comparisons import own_comparison, plan_cards, trip_days
 from app.api.routes.conversations import AnswerModel, CitationOut, citation_out
 from app.core.config import settings
 from app.domain.plans import get_plan
@@ -76,6 +76,16 @@ class QuestionAnswerOut(BaseModel):
     )
 
 
+def trip_text(c: Comparison) -> str:
+    place = f"{c.destination} {c.city}".strip()
+    concerns = "、".join(c.concerns) or "（沒有選）"
+    return (
+        f"【這次行程】\n目的地：{place}\n"
+        f"日期：{c.depart_date.isoformat()} 到 {c.return_date.isoformat()}，共 {trip_days(c)} 天\n"
+        f"在意事項（越前面越在意）：{concerns}"
+    )
+
+
 async def answer_for_comparison(
     session: SessionDep,
     comparison: Comparison,
@@ -94,7 +104,9 @@ async def answer_for_comparison(
         plan = get_plan(card.plan_code)
         assert plan is not None
         benefits = quotes.benefits.get((card.plan_code, card.sum_insured), [])
-        sources.append(PlanSource(plan, i == 0, benefits))
+        sources.append(
+            PlanSource(plan, i == 0, card.sum_insured, card.premium, benefits)
+        )
 
     answer = await answer_comparison_question(
         session,
@@ -103,6 +115,7 @@ async def answer_for_comparison(
         question,
         [Turn(t.question, t.answer) for t in history],
         sources,
+        trip_text(comparison),
     )
     return QuestionAnswerOut(
         answer=answer.content,

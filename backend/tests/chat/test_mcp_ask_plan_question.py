@@ -238,6 +238,7 @@ async def test_guard_blocks_like_web(
 
 @pytest.mark.usefixtures("catalog_loaded")
 async def test_not_covered(comparison_id: str, endpoint: McpEndpoint, token: str):
+    # 檢索不到條文且 LLM 失敗（預設的 FakeModel 沒有回覆）
     async with mcp_client(endpoint, token) as c:
         out = await ok(c, comparison_id, NO_MATCH)
     assert out == {"answer": NOT_COVERED, "original_only": False, "citations": []}
