@@ -200,5 +200,22 @@
     ],
     "expect_documents": ["D01", "D02"],
     "follow_up": { "say": "原本7/11 10:30，後來實際 16:45 起飛", "expect": "applicable" }
+  },
+  {
+    "name": "就醫、日期先答不知道、問答補日期（#532）",
+    "plan": "chubb_advanced",
+    "sum_insured": 3000000,
+    "start_date": "2026-07-05",
+    "end_date": "2026-07-11",
+    "description": "我生病了，在新宿的診所看醫生，說是急性腸胃炎",
+    "answers": [
+      ["哪一天發生", "不知道"],
+      ["在哪裡", "新宿"],
+      ["生病，還是受傷", "生病"],
+      ["有住院", "否"],
+      ["醫療費", "是"]
+    ],
+    "expect_documents": ["D13", "D14", "D24"],
+    "follow_up": { "say": "是 7/8 發生的", "expect": "applicable" }
   }
 ]

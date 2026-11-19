@@ -93,6 +93,7 @@ def test_正式的劇本檔都讀得進來_而且兩個_Demo_劇本帶後續句(
         "Demo 事故 B",
         "更正延誤時數",
         "發生日期不知道、補充原定日期",
+        "就醫、日期先答不知道、問答補日期",
     }
     assert {f.expect for f in with_follow_up.values()} == {
         "new_situation",
