@@ -1,7 +1,7 @@
 """比較紀錄（spec #75）：1-1、1-2 換步驟時存檔、進入時讀回。只能存取自己的紀錄。
 
-存檔時天數或在意事項有變就重算推薦（spec #61、ADR-0021），只存兩個方案與各自選的保額；
-保費、額度、推薦理由與比較表在讀取時重算。
+存檔時天數或在意事項有變、或日程改了（推薦被清空）就重算推薦（spec #457、ADR-0034），
+只存需求等級、兩個方案與各自選的保額；保費、額度、推薦理由與比較表在讀取時重算。
 """
 
 import logging
@@ -31,12 +31,15 @@ from app.domain.concern_suggestions import (
     validated,
 )
 from app.domain.destinations import Destination
+from app.domain.need_levels import NeedLeveler, get_need_leveler, judge
 from app.domain.plans import get_plan
 from app.domain.recommendation import (
     Benefit,
+    ConcernLevel,
     PlanCardOut,
     Quotes,
     RecommendationOut,
+    Source,
     build,
     pick,
 )
@@ -147,22 +150,59 @@ async def load_quotes(session: SessionDep, days: int) -> Quotes:
     return Quotes(by_plan, by_pair)
 
 
-async def _recommend(session: SessionDep, comparison: Comparison) -> None:
-    """重算推薦，兩張卡片的保額回到各自的推薦保額；在意事項是空的時清空。"""
-    picked = None
-    if comparison.concerns:
-        concerns = [Concern(c) for c in comparison.concerns]
-        picked = pick(await load_quotes(session, trip_days(comparison)), concerns)
-        if picked is None:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                f"{trip_days(comparison)} 天有報價的方案不到兩個，無法推薦（請先 make seed）",
+LevelerDep = Annotated[NeedLeveler, Depends(get_need_leveler)]
+
+
+async def _activities(
+    session: SessionDep, comparison: Comparison
+) -> list[ItineraryActivity]:
+    return list(
+        (
+            await session.exec(
+                select(ItineraryActivity)
+                .where(ItineraryActivity.comparison_id == comparison.id)
+                .order_by(col(ItineraryActivity.date), col(ItineraryActivity.hour))
             )
-    (rec_code, rec_sum), (alt_code, alt_sum) = picked or ((None, None), (None, None))
-    comparison.recommended_plan_code = rec_code
-    comparison.recommended_sum_insured = rec_sum
-    comparison.alternative_plan_code = alt_code
-    comparison.alternative_sum_insured = alt_sum
+        ).all()
+    )
+
+
+async def _recommend(
+    session: SessionDep, comparison: Comparison, leveler: NeedLeveler
+) -> None:
+    """重算需求等級與推薦，兩張卡片的保額回到各自的推薦保額；在意事項是空的時清空。"""
+    clear_recommendation(comparison)
+    if not comparison.concerns:
+        return
+    days = trip_days(comparison)
+    quotes = await load_quotes(session, days)
+    activities = await _activities(session, comparison)
+    levels, source = await judge(comparison, activities, leveler, days)
+    picked = pick(quotes, levels)
+    if picked is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{days} 天有報價的方案不到兩個，無法推薦（請先 make seed）",
+        )
+    rec, alt = picked
+    comparison.recommended_plan_code, comparison.recommended_sum_insured = rec
+    comparison.alternative_plan_code, comparison.alternative_sum_insured = alt
+    comparison.concern_levels = [x.model_dump(mode="json") for x in levels]
+    comparison.recommendation_source = source
+
+
+def clear_recommendation(c: Comparison) -> None:
+    """清掉推薦（兩個方案與保額、需求等級與來源）；下次 1-2 存檔時補算。"""
+    c.recommended_plan_code = c.recommended_sum_insured = None
+    c.alternative_plan_code = c.alternative_sum_insured = None
+    c.concern_levels = c.recommendation_source = None
+
+
+def _levels(c: Comparison) -> tuple[list[ConcernLevel], Source]:
+    """存下的需求等級與來源；有推薦就一定有（舊規則的推薦已由 migration 清空）。"""
+    assert c.concern_levels is not None
+    levels = [ConcernLevel.model_validate(x) for x in c.concern_levels]
+    return levels, "llm" if c.recommendation_source == "llm" else "default"
 
 
 def _saved_plans(c: Comparison) -> tuple[tuple[str, int], tuple[str, int]] | None:
@@ -190,7 +230,7 @@ async def plan_cards(
             status.HTTP_422_UNPROCESSABLE_CONTENT, "還沒有推薦方案，請先選在意事項"
         )
     quotes = await load_quotes(session, trip_days(comparison))
-    rec = build(quotes, [Concern(c) for c in comparison.concerns], *saved)
+    rec = build(quotes, *_levels(comparison), *saved)
     return quotes, [rec.recommended, rec.alternative]
 
 
@@ -199,7 +239,7 @@ async def _out(session: SessionDep, comparison: Comparison) -> ComparisonOut:
     if saved := _saved_plans(comparison):
         recommendation = build(
             await load_quotes(session, trip_days(comparison)),
-            [Concern(c) for c in comparison.concerns],
+            *_levels(comparison),
             *saved,
         )
     return ComparisonOut.model_validate(
@@ -311,11 +351,11 @@ async def list_comparisons(
 
 @router.post("/comparisons", status_code=status.HTTP_201_CREATED)
 async def create_comparison(
-    session: SessionDep, user: CurrentUser, body: ComparisonIn
+    session: SessionDep, user: CurrentUser, body: ComparisonIn, leveler: LevelerDep
 ) -> ComparisonOut:
     """1-1 第一次按「下一步」時建立。"""
     comparison = Comparison(user_id=user.id, **body.model_dump())
-    await _recommend(session, comparison)
+    await _recommend(session, comparison, leveler)
     session.add(comparison)
     await session.commit()
     return await _out(session, comparison)
@@ -423,6 +463,7 @@ async def update_comparison(
     user: CurrentUser,
     comparison_id: uuid.UUID,
     body: ComparisonPatch,
+    leveler: LevelerDep,
 ) -> ComparisonOut:
     """換步驟時存檔，可只帶部分欄位；也用來改卡片的保額（只改該卡片，不重新推薦）。
 
@@ -479,7 +520,7 @@ async def update_comparison(
     changed = (trip_days(comparison), comparison.concerns) != before
     # 舊紀錄有在意事項卻沒推薦（推薦功能上線前存的）也補算
     if changed or (comparison.concerns and comparison.recommended_plan_code is None):
-        await _recommend(session, comparison)
+        await _recommend(session, comparison, leveler)
     else:
         await _change_sums(session, comparison, body)
     session.add(comparison)
@@ -504,13 +545,7 @@ async def suggest_concerns(
     comparison = await own_comparison(session, user, comparison_id)
     if comparison.concern_suggestions is not None:
         return [Suggestion.model_validate(s) for s in comparison.concern_suggestions]
-    activities = (
-        await session.exec(
-            select(ItineraryActivity)
-            .where(ItineraryActivity.comparison_id == comparison.id)
-            .order_by(col(ItineraryActivity.date), col(ItineraryActivity.hour))
-        )
-    ).all()
+    activities = await _activities(session, comparison)
     if not activities:
         return []
     try:

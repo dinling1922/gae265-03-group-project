@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     AGENT_5_IMPL: str = "fake"  # 事件釐清、問答、待辦
     AGENT_6_IMPL: str = "fake"  # 文件辨識
     AGENT_7_IMPL: str = "fake"  # 打包追蹤
+    # 7 號送件信的建議收件者：送件頁的收件者欄位預先帶入，使用者可以改；留空就不帶
+    AGENT_7_RECIPIENT_HINT: str | None = None
     # 5 號 v1 的 Jev 守門（TypeSafe）；沒設就不守門，直接進追問
     TYPESAFE_API_KEY: SecretStr | None = None
 
@@ -110,6 +112,12 @@ class Settings(BaseSettings):
     # 管理者名單（逗號分隔，不分大小寫）：後台的寫入端點（條款上傳、合訂本、條文維護）只有名單內的人能用。
     # 留空代表沒有人能用（寫入的預設要最嚴，ADR-0016）
     ADMIN_EMAILS: str = ""
+
+    # 1-3 推薦（ADR-0034）：LLM 判斷需求等級的上限秒數，逾時改用預設等級
+    RECOMMEND_LLM_TIMEOUT: float = 15
+    # 「基本保障」：額度達到剩下組合最高額度的這個比例；「加強保障」：同上
+    RECOMMEND_ENOUGH_RATIO: float = 0.5
+    RECOMMEND_HIGH_RATIO: float = 0.8
 
     # Google 登入與授權（ADR-0020）：四個都設定才開放 Google 登入
     GOOGLE_CLIENT_ID: str | None = None

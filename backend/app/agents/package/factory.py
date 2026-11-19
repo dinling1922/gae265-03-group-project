@@ -39,7 +39,9 @@ _GOOGLE_API = HttpGoogleApi()
 
 
 def create_gmail_packager() -> GmailClaimPackager:
-    return GmailClaimPackager(google_api=_GOOGLE_API)
+    return GmailClaimPackager(
+        google_api=_GOOGLE_API, recipient_hint=settings.AGENT_7_RECIPIENT_HINT
+    )
 
 
 def create_offline_packager() -> GmailClaimPackager:
@@ -48,4 +50,6 @@ def create_offline_packager() -> GmailClaimPackager:
             "AGENT_7_IMPL=gmail-offline 只給測試與展示用，ENVIRONMENT=production 不可使用"
             "（請改用 gmail）"
         )
-    return GmailClaimPackager(google_api=OfflineGoogleApi())
+    return GmailClaimPackager(
+        google_api=OfflineGoogleApi(), recipient_hint=settings.AGENT_7_RECIPIENT_HINT
+    )
