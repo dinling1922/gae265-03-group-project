@@ -104,7 +104,9 @@ class Chat:
         assert resp.status_code == 200
         new = self.line.replies[before:]
         assert len(new) == 1 and len(new[0][1]) == 1
-        return new[0][1][0]
+        message = new[0][1][0]
+        assert isinstance(message, TextMessage)
+        return message
 
     async def say(self, text: str) -> str:
         return (await self.send(text)).text

@@ -26,13 +26,16 @@ from starlette.routing import Route
 
 from app.core.config import settings
 from app.line_bot import texts
+from app.line_bot.cards.menu import reply_menu
 from app.line_bot.client import HttpLineClient, LineClient, TextMessage
+from app.line_bot.flex import parse_postback_data
 from app.line_bot.registry import (
     EVENT_HANDLERS,
     LineContext,
     SessionMaker,
     load_command_modules,
     match_command,
+    match_postback,
 )
 from app.models import LineEvent
 
@@ -127,7 +130,9 @@ class LineWebhook:
         if event_type == "message":
             await self._message(ctx)
         elif event_type == "follow":
-            await ctx.reply(texts.WELCOME_TEXT, texts.HELP_QUICK_REPLIES)
+            await reply_menu(ctx, welcome=True)
+        elif event_type == "postback":
+            await self._postback(ctx)
         # 其他事件（例如 unfollow，LINE-2 用 @line_event("unfollow") 登記）交給登記的處理器；沒有就忽略
         for handler in EVENT_HANDLERS.get(str(event_type), []):
             await handler(ctx)
@@ -141,6 +146,17 @@ class LineWebhook:
             await ctx.reply(texts.HELP_TEXT, texts.HELP_QUICK_REPLIES)
             return
         handler, ctx.args = matched
+        await handler(ctx)
+
+    async def _postback(self, ctx: LineContext) -> None:
+        """卡片按鈕：`data` 是 `cmd=…&…`，對到和打字相同的指令處理器；不認得就回選單卡。"""
+        params = parse_postback_data((ctx.event.get("postback") or {}).get("data"))
+        matched = match_postback(params["cmd"]) if params else None
+        if params is None or matched is None:
+            await reply_menu(ctx)
+            return
+        handler, ctx.text = matched
+        ctx.postback = {k: v for k, v in params.items() if k != "cmd"}
         await handler(ctx)
 
     async def _group_notice(

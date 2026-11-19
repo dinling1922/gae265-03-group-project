@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from app.core.config import settings
-from app.line_bot.client import TextMessage
+from app.line_bot.client import FlexMessage, Message, TextMessage
 from app.line_bot.webhook import sign
 from cryptography.fernet import Fernet
 from pydantic import SecretStr
@@ -30,17 +30,34 @@ def use_line_settings(monkeypatch: pytest.MonkeyPatch, **overrides: Any) -> None
 
 
 class FakeLineClient:
-    """假的 LINE：記下送出的回覆（reply_token、訊息）。"""
+    """假的 LINE：記下送出的回覆（reply_token、訊息）。
 
-    def __init__(self) -> None:
-        self.replies: list[tuple[str, list[TextMessage]]] = []
+    `reject_flex=True` 時模擬 LINE 對 Flex 回 4xx：reply 回 False，被拒的那次記在 `rejected`，不進 `replies`。"""
 
-    async def reply(self, reply_token: str, messages: Sequence[TextMessage]) -> None:
+    def __init__(self, *, reject_flex: bool = False) -> None:
+        self.replies: list[tuple[str, list[Message]]] = []
+        self.rejected: list[tuple[str, list[Message]]] = []
+        self.reject_flex = reject_flex
+
+    async def reply(self, reply_token: str, messages: Sequence[Message]) -> bool:
+        if self.reject_flex and any(isinstance(m, FlexMessage) for m in messages):
+            self.rejected.append((reply_token, list(messages)))
+            return False
         self.replies.append((reply_token, list(messages)))
+        return True
+
+    @property
+    def messages(self) -> list[Message]:
+        return [m for _, messages in self.replies for m in messages]
 
     @property
     def texts(self) -> list[str]:
-        return [m.text for _, messages in self.replies for m in messages]
+        """送出的純文字訊息（Flex 不算）。"""
+        return [m.text for m in self.messages if isinstance(m, TextMessage)]
+
+    @property
+    def flex(self) -> list[FlexMessage]:
+        return [m for m in self.messages if isinstance(m, FlexMessage)]
 
 
 def webhook_body(*events: dict[str, Any]) -> bytes:
@@ -67,6 +84,16 @@ def follow_event(*, event_id: str, user_id: str = "U1") -> dict[str, Any]:
         "webhookEventId": event_id,
         "replyToken": f"token-{event_id}",
         "source": {"type": "user", "userId": user_id},
+    }
+
+
+def postback_event(data: str, *, event_id: str, user_id: str = "U1") -> dict[str, Any]:
+    return {
+        "type": "postback",
+        "webhookEventId": event_id,
+        "replyToken": f"token-{event_id}",
+        "source": {"type": "user", "userId": user_id},
+        "postback": {"data": data},
     }
 
 

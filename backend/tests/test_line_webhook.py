@@ -5,7 +5,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from app.core.config import settings
 from app.line_bot import texts
-from app.line_bot.client import HttpLineClient, QuickReply, TextMessage
+from app.line_bot.client import FlexMessage, HttpLineClient, QuickReply, TextMessage
 from app.line_bot.registry import LineContext
 from app.line_bot.webhook import build_route
 from app.models import LineEvent
@@ -64,7 +64,8 @@ async def post(http: AsyncClient, *events: dict) -> int:
 
 async def test_valid_signature_is_processed(http: AsyncClient, line: FakeLineClient):
     assert await post(http, user_message("說明", event_id="e1")) == 200
-    assert line.texts == [texts.HELP_TEXT]
+    [card] = line.flex
+    assert card.contents["type"] == "bubble"
 
 
 async def test_wrong_signature_is_rejected(http: AsyncClient, line: FakeLineClient):
@@ -117,15 +118,12 @@ async def test_only_post_is_allowed(http: AsyncClient):
 # ---- 一對一 ----
 
 
-async def test_follow_replies_welcome_with_commands(
-    http: AsyncClient, line: FakeLineClient
-):
+async def test_follow_replies_menu_card(http: AsyncClient, line: FakeLineClient):
     assert await post(http, follow_event(event_id="f1")) == 200
     [(token, [message])] = line.replies
     assert token == "token-f1"
-    assert message.text == texts.WELCOME_TEXT
-    for command in ("比較", "待辦", "說明", "綁定", "解除綁定"):
-        assert command in message.text
+    assert isinstance(message, FlexMessage)
+    assert message.alt_text == texts.WELCOME_TEXT
     assert [q.text for q in message.quick_replies] == ["比較", "待辦", "說明"]
 
 
@@ -144,21 +142,13 @@ async def test_non_text_message_replies_help(http: AsyncClient, line: FakeLineCl
     assert line.texts == [texts.HELP_TEXT]
 
 
-async def test_unfollow_and_postback_are_ignored(
-    http: AsyncClient, line: FakeLineClient
-):
+async def test_unfollow_is_ignored(http: AsyncClient, line: FakeLineClient):
     unfollow = {
         "type": "unfollow",
         "webhookEventId": "u1",
         "source": {"type": "user", "userId": "U1"},
     }
-    postback = {
-        **unfollow,
-        "type": "postback",
-        "webhookEventId": "p1",
-        "replyToken": "t",
-    }
-    assert await post(http, unfollow, postback) == 200
+    assert await post(http, unfollow) == 200
     assert line.replies == []
 
 
@@ -232,7 +222,7 @@ async def test_one_failing_event_does_not_affect_others(
     status = await post(
         http,
         user_message("爆炸", event_id="e1"),
-        user_message("說明", event_id="e2"),
+        user_message("你好", event_id="e2"),
     )
     assert status == 200
     assert line.texts == [texts.HELP_TEXT]
