@@ -22,6 +22,7 @@ from app.agents.incident.judge import (
     DELAY_HOURS_KEY,
     PLANNED_DATE_KEY,
     DateBackfill,
+    Judgement,
     align_year,
     backfilled_date,
     backfilled_stated_date,
@@ -69,15 +70,15 @@ MAX_TOTAL_ASKS = 15  # 整段追問最多幾輪（必問欄位 8 題，留重問
 JUDGED_INSURANCE_CODES = {
     flow.FLIGHT_DELAY: frozenset({"FUBON03", "TA46", "CHUBB05", "TFMI01", "HUANAN01"}),
     flow.BAGGAGE_LOSS: frozenset({"FUBON03", "TA49", "CHUBB05", "TFMI01", "HUANAN01"}),
-    # 就醫只核對了安達海外突發疾病健康保險（乙型）CHUBB04 第 4、5、6、8 條（11/14）；
-    # 傷害醫療、食物中毒慰問與其他公司的就醫條文還沒核對，對到的一律資訊不足
-    flow.MEDICAL: frozenset({"CHUBB04"}),
+    # 就醫只核對了安達的兩個險種：海外突發疾病健康保險（乙型）CHUBB04 第 4、5、6、8 條（11/14），
+    # 傷害醫療保險 CHUBB02 第 1～4 條與主約 CHUBB01 第 2、9 條（#546）；
+    # 食物中毒慰問與其他公司的就醫條文還沒核對，對到的一律資訊不足
+    flow.MEDICAL: frozenset({"CHUBB04", "CHUBB02"}),
 }
-# 各事故類型的判斷規則
+# 各事故類型的判斷規則（所有險種共用同一個結論）；就醫依險種分開判斷，見 `_conclude` 的 `verdict_of`
 JUDGES = {
     flow.FLIGHT_DELAY: judge_flight_delay,
     flow.BAGGAGE_LOSS: judge_baggage_loss,
-    flow.MEDICAL: judge_medical,
 }
 OTHER_INSURER_REASON = "這項保障需要由保險公司確認是否符合，建議直接詢問保險公司"
 AMOUNT_NOTE = "方案所載額度，實際以保單為準"  # 不計算金額（spec #128）
@@ -896,7 +897,15 @@ class IncidentAgentV1:
         """必問欄位都有答案：回報事故類型與每項保障的結論，平台依結論建立待辦（契約 v2）。"""
         event = next(t for t in ctx.event_types if t.code == type_code)
         coverages = _coverages_of(ctx, event, type_code)
-        verdict = JUDGES[type_code](known, ctx.policy.start_date, ctx.policy.end_date)
+        start, end = ctx.policy.start_date, ctx.policy.end_date
+
+        def verdict_of(insurance_code: str) -> Judgement:
+            # 就醫依險種分開判斷（突發疾病 CHUBB04、傷害醫療 CHUBB02）；
+            # 班機延誤、行李所有險種條文相同，共用同一個結論
+            if type_code == flow.MEDICAL:
+                return judge_medical(known, start, end, insurance_code)
+            return JUDGES[type_code](known, start, end)
+
         clauses = [
             ClauseUpdate(
                 insurance_code=c.insurance_code,
@@ -915,6 +924,7 @@ class IncidentAgentV1:
             )
             for c in coverages
             for checked in [c.insurance_code in JUDGED_INSURANCE_CODES[type_code]]
+            for verdict in [verdict_of(c.insurance_code)]
         ]
         applicable = any(c.conclusion == "applicable" for c in clauses)
         todo_applicability = todo_changes(ctx, known, applicable)

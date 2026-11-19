@@ -79,7 +79,7 @@ async def test_就醫_生病或受傷答不知道_資訊不足_訊息開頭明�
         "hosp": "否",
     }
 
-    # 最後一題「醫療費已經先付了嗎？」答「是」→ 結論：安達海外突發疾病 CHUBB04 資訊不足
+    # 最後一題「醫療費已經先付了嗎？」答「是」→ 結論：安達傷害醫療 CHUBB02、海外突發疾病 CHUBB04 都資訊不足
     reply = await agent().reply(medical_ctx(facts=facts), "是", "quick_reply", SERVICES)
 
     assert reply.finished is True
@@ -88,5 +88,6 @@ async def test_就醫_生病或受傷答不知道_資訊不足_訊息開頭明�
     assert not reply.todos
     assert reply.clauses is not None
     assert [(c.insurance_code, c.conclusion) for c in reply.clauses] == [
-        ("CHUBB04", "insufficient")
+        ("CHUBB02", "insufficient"),
+        ("CHUBB04", "insufficient"),
     ]

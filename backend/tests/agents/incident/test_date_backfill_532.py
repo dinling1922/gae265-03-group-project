@@ -15,7 +15,6 @@ from tests.agents.incident.test_agent_v1 import (
     agent,
     answers_qa,
     baggage_ctx,
-    conclusion_of,
     extractor,
     fact,
     revising,
@@ -65,9 +64,12 @@ async def test_就醫日期不知道_問答說是7月8日發生_回填事故日_
     )
 
     assert fact(reply, "date") == "2026/07/08"
-    assert conclusion_of(reply) == "applicable"
     assert reply.clauses is not None
-    assert "哪一天發生" not in (reply.clauses[0].reason or "")
+    by_code = {c.insurance_code: c for c in reply.clauses}
+    assert (
+        by_code["CHUBB04"].conclusion == "applicable"
+    )  # 生病：突發疾病適用（#546 起傷害醫療另有結論）
+    assert "哪一天發生" not in (by_code["CHUBB04"].reason or "")
 
 
 async def test_行李日期不知道_問答說是7月8日發生_回填事故日() -> None:

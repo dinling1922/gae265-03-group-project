@@ -503,31 +503,55 @@ def judge_baggage_loss(
     return Judgement("applicable", f"可申請行李損失保險金；{_EXCLUDED_ITEMS}")
 
 
-# 就醫（安達海外突發疾病健康保險（乙型）CHUBB04）：第四條保險範圍、第五條住院、第六條門診、
-# 第八條除外責任。只核對了這一個險種；傷害醫療、食物中毒慰問與其他公司的條文還沒核對，
-# 對到就醫的其他險種一律資訊不足（待確認事項）。
+# 就醫依險種分開判斷，只核對了安達的兩個險種（其他公司的就醫、食物中毒慰問還沒核對，
+# 對到就醫的其他險種一律資訊不足，待確認事項）：
+# - 海外突發疾病健康保險（乙型）CHUBB04：第四條保險範圍、第五條住院、第六條門診、第八條除外責任，只承保疾病
+# - 傷害醫療保險 CHUBB02（#546）：第一條意外傷害事故發生日起一百八十日內就醫，依實際醫療費用給付；
+#   第三條申領文件。意外傷害事故定義在主約 CHUBB01 第二條（非由疾病引起之外來突發事故），除外責任在第九條
 KIND_KEY = "kind"
 HOSP_KEY = "hosp"
 ILLNESS = "生病"
 INJURY = "受傷"
-# 「九十」是條款定義的日數，不是程式算出來的數字
+ILLNESS_CODE = "CHUBB04"
+INJURY_CODE = "CHUBB02"
+# 「九十」「一百八十」是條款定義的日數，不是程式算出來的數字
 _MEDICAL_REMINDER = "出發前九十日內曾就同一疾病就診、或以出國就醫為目的者，依條款不賠"
+_INJURY_REMINDER = (
+    "故意行為、犯罪行為、酒後駕車等除外責任依條款不賠，"
+    "必要時保險公司會要求提供意外傷害事故證明"
+)
 
 
 def judge_medical(
-    known: dict[str, str], start: date | None = None, end: date | None = None
+    known: dict[str, str],
+    start: date | None = None,
+    end: date | None = None,
+    insurance_code: str = ILLNESS_CODE,
 ) -> Judgement:
-    """海外突發疾病：生病才適用；受傷屬傷害醫療，那部分的條款還沒核對，資訊不足。
-    理由不寫金額，額度由平台從保單帶。"""
+    """就醫：依險種分開判斷。CHUBB04 海外突發疾病只適用生病，CHUBB02 傷害醫療只適用受傷；
+    另一種不屬於這個險種（不適用）。理由不寫金額，額度由平台從保單帶。
+
+    沒有指定險種時當成海外突發疾病（原本唯一核對的險種）。"""
     if outside := _outside_period(known, start, end):
         return outside
     kind = known.get(KIND_KEY)
+    if kind not in (ILLNESS, INJURY):
+        return Judgement("insufficient", "需確認是生病還是受傷")
+    if insurance_code == INJURY_CODE:
+        if kind == ILLNESS:
+            return Judgement(
+                "excluded",
+                "生病不屬於意外傷害事故（指非由疾病引起之外來突發事故），由海外突發疾病處理",
+            )
+        return Judgement(
+            "applicable",
+            "海外傷害醫療可申請醫療保險金，自事故發生日起一百八十日內就醫，"
+            f"依收據在保單額度內理賠；{_INJURY_REMINDER}",
+        )
     if kind == INJURY:
         return Judgement(
-            "insufficient", "受傷屬於傷害醫療，這部分的條款尚未核對，請向保險公司確認"
+            "excluded", "受傷不屬於海外突發疾病（只承保疾病），由傷害醫療處理"
         )
-    if kind != ILLNESS:
-        return Judgement("insufficient", "需確認是生病還是受傷")
     where = {"否": "門診", "是": "住院"}.get(known.get(HOSP_KEY, ""), "就醫")
     return Judgement(
         "applicable",

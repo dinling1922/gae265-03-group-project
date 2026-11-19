@@ -99,12 +99,13 @@ async def test_事故_A_問完日期_住院_醫療費_結論可能適用海外�
     assert (facts["hosp"], facts["paid"]) == ("否", "是")
     assert reply.finished is True
     assert reply.incident_type_code == "medical"
-    # 平台沒有給就醫的保障：從保單的保障挑出已核對的 CHUBB04
+    # 平台沒有給就醫的保障：從保單的保障挑出已核對的 CHUBB02、CHUBB04；生病只有突發疾病適用（#546）
     assert reply.clauses is not None
     assert [(c.insurance_code, c.conclusion) for c in reply.clauses] == [
-        ("CHUBB04", "applicable")
+        ("CHUBB02", "excluded"),
+        ("CHUBB04", "applicable"),
     ]
-    assert "門診" in (reply.clauses[0].reason or "")
+    assert "門診" in (reply.clauses[1].reason or "")
 
 
 async def test_事故_A_問完後說到另一件事_引導按有新狀況_事故_A_不變() -> None:

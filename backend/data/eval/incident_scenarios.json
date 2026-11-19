@@ -217,5 +217,21 @@
     ],
     "expect_documents": ["D13", "D14", "D24"],
     "follow_up": { "say": "是 7/8 發生的", "expect": "applicable" }
+  },
+  {
+    "name": "受傷就醫（安達）（#546）",
+    "plan": "chubb_advanced",
+    "sum_insured": 3000000,
+    "start_date": "2026-07-05",
+    "end_date": "2026-07-11",
+    "description": "我骨折了",
+    "answers": [
+      ["哪一天發生", "7/8"],
+      ["在哪裡", "新宿"],
+      ["生病，還是受傷", "受傷"],
+      ["有住院", "否"],
+      ["醫療費", "是"]
+    ],
+    "expect_documents": ["D13", "D14", "D24"]
   }
 ]
