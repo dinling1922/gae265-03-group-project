@@ -191,16 +191,52 @@ async def test_guard_thresholds_are_exclusive(
 
 
 @pytest.mark.usefixtures("catalog_loaded")
-async def test_nothing_relevant_in_either_plan_is_not_covered(
+async def test_no_relevant_rules_still_answers_from_plan_benefits(
     client: AsyncClient, comparison_id: str
 ) -> None:
-    model = FakeModel()
+    # 「兩個方案差在哪？」這類問題檢索不到條文，但保障明細就足以回答
+    model = FakeModel("推薦方案的海外突發疾病住院醫療最高 480,000 元。")
     use(model)
 
     body = await ask(client, comparison_id, NO_MATCH)
 
+    assert body["answer"] == "推薦方案的海外突發疾病住院醫療最高 480,000 元。"
+    assert body["original_only"] is False
+    assert all(g["citations"] == [] for g in body["citations"])
+    system = str(model.calls[0][0].content)
+    assert "【推薦方案：" in system and "【次推薦：" in system
+    assert "（沒有相關條文）" in system
+
+
+@pytest.mark.usefixtures("catalog_loaded")
+async def test_answer_sees_trip_and_premiums(
+    client: AsyncClient, comparison_id: str
+) -> None:
+    rec = (await client.get(f"/comparisons/{comparison_id}")).json()["recommendation"]
+    premium = rec["recommended"]["premium"]
+    reply = f"這趟 6 天，推薦方案保費 {premium:,} 元。"
+    model = FakeModel(reply)
+    use(model)
+
+    body = await ask(client, comparison_id, NO_MATCH)
+
+    # 行程天數與保費是程式給的資料，通過數字白名單
+    assert body == {**body, "answer": reply, "original_only": False}
+    system = str(model.calls[0][0].content)
+    assert "日本" in system and "共 6 天" in system
+    assert "在意事項（越前面越在意）：班機延誤、突然生病就醫" in system
+    assert f"保費：{premium:,} 元" in system
+
+
+@pytest.mark.usefixtures("catalog_loaded")
+async def test_no_relevant_rules_and_llm_fails_is_not_covered(
+    client: AsyncClient, comparison_id: str
+) -> None:
+    use(FakeModel())  # 沒有回覆可用：呼叫就失敗
+
+    body = await ask(client, comparison_id, NO_MATCH)
+
     assert body == {"answer": NOT_COVERED, "original_only": False, "citations": []}
-    assert model.calls == []
 
 
 @pytest.mark.usefixtures("catalog_loaded")
