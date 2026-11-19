@@ -10,8 +10,6 @@ import { Pill } from "../../components/ui/Tag";
 
 /** 等待綁定完成時，多久問一次狀態（毫秒）。分頁在背景時 TanStack Query 會自動暫停。 */
 export const POLL_MS = 3000;
-/** 已綁定時，多久問一次狀態：使用者可能在 LINE 傳「解除綁定」或封鎖 bot，網頁要跟著更新。 */
-export const BOUND_POLL_MS = 10000;
 
 const dateTime = (iso: string) =>
   new Date(iso).toLocaleString("zh-TW", {
@@ -60,10 +58,7 @@ export function LineBindingPanel() {
   const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [justBound, setJustBound] = useState(false);
-  // 綁定在網頁以外被解除（LINE 傳「解除綁定」、封鎖 bot）：提示並給「重新綁定」
-  const [unboundElsewhere, setUnboundElsewhere] = useState(false);
   const prevBound = useRef<boolean | null>(null);
-  const selfUnbind = useRef(false);
 
   const remaining = issued ? Math.max(0, Math.ceil((issued.expiresAt - now) / 1000)) : 0;
   const waiting = issued !== null && remaining > 0;
@@ -71,12 +66,7 @@ export function LineBindingPanel() {
   const query = useQuery({
     queryKey: getLineBindingQueryKey(),
     queryFn: ({ signal }) => fetchStatus(signal),
-    refetchInterval: (q) =>
-      waiting
-        ? POLL_MS
-        : q.state.data?.enabled === true && q.state.data.status.bound
-          ? BOUND_POLL_MS
-          : false,
+    refetchInterval: waiting ? POLL_MS : false,
     retry: false,
   });
   const refresh = () => queryClient.invalidateQueries({ queryKey: getLineBindingQueryKey() });
@@ -103,7 +93,6 @@ export function LineBindingPanel() {
   });
   const unbind = useMutation({
     mutationFn: async () => {
-      selfUnbind.current = true; // 自己按的解除，不用顯示「在別處解除」的說明
       const { response } = await deleteLineBinding();
       if (!response?.ok) throw new HttpError(response?.status ?? 0);
     },
@@ -143,12 +132,7 @@ export function LineBindingPanel() {
   const boundNow = result?.enabled === true && result.status.bound;
   useEffect(() => {
     if (!result?.enabled) return;
-    if (prevBound.current === true && !boundNow) {
-      setJustBound(false);
-      if (!selfUnbind.current) setUnboundElsewhere(true);
-    }
-    if (boundNow) setUnboundElsewhere(false);
-    if (!boundNow) selfUnbind.current = false;
+    if (prevBound.current === true && !boundNow) setJustBound(false); // 舊的「綁定完成」不能留著
     prevBound.current = boundNow;
   }, [result, boundNow]);
 
@@ -281,23 +265,16 @@ export function LineBindingPanel() {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
               <Pill tone="plain">未綁定</Pill>
             </div>
-            {unboundElsewhere && (
-              <p
-                role="status"
-                className="m-0 rounded-tile border border-line bg-paper p-4 t-body text-ink"
-                data-testid="line-unbound-elsewhere"
-              >
-                LINE 綁定已解除（可能是你在 LINE 傳了「解除綁定」，或封鎖了 bot）。要再用 LINE
-                查詢，請重新綁定。
-              </p>
-            )}
+            <p className="m-0 t-body text-ink" data-testid="line-unbound-note">
+              如需重新綁定請於網站上登出登入更新狀態
+            </p>
             <Button
               className={btnSmPri}
               onClick={() => create.mutate()}
               disabled={create.isPending}
               data-testid="line-create-code"
             >
-              {unboundElsewhere ? "重新綁定 LINE" : "產生綁定碼"}
+              產生綁定碼
             </Button>
           </div>
         )}
