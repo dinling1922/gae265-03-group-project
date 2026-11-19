@@ -57,6 +57,11 @@
 - 跑 `make migrate` 前先提醒使用者：worktree 和主目錄共用開發資料庫，這個 migration 也會改到主目錄的 schema。使用者同意才跑。
 - 刪除 worktree 前，照 `docs/agents/dev-environment.md` 的「刪除 worktree 前」檢查 migration，需要時提醒使用者先 downgrade。
 
+## 開發流程
+
+- 開發新功能或 bug fix 前，先 `git pull` 最新的 main，再從 main 開對應的 branch（例如 `feat/xxx`、`fix/xxx`）
+- 要修改檔案但目前在 main 時，先詢問使用者是否要開新 branch 來做這個修改，同意後才動手
+
 ## Commit
 
 - 先在對話中顯示 commit message 與要 commit 的檔案，使用者確認後才執行
