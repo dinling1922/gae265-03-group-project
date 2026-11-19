@@ -97,8 +97,8 @@ async def test_complete_matches_web_api(
             "sum_insured": card["sum_insured"],
             "premium": card["premium"],
         }
-    # 與推薦規則測試鎖住的數字相同（test_comparison_recommendation_api）
-    assert (out["recommended"]["premium"], out["alternative"]["premium"]) == (985, 429)
+    # 新推薦規則（ADR-0034）的預設等級：延誤加強保障、生病基本保障，6 天
+    assert (out["recommended"]["premium"], out["alternative"]["premium"]) == (985, 594)
 
 
 @pytest.mark.usefixtures("seed")

@@ -106,7 +106,7 @@ function Result({
       </div>
       {update.error != null && <FieldError>保額存檔失敗，請再試一次。</FieldError>}
 
-      <ReasonCard reason={rec.reason} basis={rec.basis} />
+      <ReasonCard levels={rec.concern_levels} reason={rec.reason} basis={rec.basis} />
 
       <section className="flex flex-col gap-3">
         <h2 className="m-0 t-section-title text-heading">保障比較</h2>

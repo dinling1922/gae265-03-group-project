@@ -11,7 +11,7 @@ from typing import Literal
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel, Field
 
-from app.api.routes.comparisons import _saved_plans, load_quotes, trip_days
+from app.api.routes.comparisons import _levels, _saved_plans, load_quotes, trip_days
 from app.domain.benefits import Concern
 from app.domain.plans import get_plan
 from app.domain.recommendation import PlanCardOut, build
@@ -111,7 +111,7 @@ async def get_comparison(comparison_id: uuid.UUID) -> GetComparisonOut:
         quotes = await load_quotes(session, trip_days(c))
         if any(get_plan(code) is None or not quotes.options(code) for code, _ in saved):
             return incomplete(RECOMMENDATION_STALE)
-        rec = build(quotes, concerns, *saved)
+        rec = build(quotes, *_levels(c), *saved)
         return GetComparisonOut(
             id=c.id,
             status="complete",

@@ -179,8 +179,8 @@ async def test_detail_complete_matches_web_api(
             f"保額 {money(card['sum_insured'])} 元／保費 {money(card['premium'])} 元"
             in reply.text
         )
-    # 與推薦規則測試鎖住的數字相同
-    assert "保費 985 元" in reply.text and "保費 429 元" in reply.text
+    # 新推薦規則（ADR-0034）的預設等級：延誤加強保障、生病基本保障，6 天
+    assert "保費 985 元" in reply.text and "保費 594 元" in reply.text
     assert cmd.DISCLAIMER in reply.text
     assert lm.quick_texts(reply) == ["比較", "待辦", "說明"]
     lm.assert_line_limits(reply)
