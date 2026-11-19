@@ -6,7 +6,8 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 
 | 傳這個 | 做什麼 |
 |---|---|
-| `說明`（或任何不認得的內容、加好友時） | 指令說明 |
+| `說明`（加好友時也是） | 選單卡：三個按鈕（我的比較、理賠待辦、使用說明），降級時回純文字說明 |
+| 任何不認得的內容 | 純文字指令說明 |
 | `綁定 123456` | 用帳號頁產生的綁定碼綁定（6 位數、10 分鐘內有效、只能用一次） |
 | `比較` | 最近的比較紀錄（最新在前，最多 10 筆） |
 | `比較 2` | 第 2 筆的推薦方案與次推薦（編號以最新列表為準） |
@@ -14,6 +15,26 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 | `解除綁定` | 解除綁定並撤銷那把存取權杖 |
 
 群組與多人聊天室不處理任何指令（只回一次簡短說明）。封鎖 bot 會自動解除綁定。回覆文案都是暫定，位置在 `backend/app/line_bot/texts.py` 與 `commands/*.py`。
+
+## Flex 卡片與 postback（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)）
+
+回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前只有「說明」選單卡（FLEX-1），比較卡、待辦卡是 FLEX-2、FLEX-3。
+
+**組裝**：`backend/app/line_bot/flex.py` 放共用積木（`bubble`、`text`、`box`、`postback_button`、`uri_button`、`carousel`、`postback_data`、`check_contents`）與 LINE 上限常數；它只管排版，不放任何一張卡的內容。內容只來自既有文字或 MCP 工具輸出，不查資料庫、不產生數字（ADR-0004）。
+
+**送出**：處理器呼叫 `ctx.reply_flex(alt_text, contents, fallback_text=None, quick_replies=())`，一次多則用 `ctx.reply_flex_messages([(alt_text, contents), ...], fallback_text=..., quick_replies=...)`（最多 5 則）。`contents` 可以直接給 dict，也可以給回傳 dict 的函式（組裝丟例外也會降級）。`alt_text` 用既有的純文字摘要（LINE 限 400 字，超過會截短）。回覆權杖一個事件只能用一次，和 `ctx.reply` 共用。
+
+**降級規則**：組裝失敗、超過上限（單則 JSON 50 KB、輪播 12 張、一次回覆 5 則）、或 LINE 回錯誤（4xx，`LineClient.reply` 回 `False`）時，改回 `fallback_text` 這則純文字（沒給就用 `alt_text`），使用者一定有回應。`fallback_text` 請給原本純文字指令的回覆，這樣降級後和 Flex 之前完全一樣。
+
+**postback data 格式**：`cmd=<指令>&<鍵>=<值>`（URL query），整串最多 300 字，只放指令與識別碼，不放個資。例如 `cmd=compare&id=<比較紀錄 uuid>`。用 `flex.postback_data("compare", id=...)` 組、`flex.parse_postback_data` 解析。`cmd` 的對應在 `registry.POSTBACK_COMMANDS`（`compare`→比較、`todo`→待辦、`help`→說明），也可以直接寫指令關鍵字。
+
+**處理順序**：postback 事件和文字訊息一樣先驗簽、用事件 id 去重（同一個事件重送不會重複回覆），再找到**同一個指令處理器**執行：`ctx.text` 是指令關鍵字、`ctx.args` 是空字串、按鈕帶的其他鍵值在 `ctx.postback`（例如 `ctx.postback.get("id")`，沒有就是空 dict）。所以處理器不必分辨是打字還是按鈕；要支援帶 id 的按鈕，在處理器裡先看 `ctx.postback`。`cmd` 不認得或 data 格式錯誤，回選單卡。群組與聊天室的 postback 一律忽略。
+
+**新增一張卡**（FLEX-2、FLEX-3）：
+1. 在 `line_bot/cards/` 新增自己的檔案（例如 `cards/compare.py`），用 `flex` 積木寫「資料 → bubble／carousel」的函式；文案放在自己檔案裡，標註暫定。
+2. 在對應的 `commands/*.py` 處理器裡，把原本的 `ctx.reply(text, ...)` 改成 `ctx.reply_flex(summary_text, lambda: build_card(data), fallback_text=text, quick_replies=...)`。純文字的組法不要動，它就是降級後的回覆。
+3. 按鈕用 `flex.postback_button(label, flex.postback_data("compare", id=...))`；`compare`、`todo`、`help` 已預先對好指令，不必改 `registry.py`。新的指令代號才需要在 `POSTBACK_COMMANDS` 加一行。
+4. 測試：用 `tests/line_support.py` 的 `FakeLineClient`（`line.flex` 是送出的 Flex、`FakeLineClient(reject_flex=True)` 模擬 LINE 拒絕）與 `postback_event(...)`，範例見 `tests/test_line_flex.py`。
 
 ## 你需要提供的東西
 
@@ -58,7 +79,7 @@ https://xxxx.ngrok-free.app/line/webhook
 
 ## 驗證步驟
 
-1. 用手機加 bot 好友 → 收到歡迎與指令說明。
+1. 用手機加 bot 好友 → 收到歡迎選單卡；按「我的比較」「理賠待辦」「使用說明」和打字的結果相同，聊天室不會多出你沒打的字。
 2. 登入網站，帳號頁「綁定 LINE」按「產生綁定碼」。
 3. 在 LINE 傳 `綁定 <碼>` → 收到綁定成功；帳號頁會自動切到「已綁定」。
 4. 傳 `比較`、`比較 1`、`待辦` → 內容要和網頁一致（保額、保費、完成度）。
