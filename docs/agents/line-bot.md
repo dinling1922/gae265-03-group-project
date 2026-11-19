@@ -9,8 +9,8 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 | `說明`（加好友時也是） | 選單卡：三個按鈕（我的比較、理賠待辦、使用說明），降級時回純文字說明 |
 | 任何不認得的內容 | 純文字指令說明 |
 | `綁定 123456` | 用帳號頁產生的綁定碼綁定（6 位數、10 分鐘內有效、只能用一次） |
-| `比較` | 最近的比較紀錄（最新在前，最多 10 筆） |
-| `比較 2` | 第 2 筆的推薦方案與次推薦（編號以最新列表為準） |
+| `比較` | 最近的比較紀錄輪播卡（最新在前，最多 10 筆，一筆一張，按鈕「看推薦」）；降級時回純文字列表 |
+| `比較 2` | 第 2 筆的推薦方案與次推薦，純文字（編號以最新列表為準） |
 | `待辦` / `待辦 已完成` | 未完成／已完成的理賠待辦，依行程與事件分組 |
 | `解除綁定` | 解除綁定並撤銷那把存取權杖 |
 
@@ -18,7 +18,7 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 
 ## Flex 卡片與 postback（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)）
 
-回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前只有「說明」選單卡（FLEX-1），比較卡、待辦卡是 FLEX-2、FLEX-3。
+回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前有「說明」選單卡（FLEX-1）、比較卡（FLEX-2）與待辦卡（FLEX-3）；聊天室底部的圖文選單見下方「圖文選單」（FLEX-4）。
 
 **組裝**：`backend/app/line_bot/flex.py` 放共用積木（`bubble`、`text`、`box`、`postback_button`、`uri_button`、`carousel`、`postback_data`、`check_contents`）與 LINE 上限常數；它只管排版，不放任何一張卡的內容。內容只來自既有文字或 MCP 工具輸出，不查資料庫、不產生數字（ADR-0004）。
 
@@ -35,6 +35,43 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 2. 在對應的 `commands/*.py` 處理器裡，把原本的 `ctx.reply(text, ...)` 改成 `ctx.reply_flex(summary_text, lambda: build_card(data), fallback_text=text, quick_replies=...)`。純文字的組法不要動，它就是降級後的回覆。
 3. 按鈕用 `flex.postback_button(label, flex.postback_data("compare", id=...))`；`compare`、`todo`、`help` 已預先對好指令，不必改 `registry.py`。新的指令代號才需要在 `POSTBACK_COMMANDS` 加一行。
 4. 測試：用 `tests/line_support.py` 的 `FakeLineClient`（`line.flex` 是送出的 Flex、`FakeLineClient(reject_flex=True)` 模擬 LINE 拒絕）與 `postback_event(...)`，範例見 `tests/test_line_flex.py`。
+
+## 比較卡（FLEX-2，文案暫定待設計者確認）
+
+程式在 `line_bot/cards/compare.py`（排版）與 `commands/compare.py`（流程）。內容全部取自 MCP 工具 `list_comparisons`、`get_comparison` 的輸出，不查資料庫、不重算數字（ADR-0004）。
+
+- **`比較`（打字或選單卡按鈕）**：回輪播卡，一筆比較一張（目的地、日期與天數、是否已有推薦），最新在前，最多 10 筆；達到 10 筆時最後多一張「還有更早的紀錄」提示卡，請使用者到網頁看更多。沒有紀錄回純文字說明。
+- **「看推薦」按鈕**：postback 是 `cmd=compare&id=<比較紀錄 uuid>`，帶的是紀錄 id 而不是列表編號，所以按舊卡片的時候，即使列表順序已因新增比較而改變，也一定是卡上那一筆。處理器只呼叫 `get_comparison`，回該筆的詳情卡（推薦方案、次推薦、保額與保費、免責說明；尚無推薦時說明缺哪一步），卡上有「回比較列表」按鈕。
+- **找不到**：id 不是 uuid、不存在、或是別人的，都回同一句「找不到這筆比較紀錄」（沿用工具的錯誤處理，不洩漏紀錄存不存在）。其他失敗（未綁定、綁定失效、限流、工具錯誤）沿用 `failures.py` 的既有文案。
+- **打字的 `比較 N` 維持純文字**（決定：issue 規定純文字不變；要看卡片請按輪播上的「看推薦」）。編號以呼叫當下的最新列表為準。
+- **降級**：組裝失敗或 LINE 拒收 Flex 時，列表降級成 `format_list` 的純文字（附快速回覆），詳情降級成 `format_detail`，和 FLEX-1 之前的回覆相同。
+
+## 待辦卡（FLEX-3，`cards/todo.py`）
+
+`待辦`（打字或 postback `cmd=todo`）回進度卡：每個行程一張 bubble（多個行程是輪播），標題是目的地，內容是日期、「已完成 N／M」（工具的 done／total 原樣，不重算）、依事件分組的待辦與共同文件。LINE 仍然只能查、不能改，要勾選或補文件按「到網頁處理」。文案與版面暫定，待設計者確認。
+
+- **網址按鈕**：`flex.uri_button`，網址由 `PUBLIC_BASE_URL` 組成：只有一個行程時指到 `/trip/<行程 id>`（網頁行程頁），多個行程時指到 `/trip`；**沒設定 `PUBLIC_BASE_URL` 就不顯示按鈕**，其餘內容照常。
+- **內容上限**：每張卡最多列 15 項待辦，超過的註明「還有 N 項，請到網頁查看全部」；行程超過 12 個時前 11 個各一張，最後一張說明還有幾個行程；整則仍超過 50 KB 時逐步減少每張卡列的項目數，最後才降級。
+- **降級與不變的回覆**：降級純文字用 `commands/todo.format_todos`（和 FLEX 之前完全一樣）；沒有行程、未綁定、權杖失效、MCP 失敗、用法錯誤仍是原本的純文字。
+
+## 圖文選單（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)、FLEX-4）
+
+聊天室底部常駐的選單，用一次性腳本建立，不在啟動時自動建、也沒有後台介面。程式在 `backend/app/line_bot/richmenu.py`（LINE API 介面 `RichMenuClient`、驗證、流程）與 `richmenu_cli.py`（入口）；和回覆用的 `LineClient` 分開。
+
+**四個按鈕**（版面暫定，待設計者確認，設定在 `richmenu.BUTTONS`）：我的比較（postback `cmd=compare`）、理賠待辦（`cmd=todo`）、使用說明（`cmd=help`）、開啟網站（URI，`PUBLIC_BASE_URL`）。postback data 用 `flex.postback_data` 產生，和卡片按鈕走同一條處理路徑，不會在聊天室多出一句話。**不放「綁定」**（要輸入綁定碼，點一下做不到）。
+
+**圖片規格**（設計者交付，不放 repo）：PNG 或 JPEG、**2500×1686**（2×2 格，每格 1250×843）或 **2500×843**（1×4 格，每格 625×843）、**≤ 1 MB**。格子順序由左到右、由上到下：我的比較、理賠待辦、使用說明、開啟網站。
+
+**操作步驟**：
+1. `.env` 要有 `LINE_CHANNEL_ACCESS_TOKEN` 與 `PUBLIC_BASE_URL`（網址按鈕要用；沒設會明確報錯結束）。
+2. 先驗證：`make line-richmenu image=path/to/menu.png args=--dry-run`（檢查圖片、印出按鈕，不呼叫 LINE，也不需要權杖）。
+3. 正式建立：`make line-richmenu image=path/to/menu.png`。會呼叫 LINE API：建立選單 → 上傳圖片 → 設為所有使用者的預設。
+
+**重跑與換圖**：重跑同一個指令即可（換圖也是重跑，不需要部署）。腳本先建立新選單、上傳、設為預設，**成功之後**才刪掉所有同名（「好險有你 主選單」）的舊選單，所以不會留下重複，過程中也不會有空窗。新選單建立後上傳或設預設失敗，會把半成品刪掉、舊的原封不動；舊選單刪不掉只警告，重跑會再試。LINE 後台手動建的其他名稱的選單不會碰。
+
+**沒有設計圖時**：`make line-richmenu args="--placeholder /tmp/menu.png"` 用標準函式庫產生一張 2500×1686 的棋盤格佔位圖（沒有文字），只供本機驗證流程，**不可上線**；佔位圖不放進 repo。
+
+**驗證只做到假客戶端**：測試（`tests/test_line_richmenu.py`）用假客戶端與假 transport；實際打 LINE API 要用真權杖手動跑一次，確認選單顯示與按鈕動作。
 
 ## 你需要提供的東西
 

@@ -68,6 +68,10 @@ eval-subchunk: ## 子塊檢索評估：用 data/eval/subchunk_questions.json 比
 reembed: ## 重新計算條文向量（embedding_text 改了之後用；args="--insurance CHUBB06" 只算指定險種；會呼叫 embedding 供應商）
 	$(BACKEND) uv run python -m app.ingest.reembed $(args)
 
+.PHONY: line-richmenu
+line-richmenu: ## 建立 LINE 圖文選單並設為預設、刪掉舊的：make line-richmenu image=選單圖.png（args=--dry-run 只驗證；args="--placeholder x.png" 產生佔位圖；會呼叫 LINE API）
+	$(BACKEND) uv run python -m app.line_bot.richmenu_cli $(if $(image),$(abspath $(image))) $(args)
+
 .PHONY: export-seed
 export-seed: ## 把開發資料庫的險種、條文與向量匯出成 backend/data/seed/catalog.json.gz
 	$(BACKEND) uv run python -m app.seed export

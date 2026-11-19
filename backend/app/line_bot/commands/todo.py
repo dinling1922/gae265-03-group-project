@@ -129,4 +129,13 @@ async def todo_command(ctx: LineContext) -> None:
     if not result.content.get("trips"):
         await ctx.reply(NO_TRIPS_TEXT, quick)
         return
-    await ctx.reply(format_todos(result.content), quick)
+    from app.line_bot.cards.todo import (
+        todo_card,  # 卡片要用本檔的文案常數，延後匯入避開循環
+    )
+
+    content = result.content
+    await ctx.reply_flex(
+        format_todos(content),
+        lambda: todo_card(content),
+        quick_replies=quick,
+    )
