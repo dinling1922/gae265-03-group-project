@@ -20,15 +20,17 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests import line_mcp_support as lm
+from tests.line_support import FakeLineClient
 from tests.test_comparison_recommendation_api import trip
 
-line, endpoint, rate_limit, http, chat = (
-    lm.line,
-    lm.endpoint,
-    lm.rate_limit,
-    lm.http,
-    lm.chat,
-)
+endpoint, rate_limit, http, chat = lm.endpoint, lm.rate_limit, lm.http, lm.chat
+
+
+@pytest.fixture
+def line() -> FakeLineClient:
+    """「比較」列表現在回輪播卡（FLEX-2，卡片測試在 test_line_compare_flex.py）。
+    這個檔案驗的是純文字內容，所以讓假 LINE 拒收 Flex，走降級的純文字路徑（內容與 Flex 之前相同）。"""
+    return FakeLineClient(reject_flex=True)
 
 
 @pytest.fixture

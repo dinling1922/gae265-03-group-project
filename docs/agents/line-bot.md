@@ -9,8 +9,8 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 | `說明`（加好友時也是） | 選單卡：三個按鈕（我的比較、理賠待辦、使用說明），降級時回純文字說明 |
 | 任何不認得的內容 | 純文字指令說明 |
 | `綁定 123456` | 用帳號頁產生的綁定碼綁定（6 位數、10 分鐘內有效、只能用一次） |
-| `比較` | 最近的比較紀錄（最新在前，最多 10 筆） |
-| `比較 2` | 第 2 筆的推薦方案與次推薦（編號以最新列表為準） |
+| `比較` | 最近的比較紀錄輪播卡（最新在前，最多 10 筆，一筆一張，按鈕「看推薦」）；降級時回純文字列表 |
+| `比較 2` | 第 2 筆的推薦方案與次推薦，純文字（編號以最新列表為準） |
 | `待辦` / `待辦 已完成` | 未完成／已完成的理賠待辦，依行程與事件分組 |
 | `解除綁定` | 解除綁定並撤銷那把存取權杖 |
 
@@ -35,6 +35,16 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 2. 在對應的 `commands/*.py` 處理器裡，把原本的 `ctx.reply(text, ...)` 改成 `ctx.reply_flex(summary_text, lambda: build_card(data), fallback_text=text, quick_replies=...)`。純文字的組法不要動，它就是降級後的回覆。
 3. 按鈕用 `flex.postback_button(label, flex.postback_data("compare", id=...))`；`compare`、`todo`、`help` 已預先對好指令，不必改 `registry.py`。新的指令代號才需要在 `POSTBACK_COMMANDS` 加一行。
 4. 測試：用 `tests/line_support.py` 的 `FakeLineClient`（`line.flex` 是送出的 Flex、`FakeLineClient(reject_flex=True)` 模擬 LINE 拒絕）與 `postback_event(...)`，範例見 `tests/test_line_flex.py`。
+
+## 比較卡（FLEX-2，文案暫定待設計者確認）
+
+程式在 `line_bot/cards/compare.py`（排版）與 `commands/compare.py`（流程）。內容全部取自 MCP 工具 `list_comparisons`、`get_comparison` 的輸出，不查資料庫、不重算數字（ADR-0004）。
+
+- **`比較`（打字或選單卡按鈕）**：回輪播卡，一筆比較一張（目的地、日期與天數、是否已有推薦），最新在前，最多 10 筆；達到 10 筆時最後多一張「還有更早的紀錄」提示卡，請使用者到網頁看更多。沒有紀錄回純文字說明。
+- **「看推薦」按鈕**：postback 是 `cmd=compare&id=<比較紀錄 uuid>`，帶的是紀錄 id 而不是列表編號，所以按舊卡片的時候，即使列表順序已因新增比較而改變，也一定是卡上那一筆。處理器只呼叫 `get_comparison`，回該筆的詳情卡（推薦方案、次推薦、保額與保費、免責說明；尚無推薦時說明缺哪一步），卡上有「回比較列表」按鈕。
+- **找不到**：id 不是 uuid、不存在、或是別人的，都回同一句「找不到這筆比較紀錄」（沿用工具的錯誤處理，不洩漏紀錄存不存在）。其他失敗（未綁定、綁定失效、限流、工具錯誤）沿用 `failures.py` 的既有文案。
+- **打字的 `比較 N` 維持純文字**（決定：issue 規定純文字不變；要看卡片請按輪播上的「看推薦」）。編號以呼叫當下的最新列表為準。
+- **降級**：組裝失敗或 LINE 拒收 Flex 時，列表降級成 `format_list` 的純文字（附快速回覆），詳情降級成 `format_detail`，和 FLEX-1 之前的回覆相同。
 
 ## 你需要提供的東西
 
