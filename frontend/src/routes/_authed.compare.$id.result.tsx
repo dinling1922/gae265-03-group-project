@@ -1,26 +1,21 @@
 import { Button } from "@base-ui/react/button";
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { updateComparisonMutation } from "../client/@tanstack/react-query.gen";
-import type {
-  BenefitAmountOut,
-  ComparisonOut,
-  ComparisonTableRowOut,
-  RecommendationOut,
-} from "../client/types.gen";
+import type { ComparisonOut, ComparisonTableRowOut, RecommendationOut } from "../client/types.gen";
 import { ActionBar } from "../components/ui/ActionBar";
 import { btn, btnPri, lnk } from "../components/ui/buttons";
 import { FieldError } from "../components/ui/Field";
 import { PageHead } from "../components/ui/PageHead";
 import { ComparisonTable } from "../features/compare/ComparisonTable";
+import { CARD_LABEL, compareColumns, compareRows, rowTerm } from "../features/compare/compareTable";
 import { PlanCard } from "../features/compare/PlanCard";
 import { ReasonCard } from "../features/compare/ReasonCard";
 import { TermDialog } from "../features/compare/TermDialog";
 import { WithComparison } from "../features/compare/WithComparison";
 import { card as cardClass } from "../features/incident/shared";
 import { tripDays } from "../features/itinerary/tripRules";
-import { money } from "../lib/format";
 
 export const Route = createFileRoute("/_authed/compare/$id/result")({
   component: ResultPage,
@@ -50,7 +45,6 @@ function ResultPage() {
 }
 
 type Card = "recommended" | "alternative";
-const CARD_LABEL: Record<Card, string> = { recommended: "推薦", alternative: "次推薦" };
 
 function Result({
   initial,
@@ -112,30 +106,8 @@ function Result({
         <h2 className="m-0 t-section-title text-heading">保障比較</h2>
         <div className={`${cardClass} flex flex-col gap-4 md:px-6`}>
           <ComparisonTable
-            columns={
-              (["recommended", "alternative"] as const).map((c) => ({
-                label: CARD_LABEL[c],
-                head: (
-                  <>
-                    <span className="block t-micro text-leaf-text">{CARD_LABEL[c]}</span>
-                    <span className="block t-caption text-muted">{rec[c].company}</span>
-                    {rec[c].name}
-                  </>
-                ),
-              })) as [{ label: string; head: ReactNode }, { label: string; head: ReactNode }]
-            }
-            rows={rows.map((row) => ({
-              key: row.key,
-              label: row.label,
-              concernOrder: row.concern
-                ? comparison.concerns.indexOf(row.concern) + 1 || undefined
-                : undefined,
-              onTerm: () => setOpenRow(row),
-              cells: [
-                <Benefits key="r" items={row.recommended} />,
-                <Benefits key="a" items={row.alternative} />,
-              ],
-            }))}
+            columns={compareColumns(rec)}
+            rows={compareRows(comparison, rows, setOpenRow)}
           />
           <Button
             type="button"
@@ -167,36 +139,7 @@ function Result({
         </ActionBar.Push>
       </ActionBar>
 
-      <TermDialog
-        term={
-          openRow && {
-            title: openRow.label,
-            explanation: openRow.explanation,
-            details: (["recommended", "alternative"] as const).map((which) => (
-              <div key={which} className="flex flex-col gap-1">
-                <p className="m-0 t-label text-heading">
-                  {CARD_LABEL[which]}｜{rec[which].name}
-                </p>
-                <Benefits items={openRow[which]} />
-              </div>
-            )),
-          }
-        }
-        onClose={() => setOpenRow(null)}
-      />
+      <TermDialog term={openRow && rowTerm(openRow, rec)} onClose={() => setOpenRow(null)} />
     </main>
-  );
-}
-
-function Benefits({ items }: { items: BenefitAmountOut[] }) {
-  if (items.length === 0) return <span className="text-muted">未列</span>;
-  return (
-    <ul className="m-0 list-none space-y-1 p-0">
-      {items.map((b) => (
-        <li key={b.name}>
-          {b.name}：{money(b.amount)}
-        </li>
-      ))}
-    </ul>
   );
 }

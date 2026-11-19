@@ -19,6 +19,7 @@ import { FieldError } from "../components/ui/Field";
 import { PageHead } from "../components/ui/PageHead";
 import { Tab, TabList, Tabs } from "../components/ui/Tabs";
 import { TermButton } from "../components/ui/TermButton";
+import { ConcernTable, concernRows } from "../features/compare/compareTable";
 import { MiniTable, SimulationCard, Story } from "../features/compare/ScenarioParts";
 import { type Term, TermDialog } from "../features/compare/TermDialog";
 import { WithComparison } from "../features/compare/WithComparison";
@@ -45,8 +46,12 @@ function ScenariosPage() {
   const { id } = Route.useParams();
   return (
     <WithComparison id={id}>
-      {(c) =>
-        c.recommendation ? (
+      {(c) => {
+        const rec = c.recommendation;
+        // 還沒有推薦：回 1-2
+        if (!rec) return <Navigate to="/compare/$id/concerns" params={{ id }} replace />;
+        const rows = concernRows(c, rec);
+        return (
           <main
             data-page-paper
             className="mx-auto flex max-w-[1040px] flex-col gap-6 font-ui md:px-6"
@@ -59,6 +64,18 @@ function ScenariosPage() {
             <div className={card}>
               <Scenarios id={id} />
             </div>
+            {rows.length > 0 && (
+              // 你在意的列（同 1-3 比較表），預設收合
+              <details className={card} data-testid="concern-details">
+                <summary className="cursor-pointer t-section-title text-heading">
+                  你在意的保障比較
+                  <span className="ml-2 t-caption text-muted">（{rows.length} 項，點開看）</span>
+                </summary>
+                <div className="mt-4">
+                  <ConcernTable comparison={c} rec={rec} rows={rows} />
+                </div>
+              </details>
+            )}
             <Chat id={id} />
             <ActionBar twoColumns>
               <Link to="/compare/$id/result" params={{ id }} className={btn}>
@@ -71,11 +88,8 @@ function ScenariosPage() {
               </ActionBar.Push>
             </ActionBar>
           </main>
-        ) : (
-          // 還沒有推薦：回 1-2
-          <Navigate to="/compare/$id/concerns" params={{ id }} replace />
-        )
-      }
+        );
+      }}
     </WithComparison>
   );
 }

@@ -66,6 +66,14 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
   await expect(panel.getByTestId("note")).toHaveCount(0);
   await expect(panel.getByText("僅為依情境假設的試算，實際以保險公司審核為準。")).toBeVisible();
 
+  // 你在意的保障比較：預設收合，展開後是 1-3 比較表中你在意的列（照選的順序）
+  const concerns = page.getByTestId("concern-details");
+  await expect(concerns.getByRole("table")).toBeHidden();
+  await concerns.getByText("你在意的保障比較").click();
+  await expect(concerns.getByRole("row", { name: /^班機延誤.*你在意 1/ })).toBeVisible();
+  await expect(concerns.getByRole("row", { name: /^海外突發疾病醫療.*你在意 2/ })).toBeVisible();
+  await concerns.getByText("你在意的保障比較").click();
+
   // 切換頁籤就換卡片：錢包被偷有 3 列與固定附註；方案沒有的保障顯示「不在保障範圍」
   await page.getByRole("tab", { name: "錢包被偷" }).click();
   const wallet = page.getByRole("tabpanel", { name: "錢包被偷" });
