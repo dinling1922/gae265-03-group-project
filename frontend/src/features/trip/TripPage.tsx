@@ -163,14 +163,19 @@ export function TripPage({
       if (programmaticScroll.current || autoSwitch.current.hold) return;
       // 以「狀況總結」整個區塊為範圍：閱讀線還在區塊內，取上緣已過線的最後一張卡片（卡片之間的空隙算前一張；
       // 快速捲動時被跳過的矮卡片也不會漏）；線在第一張之上（含頁面最上方）取第一張；
-      // 線已經離開區塊（重大注意事項、理賠待辦、送件）不切
+      // 線已經離開區塊（重大注意事項、理賠待辦、送件）不切。
+      // 例外（#531）：頁面已經捲到底，最後一張卡下方的內容不夠長，上緣永遠過不了線，
+      // 這時改取「上緣還在視窗內的最後一張卡」，旅客看到的最後一件事故才選得到
       const cards = [...document.querySelectorAll<HTMLElement>("[data-incident-id]")];
       const summary = summaryRef.current;
       if (!summary || cards.length === 0 || summary.getBoundingClientRect().bottom <= READING_LINE)
         return;
+      const atBottom =
+        window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
       let current = cards[0];
       for (const el of cards) {
-        if (el.getBoundingClientRect().top > READING_LINE) break;
+        const top = el.getBoundingClientRect().top;
+        if (atBottom ? top >= window.innerHeight : top > READING_LINE) break;
         current = el;
       }
       const id = current?.dataset.incidentId;
