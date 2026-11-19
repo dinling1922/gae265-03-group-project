@@ -18,6 +18,7 @@ from app.api.routes.comparisons import ComparisonIn, _recommend
 from app.domain import trip_extraction
 from app.domain.benefits import Concern
 from app.domain.destinations import Destination
+from app.domain.need_levels import get_need_leveler
 from app.domain.trip_extraction import ExtractionFailed, Fixed, Interpretation
 from app.mcp_server.context import tool_env
 from app.mcp_server.registry import mcp_tool
@@ -171,7 +172,7 @@ async def create_comparison(
     async with env.session_maker() as session:
         comparison = Comparison(user_id=env.identity.user.id, **body.model_dump())
         try:
-            await _recommend(session, comparison)
+            await _recommend(session, comparison, get_need_leveler())
         except HTTPException as e:  # 例如該天數有報價的方案不到兩個
             raise ToolError(f"無法產生推薦：{e.detail}") from e
         session.add(comparison)
