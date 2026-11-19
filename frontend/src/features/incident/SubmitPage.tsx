@@ -209,7 +209,7 @@ export function SubmitFlow({
   }, [id, saved]);
 
   // 預覽時填的空格與收件者隨時暫存：切到「上傳文件」等其他頁再回來也接得上（#155 驗收 7-2 的回饋）。
-  // 「取消」與送件成功會清掉；結案後不再存
+  // 送件成功會清掉；「取消」回上一步時留著（2026-11-19）；結案後不再存
   useEffect(() => {
     if (closed || step !== "preview") return;
     writeSaved(id, { step, values, recipient });
@@ -681,8 +681,9 @@ export function SubmitFlow({
                   type="button"
                   disabled={busy}
                   onClick={() => {
+                    // 回到上一步，已填的空格與收件者留著：回行程頁補東西再進預覽時接得上
                     setStep("ask");
-                    writeSaved(id, null);
+                    writeSaved(id, { step: "ask", values, recipient });
                   }}
                   className={btn}
                   data-testid="preview-cancel"

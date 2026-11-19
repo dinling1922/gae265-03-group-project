@@ -190,3 +190,29 @@ test("附件合計超過 18 MB：預覽顯示紅字提示、不能寄出，請�
   await page.getByTestId("too-large-back").click();
   await expect(page).toHaveURL(new RegExp(`/trip/${policyId}$`));
 });
+
+test("預覽填到一半按取消、回行程頁再回來：已填的空格與收件者還在", async ({ page }) => {
+  const policyId = await setup(page, "keep-draft", true);
+  await page.goto(`/trip/${policyId}/submit`);
+  await page.getByTestId("choose-send").click();
+  await expect(page.getByTestId("preview").getByText("主旨", { exact: true })).toBeVisible({
+    timeout: SLOW,
+  });
+  await page.getByTestId("letter-recipient").fill("claims@example.com");
+  const blank = page.getByTestId("blank").first();
+  const item = await blank.getAttribute("aria-label");
+  await blank.fill("測試資料");
+
+  // 取消回到詢問，再回行程頁，從送件區回來
+  await page.getByTestId("preview-cancel").click();
+  await expect(page.getByTestId("ask")).toBeVisible();
+  await page.getByRole("link", { name: "回行程頁" }).click();
+  await expect(page).toHaveURL(new RegExp(`/trip/${policyId}$`));
+  await page.getByTestId("go-submit").click();
+  await page.getByTestId("choose-send").click();
+
+  await expect(page.getByTestId("letter-recipient")).toHaveValue("claims@example.com", {
+    timeout: SLOW,
+  });
+  await expect(page.getByLabel(item ?? "", { exact: true }).first()).toHaveValue("測試資料");
+});
