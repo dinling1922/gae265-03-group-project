@@ -142,3 +142,40 @@ async def test_concern_rename_migration_clears_recommendation(
     assert patched.status_code == 200, patched.text
     assert patched.json()["concerns"] == comparison.concerns
     assert patched.json()["recommendation"]["recommended"]["plan_code"]
+
+
+def test_need_levels_migration_clears_old_recommendation(
+    alembic_config: Config, migrated_engine: Engine
+) -> None:
+    """推薦改依需求等級（spec #457）：舊規則選的推薦清空，下次 1-2 存檔時補算。"""
+    command.upgrade(alembic_config, "802dc39ae4a1")
+    depart = datetime.now(ZoneInfo("Asia/Taipei")).date() + timedelta(days=1)
+    with Session(migrated_engine) as db:
+        user = User(email="old@example.com")
+        db.add(user)
+        db.flush()
+        db.connection().execute(
+            text(
+                "INSERT INTO comparison (id, user_id, destination, depart_date, return_date,"
+                " concerns, recommended_plan_code, recommended_sum_insured,"
+                " alternative_plan_code, alternative_sum_insured)"
+                " VALUES (gen_random_uuid(), :uid, '日本', :d, :r, :c, 'fubon_advanced',"
+                " 6000000, 'huanan_basic', 3000000)"
+            ).bindparams(
+                uid=user.id, d=depart, r=depart + timedelta(days=4), c=["班機延誤"]
+            )
+        )
+        db.commit()
+
+    command.upgrade(alembic_config, "head")
+
+    with Session(migrated_engine) as db:
+        c = db.exec(select(Comparison)).one()
+    assert (
+        c.recommended_plan_code,
+        c.recommended_sum_insured,
+        c.alternative_plan_code,
+        c.alternative_sum_insured,
+        c.concern_levels,
+        c.recommendation_source,
+    ) == (None, None, None, None, None, None)

@@ -8,6 +8,7 @@ import pytest
 from app.api.deps import current_user
 from app.api.routes.me import optional_google_client
 from app.core.token_cipher import cipher_from_settings
+from app.domain.access_tokens import authenticate_bearer, create_token
 from app.main import app
 from app.models import (
     Comparison,
@@ -181,6 +182,17 @@ async def test_delete_my_data_leaves_no_rows_and_keeps_user(
     assert (
         await session.exec(select(Identity).where(Identity.user_id == user.id))
     ).first() is not None
+
+
+async def test_delete_my_data_revokes_access_tokens(
+    client: AsyncClient, session: AsyncSession, me: tuple[User, Policy]
+) -> None:
+    user, _ = me
+    _, plaintext = await create_token(session, user.id, "我的 Claude")
+    assert await authenticate_bearer(session, plaintext) is not None
+    assert (await client.delete("/me/data")).status_code == 204
+    session.expire_all()
+    assert await authenticate_bearer(session, plaintext) is None
 
 
 @pytest.mark.usefixtures("me")

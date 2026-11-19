@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     admin_excluded,
     admin_rules,
+    api_tokens,
     auth,
     bundles,
     comparisons,
@@ -16,6 +17,7 @@ from app.api.routes import (
     ingest,
     insurances,
     itinerary,
+    line_binding,
     me,
     plan_premiums,
     plans,
@@ -39,6 +41,8 @@ def build_api_router(environment: str, dev_login: bool = False) -> APIRouter:
     router.include_router(plan_premiums.router)
     router.include_router(policies.router)
     router.include_router(me.router)
+    router.include_router(api_tokens.router)
+    router.include_router(line_binding.router)
     router.include_router(comparisons.router)
     router.include_router(itinerary.router)
     router.include_router(scenarios.router)

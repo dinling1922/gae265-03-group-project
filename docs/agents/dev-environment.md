@@ -66,6 +66,30 @@ PY
 
 處理在 WSL／Windows 端（不在 repo）。已試過、沒有用：停掉 `systemd-timesyncd`（2026-11-15，跳動仍每 30 秒一次，只是從一次兩下變成一次一下）。這比較像 WSL2 和 Windows 主機的對時（Hyper-V time sync）造成的，還沒試的做法：`wsl --shutdown` 後重開，或檢查 Windows 的時間服務。這是本機環境問題，正式環境的時鐘不會這樣跳。
 
+## Git worktree
+
+worktree 只有 git 追蹤的檔案，`make worktree-setup` 補上其餘的：`.env` 建 symlink 指回主目錄那份（只建連結，不讀內容）、`mise trust`、`uv sync`、`pnpm install`。重跑沒有副作用。
+
+`compose.yaml` 有固定的專案名稱，所以在 worktree 裡 `docker compose ...` 操作的也是主目錄起的那組服務；在 worktree 跑 `make up` 會把服務換成 worktree 的程式碼，所以 `make up` 只在主目錄跑。
+
+`make dev-worktree` 在本機起這個 worktree 的 uvicorn（`--reload`）與 vite，連 docker 的 db 與 mailpit：
+
+- 埠預設 8001／5174，被占用時用 `DEV_BACKEND_PORT`、`DEV_FRONT_PORT` 換（例如同時開兩個 worktree）。
+- 前景執行，agent 用背景方式跑，看到「worktree 的服務就緒」再操作。
+- 登入狀態跟 `localhost:5173` 分開，要在 `127.0.0.1:5174` 重新登入。
+- 對它跑 e2e：`E2E_BASE_URL=http://127.0.0.1:5174 make e2e`。
+- redis 沒有對本機開埠，排程與提醒信（worker、beat）只能在主目錄驗證。
+
+### 刪除 worktree 前
+
+依序檢查，任何一步得到「沒有」就可以直接刪：
+
+1. 這個 worktree 新增的 migration：`git diff --name-only --diff-filter=A origin/main...HEAD -- backend/app/alembic/versions`，加上還沒 commit 的 `git status --porcelain -- backend/app/alembic/versions`。
+2. 開發資料庫目前的版本：`docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select version_num from alembic_version"'`。版本號出現在第 1 步的檔名裡，才代表套用過這個 worktree 的 migration。
+3. 這個分支的 PR：`gh pr list --head <分支> --state all`。PR 已合併或還開著，main 之後會帶著這個 migration，不用處理。
+
+三步都成立（套用過、沒有可以帶著它的 PR）時，提醒使用者：刪除前要在這個 worktree 執行 `cd backend && uv run alembic downgrade <版本>`，`<版本>` 是這個 worktree 最早那個 migration 的 `down_revision`。不降回去，資料庫會停在主目錄沒有的版本，主目錄 backend 容器啟動時的 `alembic upgrade head` 會找不到版本而失敗。使用者同意才執行。
+
 ## 改完程式碼的驗證
 
 依序執行，全部通過才算完成：

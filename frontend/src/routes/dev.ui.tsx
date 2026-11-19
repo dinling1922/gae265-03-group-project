@@ -339,7 +339,11 @@ function Preview() {
           />
         </div>
         <ReasonCard
-          reason="你最在意「班機延誤」，推薦方案在這一項是 9,000 元。"
+          levels={[
+            { concern: "突然生病就醫", level: "high", reason: "第 2 天滑雪" },
+            { concern: "班機延誤", level: "enough", reason: null },
+          ]}
+          reason="第 2 天滑雪。所以在這些需求都滿足的方案中，選保費最低的示意方案-進階型。"
           basis={["依據一", "依據二"]}
         />
         <TermButton onClick={() => toast.show("名詞解釋")}>班機延誤</TermButton>

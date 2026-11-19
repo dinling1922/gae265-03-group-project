@@ -223,7 +223,13 @@ function mockRecommendation(
   return {
     recommended: mockCard("mock_a", "假推薦方案", recSum, concerns),
     alternative: mockCard("mock_b", "假次推薦方案", altSum, concerns),
-    reason: `你最在意「${concerns[0]}」，推薦方案在這一項是 2,000 元，次推薦是 1,000 元；保費多 100 元。（假資料）`,
+    concern_levels: concerns.map((concern, i) => ({
+      concern,
+      level: i === 0 ? "high" : "enough",
+      reason: i === 0 ? "D2 滑雪，需要較高保障（假資料）" : "一般旅行風險（假資料）",
+    })),
+    reason:
+      "D2 滑雪，需要較高保障；一般旅行風險。所以在這些需求都滿足的方案中，選保費最低的假推薦方案。（假資料）",
     basis: [
       ...concerns.map((c) => `${c}：兩者相同（1,000 元 vs 1,000 元）`),
       "保費：兩者相同（600 元 vs 600 元）",

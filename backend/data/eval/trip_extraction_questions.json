@@ -1,0 +1,305 @@
+{
+ "today": "2026-11-19",
+ "note": "今天固定為 2026-11-19（週四，台北時間）；expect.status 是 ok（資訊齊全且合格）或 needs_more_info；missing 是預期缺的欄位集合；unsupported 為 true 表示必須列出不支援需求。",
+ "questions": [
+  {
+   "id": "e01",
+   "category": "目的地與日期",
+   "request": "我想 12/20 到 12/25 去東京玩，擔心班機延誤和行李遺失",
+   "expect": {
+    "status": "ok",
+    "destination": "日本",
+    "depart_date": "2026-12-20",
+    "return_date": "2026-12-25",
+    "concerns": [
+     "班機延誤",
+     "行李遺失或損壞"
+    ]
+   }
+  },
+  {
+   "id": "e02",
+   "category": "相對日期",
+   "request": "下週五出發去首爾玩 5 天，最怕突然生病",
+   "expect": {
+    "status": "ok",
+    "destination": "韓國",
+    "depart_date": "2026-11-27",
+    "return_date": "2026-12-01",
+    "concerns": [
+     "突然生病就醫"
+    ]
+   }
+  },
+  {
+   "id": "e03",
+   "category": "相對日期",
+   "request": "明天出發去曼谷，一共 6 天，擔心行李延誤、證件遺失",
+   "expect": {
+    "status": "ok",
+    "destination": "泰國",
+    "depart_date": "2026-11-20",
+    "return_date": "2026-11-25",
+    "concerns": [
+     "行李延誤",
+     "證件遺失"
+    ]
+   }
+  },
+  {
+   "id": "e04",
+   "category": "相對日期",
+   "request": "後天出發去新加坡，玩 4 天 3 夜，怕信用卡被盜刷",
+   "expect": {
+    "status": "ok",
+    "destination": "新加坡",
+    "depart_date": "2026-11-21",
+    "return_date": "2026-11-24",
+    "concerns": [
+     "信用卡盜刷"
+    ]
+   }
+  },
+  {
+   "id": "e05",
+   "category": "相對日期",
+   "request": "下個月 5 號去雪梨，7 天，萬一出事需要家人趕過來",
+   "expect": {
+    "status": "ok",
+    "destination": "澳洲",
+    "depart_date": "2026-12-05",
+    "return_date": "2026-12-11",
+    "concerns": [
+     "需要緊急送醫或家屬趕來"
+    ]
+   }
+  },
+  {
+   "id": "e06",
+   "category": "目的地與日期",
+   "request": "12/24 去巴黎，12/31 回來，擔心行程取消、班機延誤",
+   "expect": {
+    "status": "ok",
+    "destination": "歐洲申根國家",
+    "depart_date": "2026-12-24",
+    "return_date": "2026-12-31",
+    "concerns": [
+     "行程取消或更改",
+     "班機延誤"
+    ]
+   }
+  },
+  {
+   "id": "e07",
+   "category": "相對日期",
+   "request": "去京都玩，12/10 出發住 5 晚，行李常常被摔壞",
+   "expect": {
+    "status": "ok",
+    "destination": "日本",
+    "depart_date": "2026-12-10",
+    "return_date": "2026-12-15",
+    "concerns": [
+     "行李遺失或損壞"
+    ]
+   }
+  },
+  {
+   "id": "e08",
+   "category": "目的地與日期",
+   "request": "我要去夏威夷，2027/01/03 到 2027/01/09，擔心生病",
+   "expect": {
+    "status": "ok",
+    "destination": "美國",
+    "depart_date": "2027-01-03",
+    "return_date": "2027-01-09",
+    "concerns": [
+     "突然生病就醫"
+    ]
+   }
+  },
+  {
+   "id": "e09",
+   "category": "目的地與日期",
+   "request": "去上海出差 12/1 到 12/5，怕信用卡被盜用",
+   "expect": {
+    "status": "ok",
+    "destination": "中國大陸",
+    "depart_date": "2026-12-01",
+    "return_date": "2026-12-05",
+    "concerns": [
+     "信用卡盜刷"
+    ]
+   }
+  },
+  {
+   "id": "e10",
+   "category": "在意事項",
+   "request": "12/18 去澳門 12/22 回來，要租車，怕撞到人或弄壞車",
+   "expect": {
+    "status": "ok",
+    "destination": "香港澳門",
+    "depart_date": "2026-12-18",
+    "return_date": "2026-12-22",
+    "concerns": [
+     "不小心弄傷別人或弄壞東西"
+    ]
+   }
+  },
+  {
+   "id": "e11",
+   "category": "在意事項",
+   "request": "12/15 出發去大阪 6 天，最在意班機延誤，其次是行李延誤，再來是突然生病",
+   "expect": {
+    "status": "ok",
+    "destination": "日本",
+    "depart_date": "2026-12-15",
+    "return_date": "2026-12-20",
+    "concerns": [
+     "班機延誤",
+     "行李延誤",
+     "突然生病就醫"
+    ]
+   }
+  },
+  {
+   "id": "e12",
+   "category": "相對日期",
+   "request": "兩週後出發去峇里島 5 天，擔心行李遺失",
+   "expect": {
+    "status": "ok",
+    "destination": "印尼",
+    "depart_date": "2026-12-03",
+    "return_date": "2026-12-07",
+    "concerns": [
+     "行李遺失或損壞"
+    ]
+   }
+  },
+  {
+   "id": "e13",
+   "category": "不支援需求",
+   "request": "12/20 到 12/25 去東京，幫我找最便宜的，我今年 70 歲，預算 3000，擔心班機延誤",
+   "expect": {
+    "status": "ok",
+    "destination": "日本",
+    "depart_date": "2026-12-20",
+    "return_date": "2026-12-25",
+    "concerns": [
+     "班機延誤"
+    ],
+    "unsupported": true
+   }
+  },
+  {
+   "id": "e14",
+   "category": "資訊不足",
+   "request": "我想去日本玩，擔心班機延誤",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "depart_date",
+     "trip_length"
+    ]
+   }
+  },
+  {
+   "id": "e15",
+   "category": "資訊不足",
+   "request": "12/20 出發去釜山，擔心突然生病",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "trip_length"
+    ]
+   }
+  },
+  {
+   "id": "e16",
+   "category": "資訊不足",
+   "request": "12/20 到 12/25 去埃及，擔心突然生病",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "destination"
+    ]
+   }
+  },
+  {
+   "id": "e17",
+   "category": "資訊不足",
+   "request": "12/20 到 12/25 去東京",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "concerns"
+    ]
+   }
+  },
+  {
+   "id": "e18",
+   "category": "資訊不足",
+   "request": "12/20 到 12/25 去東京，我在意班機延誤、行李延誤、行李遺失、證件遺失、生病",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "concerns"
+    ]
+   }
+  },
+  {
+   "id": "e19",
+   "category": "資訊不足",
+   "request": "12/20 到 12/22 去東京，擔心班機延誤",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "trip_length"
+    ]
+   }
+  },
+  {
+   "id": "e20",
+   "category": "資訊不足",
+   "request": "去年 12/20 去東京玩 5 天，擔心班機延誤",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "depart_date"
+    ]
+   }
+  },
+  {
+   "id": "e21",
+   "category": "資訊不足",
+   "request": "明年夏天想去歐洲，玩一週，擔心生病",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "depart_date"
+    ]
+   }
+  },
+  {
+   "id": "e22",
+   "category": "資訊不足",
+   "request": "我想下個月去東京玩五天，擔心生病和班機延誤",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "depart_date"
+    ]
+   }
+  },
+  {
+   "id": "e23",
+   "category": "資訊不足",
+   "request": "年底想去韓國玩一週，擔心班機延誤",
+   "expect": {
+    "status": "needs_more_info",
+    "missing": [
+     "depart_date"
+    ]
+   }
+  }
+ ]
+}

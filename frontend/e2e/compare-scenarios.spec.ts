@@ -197,7 +197,7 @@ test("1-2 選新的在意事項 → 1-3 標「你在意」→ 1-4 ★ 排前 →
   await panel.getByRole("button", { name: "海外突發疾病醫療" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByRole("heading")).toHaveText("海外突發疾病醫療");
-  await expect(dialog).toContainText("富邦國外旅平險-進階型");
+  await expect(dialog).toContainText("安達國外旅平險-進階型");
   await expect(dialog).toContainText("次推薦｜富邦產物 富邦國外旅平險-基礎型");
   await expect(dialog).toContainText("海外突發疾病住院");
   await page.keyboard.press("Escape");

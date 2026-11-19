@@ -113,6 +113,12 @@ class Settings(BaseSettings):
     # 留空代表沒有人能用（寫入的預設要最嚴，ADR-0016）
     ADMIN_EMAILS: str = ""
 
+    # 1-3 推薦（ADR-0034）：LLM 判斷需求等級的上限秒數，逾時改用預設等級
+    RECOMMEND_LLM_TIMEOUT: float = 15
+    # 「基本保障」：額度達到剩下組合最高額度的這個比例；「加強保障」：同上
+    RECOMMEND_ENOUGH_RATIO: float = 0.5
+    RECOMMEND_HIGH_RATIO: float = 0.8
+
     # Google 登入與授權（ADR-0020）：四個都設定才開放 Google 登入
     GOOGLE_CLIENT_ID: str | None = None
     GOOGLE_CLIENT_SECRET: SecretStr | None = None
@@ -120,6 +126,19 @@ class Settings(BaseSettings):
     PUBLIC_BASE_URL: str | None = None
     # 加密 Google refresh token 的 Fernet 金鑰
     TOKEN_ENCRYPTION_KEY: SecretStr | None = None
+
+    # MCP 伺服器（ADR-0032）：每把存取權杖每分鐘最多呼叫幾次（每個 worker 各算各的）
+    MCP_RATE_LIMIT_PER_MINUTE: int = 60
+    # 呼叫後端 LLM 的 MCP 工具（成本較高）每把權杖每分鐘最多幾次，獨立於上面的整體上限（ADR-0034）
+    MCP_LLM_TOOL_RATE_LIMIT_PER_MINUTE: int = 10
+
+    # LINE bot 轉接層（ADR-0033）：兩個都設定才啟用，沒設時 /line/webhook 回 404
+    LINE_CHANNEL_SECRET: SecretStr = SecretStr("")
+    LINE_CHANNEL_ACCESS_TOKEN: SecretStr = SecretStr("")
+    # 綁定碼防暴力猜測：同一個 LINE userId 在視窗內最多傳錯幾次；全部 LINE 帳號合計的上限（防多帳號輪流猜）
+    LINE_BIND_MAX_FAILURES: int = 5
+    LINE_BIND_FAILURE_WINDOW_MINUTES: int = 10
+    LINE_BIND_GLOBAL_MAX_FAILURES: int = 100
 
     # 背景工作（ADR-0031）：Celery 的 broker；compose 裡的服務會覆寫成 redis://redis:6379/0
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -181,6 +200,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "TOKEN_ENCRYPTION_KEY 不是合法的 Fernet 金鑰（產生方式見 .env.prod.example）"
             ) from None
+
+    @property
+    def line_enabled(self) -> bool:
+        return bool(
+            self.LINE_CHANNEL_SECRET.get_secret_value()
+            and self.LINE_CHANNEL_ACCESS_TOKEN.get_secret_value()
+        )
 
     @property
     def google_login_enabled(self) -> bool:

@@ -30,9 +30,9 @@ test.describe("範例日程的出發日規則", () => {
 });
 
 test.describe("範例資料", () => {
-  test("有主 demo 與 2-1～2-4，主 demo 20 筆活動", () => {
+  test("有主 demo 與 2-1～2-4，主 demo 18 筆活動", () => {
     expect(DEMO_ITINERARIES.map((d) => d.id)).toEqual(["main", "2-1", "2-2", "2-3", "2-4"]);
-    expect(DEMO_ITINERARIES[0]?.activities).toHaveLength(20);
+    expect(DEMO_ITINERARIES[0]?.activities).toHaveLength(18);
   });
 
   for (const demo of DEMO_ITINERARIES) {
@@ -45,6 +45,9 @@ test.describe("範例資料", () => {
         expect(a.date >= depart_date && a.date <= return_date).toBe(true);
         expect(a.hour).toBeGreaterThanOrEqual(7);
         expect(a.hour).toBeLessThanOrEqual(22);
+        // 後端限制時長 0.5–8 小時，超過會 422、整份範例載不進去
+        expect(a.duration).toBeGreaterThanOrEqual(0.5);
+        expect(a.duration).toBeLessThanOrEqual(8);
         expect(a.location).toBeTruthy();
         expect(a.latitude).not.toBeNull();
         expect(a.longitude).not.toBeNull();

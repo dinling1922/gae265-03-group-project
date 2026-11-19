@@ -139,12 +139,18 @@ def progress(trip: TripContext) -> tuple[int, int]:
 
     不符保障的事件，文件類待辦是反灰的（不計入）；5 號自己加的待辦（沒有範本）照樣計入。
     """
-    todos: list[TodoView] = [
+    todos = counted_todos(trip)
+    return sum(1 for t in todos if t.is_done), len(todos)
+
+
+def counted_todos(trip: TripContext) -> list[TodoView]:
+    """計入完成度的待辦（行程頁與 MCP 的 list_todos 共用同一份規則）：
+    適用、不是不適用、不是不符保障事件裡反灰的文件類待辦；共同文件在前，再來是各事件的。"""
+    return [
         t
         for t in trip.todos
         if t.applicable and t.status != "not_applicable" and not _greyed(trip, t)
     ]
-    return sum(1 for t in todos if t.is_done), len(todos)
 
 
 def _greyed(trip: TripContext, todo: TodoView) -> bool:
