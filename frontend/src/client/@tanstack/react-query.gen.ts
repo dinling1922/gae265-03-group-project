@@ -593,7 +593,7 @@ export const listApiTokensOptions = (options?: Options<ListApiTokensData>) => qu
 /**
  * Create Api Token
  *
- * 建立存取權杖；有效權杖已滿 5 把回 409。
+ * 建立存取權杖；scopes 預設唯讀，不合法的組合回 422；有效權杖已滿 5 把回 409。
  */
 export const createApiTokenMutation = (options?: Partial<Options<CreateApiTokenData>>): UseMutationOptions<CreateApiTokenResponse, CreateApiTokenError, Options<CreateApiTokenData>> => {
     const mutationOptions: UseMutationOptions<CreateApiTokenResponse, CreateApiTokenError, Options<CreateApiTokenData>> = {

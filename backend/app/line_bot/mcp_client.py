@@ -34,7 +34,12 @@ from starlette.types import ASGIApp
 
 from app.core.token_cipher import TokenCipher, TokenDecryptError, cipher_from_settings
 from app.domain.access_tokens import TokenLimitError, create_token, token_status
-from app.domain.line_binding import LINE_TOKEN_NAME, remove_binding, revoke_token_row
+from app.domain.line_binding import (
+    LINE_TOKEN_NAME,
+    LINE_TOKEN_SCOPES,
+    remove_binding,
+    revoke_token_row,
+)
 from app.line_bot.registry import SessionMaker
 from app.models import ApiToken, LineBinding
 
@@ -139,7 +144,7 @@ async def _rotate(
     async with session_maker() as session:
         try:
             new_token, new_plain = await create_token(
-                session, cred.user_id, LINE_TOKEN_NAME
+                session, cred.user_id, LINE_TOKEN_NAME, scopes=LINE_TOKEN_SCOPES
             )
         except TokenLimitError:
             logger.warning("LINE 綁定權杖換新略過：有效存取權杖已滿上限")

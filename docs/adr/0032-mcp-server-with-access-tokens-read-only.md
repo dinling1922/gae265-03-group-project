@@ -29,3 +29,4 @@ status: accepted
 - 外部代理能讀到的資料只有上述三個工具的允許清單欄位；要多給欄位須改輸出模型並更新這份 ADR。
 - LINE bot 不是 MCP 客戶端，需要自己的 bot 伺服器接 webhook 再呼叫 MCP；另開票，身分設計保留「LINE userId ↔ 使用者」綁定的空間（例如另一張綁定表，不改 `api_token`）。
 - 正式環境部署（Caddy 多代理 `/mcp`）等條文 seed 落差處理完再一起做。
+- 寫入類工具見 [ADR-0034](0034-mcp-write-tools-and-phases.md)：新增 `write` 範圍，LINE bot 維持唯讀。
