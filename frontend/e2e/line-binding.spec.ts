@@ -171,11 +171,39 @@ test.describe("後端啟用 LINE", () => {
     await expect(page.getByTestId("line-unbound")).toBeVisible();
     await expect(page.getByTestId("line-bound")).toHaveCount(0);
     expect((await (await page.request.get("/api/v1/me/line-binding")).json()).bound).toBe(false);
+    // 自己在網頁按的解除，不用顯示「在別處解除」的說明
+    await expect(page.getByTestId("line-unbound-elsewhere")).toHaveCount(0);
 
     // 解除後同一個 LINE 可以再綁
     const again = await generate(page);
     await sendLine(request, lineUser, `綁定 ${again}`);
     await expect(page.getByTestId("line-bound")).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("在 LINE 傳「解除綁定」後，網頁不用重新整理就顯示已解除與「重新綁定」，並可再綁", async ({
+    page,
+    request,
+  }) => {
+    await setup(page, "unbind-in-line");
+    const lineUser = `Ue2e${uniq()}`;
+    const code = await generate(page);
+    await sendLine(request, lineUser, `綁定 ${code}`);
+    await expect(page.getByTestId("line-bound")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("line-bound-done")).toBeVisible();
+
+    // 使用者在 LINE 傳「解除綁定」；網頁開著，已綁定時每 10 秒問一次狀態
+    await sendLine(request, lineUser, "解除綁定");
+    await expect(page.getByTestId("line-unbound-elsewhere")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId("line-unbound-elsewhere")).toContainText("LINE 綁定已解除");
+    await expect(page.getByTestId("line-bound")).toHaveCount(0);
+    await expect(page.getByTestId("line-bound-done")).toHaveCount(0); // 舊的「綁定完成」不能留著
+    await expect(page.getByTestId("line-create-code")).toHaveText("重新綁定 LINE");
+
+    // 按「重新綁定 LINE」→ 新的綁定碼 → 同一個 LINE 再綁
+    const again = await generate(page);
+    await sendLine(request, lineUser, `綁定 ${again}`);
+    await expect(page.getByTestId("line-bound")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("line-unbound-elsewhere")).toHaveCount(0);
   });
 
   test("換一個 LINE 帳號：說明取代目前綁定，新 LINE 綁定後自動更新", async ({ page, request }) => {
