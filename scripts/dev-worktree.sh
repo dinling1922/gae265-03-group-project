@@ -50,7 +50,7 @@ for _ in $(seq 1 60); do
   if curl -fsS -o /dev/null "http://127.0.0.1:$BACKEND_PORT/api/v1/auth/config" 2>/dev/null &&
     curl -fsS -o /dev/null "http://127.0.0.1:$FRONT_PORT/" 2>/dev/null; then
     echo
-    echo "worktree 的服務就緒：前端 http://127.0.0.1:$FRONT_PORT（後端 :$BACKEND_PORT）"
+    echo "worktree 的服務就緒：前端 http://127.0.0.1:${FRONT_PORT}（後端 :${BACKEND_PORT}）"
     echo "對它跑 e2e：E2E_BASE_URL=http://127.0.0.1:$FRONT_PORT make e2e"
     wait
     exit 0
