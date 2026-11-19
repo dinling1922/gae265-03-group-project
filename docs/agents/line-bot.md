@@ -34,7 +34,8 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 1. 在 `line_bot/cards/` 新增自己的檔案（例如 `cards/compare.py`），用 `flex` 積木寫「資料 → bubble／carousel」的函式；文案放在自己檔案裡，標註暫定。
 2. 在對應的 `commands/*.py` 處理器裡，把原本的 `ctx.reply(text, ...)` 改成 `ctx.reply_flex(summary_text, lambda: build_card(data), fallback_text=text, quick_replies=...)`。純文字的組法不要動，它就是降級後的回覆。
 3. 按鈕用 `flex.postback_button(label, flex.postback_data("compare", id=...))`；`compare`、`todo`、`help` 已預先對好指令，不必改 `registry.py`。新的指令代號才需要在 `POSTBACK_COMMANDS` 加一行。
-4. 測試：用 `tests/line_support.py` 的 `FakeLineClient`（`line.flex` 是送出的 Flex、`FakeLineClient(reject_flex=True)` 模擬 LINE 拒絕）與 `postback_event(...)`，範例見 `tests/test_line_flex.py`。
+4. **快速回覆**：卡片本身有按鈕時，只傳 `fallback_quick_replies=`（不要傳 `quick_replies=`）：卡片送成功就不重複附快速回覆，降級成沒有按鈕的純文字時才補上（#560）。
+5. 測試：用 `tests/line_support.py` 的 `FakeLineClient`（`line.flex` 是送出的 Flex、`FakeLineClient(reject_flex=True)` 模擬 LINE 拒絕）與 `postback_event(...)`，範例見 `tests/test_line_flex.py`。
 
 ## 比較卡（FLEX-2，文案暫定待設計者確認）
 
@@ -52,6 +53,7 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 
 - **網址按鈕**：`flex.uri_button`，網址由 `PUBLIC_BASE_URL` 組成：只有一個行程時指到 `/trip/<行程 id>`（網頁行程頁），多個行程時指到 `/trip`；**沒設定 `PUBLIC_BASE_URL` 就不顯示按鈕**，其餘內容照常。
 - **內容上限**：每張卡最多列 15 項待辦，超過的註明「還有 N 項，請到網頁查看全部」；行程超過 12 個時前 11 個各一張，最後一張說明還有幾個行程；整則仍超過 50 KB 時逐步減少每張卡列的項目數，最後才降級。
+- **略過沒有待辦的行程**（#560）：未完成頁略過 `total` 為 0 的行程；已完成頁略過沒有已完成待辦可列的行程。全部都被略過時不送空卡，回既有的純文字說明（`format_todos`），不會沉默。
 - **降級與不變的回覆**：降級純文字用 `commands/todo.format_todos`（和 FLEX 之前完全一樣）；沒有行程、未綁定、權杖失效、MCP 失敗、用法錯誤仍是原本的純文字。
 
 ## 圖文選單（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)、FLEX-4）

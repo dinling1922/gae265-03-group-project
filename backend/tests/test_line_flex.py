@@ -78,7 +78,7 @@ async def test_help_replies_menu_card(http: AsyncClient, line: FakeLineClient):
     [card] = line.flex
     assert card.contents["type"] == "bubble"
     assert card.alt_text == texts.HELP_TEXT
-    assert [q.text for q in card.quick_replies] == ["比較", "待辦", "說明"]
+    assert card.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
     parsed = [flex.parse_postback_data(d) for d in button_data(card).values()]
     assert [p["cmd"] for p in parsed if p] == ["compare", "todo", "help"]
 
@@ -333,6 +333,11 @@ async def test_menu_degrades_to_help_text_when_line_rejects(
     await post(http, user_message("說明", event_id="e1"))
     await post(http, follow_event(event_id="e2"))
     assert line.texts == [texts.HELP_TEXT, texts.WELCOME_TEXT]
+    # 降級成沒有按鈕的純文字時，才補快速回覆（#560）
+    sent = [m for _, ms in line.replies for m in ms]
+    assert all(
+        [q.text for q in m.quick_replies] == ["比較", "待辦", "說明"] for m in sent
+    )
 
 
 async def test_second_reply_is_ignored(
