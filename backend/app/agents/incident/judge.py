@@ -434,7 +434,8 @@ def _judge_flight_delay(
     if delay is None:
         return Judgement(
             "insufficient",
-            f"還需要{'、'.join(_missing_for_delay(known))}，才能算出延誤多久",
+            f"還需要{'、'.join(_missing_for_delay(known))}，才能算出延誤多久；"
+            f"延誤 {THRESHOLD_HOURS} 小時以上才可申請理賠",  # 旅客才知道補什麼有沒有用（#533）
         )
     if delay < 0:
         return Judgement(
