@@ -24,6 +24,7 @@ from app.agents.incident.judge import (
     DateBackfill,
     align_year,
     backfilled_date,
+    backfilled_stated_date,
     explicit_date,
     judge_baggage_loss,
     judge_flight_delay,
@@ -415,14 +416,19 @@ def _date_backfill(
     *,
     asking_planned: bool = False,
 ) -> DateBackfill | None:
-    """班機延誤的事故日期缺或「不知道」，這句話給了日期：回填事故日（#451）。
+    """事故日期缺或「不知道」，這句話給了日期：回填事故日（#451、#532）。
 
-    事故日 ＝ 原定起飛日。原定起飛時間那句有日期就用它；追問中剛問原定起飛時間（`asking_planned`）、
-    旅客回「7/11 10:30」時，句中的日期也算；沒有就用實際起飛日期（標成推定）。"""
-    if type_code != flow.FLIGHT_DELAY:
-        return None
+    班機延誤：事故日 ＝ 原定起飛日。原定起飛時間那句有日期就用它；追問中剛問原定起飛時間
+    （`asking_planned`）、旅客回「7/11 10:30」時，句中的日期也算；沒有就用實際起飛日期（標成推定）。
+
+    其他事故類型（就醫、行李）沒有別的日期可推：這句話有明確月日、而且落在保險期間內才回填，
+    期間外的日期不回填（「11/20 前要送件嗎」不能改到事故日）；「昨天」等相對說法不處理（#537）。"""
     start, end = ctx.policy.start_date, ctx.policy.end_date
     year = (start or date.today()).year
+    if type_code != flow.FLIGHT_DELAY:
+        return backfilled_stated_date(
+            {**known, **answers}, explicit_date(text, year, start, end), start, end
+        )
     planned = stated_planned_date(text, year, start, end)
     if planned is None and asking_planned and "dep_plan" in answers:
         planned = explicit_date(text, year, start, end)
