@@ -178,7 +178,7 @@ async def test_不需上傳的待辦文件取不到時_信上寫另行提供_可
 
     assert package.missing_todo_ids == []
     assert _section(package.body, "未隨信附上的文件") == [
-        f"・{other.title}（另行提供）"
+        f"・班機延誤_{other.title}（另行提供）"
     ]
     assert "重新上傳" not in package.body
     [unavailable] = package.unavailable_attachments

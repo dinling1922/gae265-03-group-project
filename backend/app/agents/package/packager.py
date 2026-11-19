@@ -206,6 +206,27 @@ def _incident_labels(incidents: list[IncidentContext]) -> dict[uuid.UUID, str]:
     return labels
 
 
+# 「未隨信附上的文件」的名稱和附件檔名同一個寫法：6 號存到 Drive 的檔名是「事故類型_待辦名稱_序號」，
+# 待辦名稱去掉開頭的動詞，理賠申請書只寫「理賠申請書」（app.agents.document.storage 的
+# document_file_name）。這裡照抄規則、不 import 6 號；兩邊一致由測試檢查
+_CLAIM_FORM_CODE = "D10"
+_CLAIM_FORM_NAME = "理賠申請書"
+_LEADING_VERB = re.compile(r"^(請|向|取得|保留|保存|準備|填寫|列印)")
+_UNSAFE = re.compile(r"[/\\:*?\"<>|\n\r\t]")
+
+
+def _clean(text: str, limit: int) -> str:
+    return _UNSAFE.sub("／", text).strip()[:limit]
+
+
+def _document_name(todo: TodoView, kind: str) -> str:
+    """待辦對應的文件名稱，和附件檔名去掉「_序號.副檔名」相同，例如「班機延誤_延誤證明」。"""
+    # 理賠申請書（D10）是整個行程一項的待辦（scope=policy）
+    if todo.document_code == _CLAIM_FORM_CODE or todo.scope == "policy":
+        return _CLAIM_FORM_NAME
+    return f"{_clean(kind, 40)}_{_clean(_LEADING_VERB.sub('', todo.title), 60)}"
+
+
 def _greeting(has_attachments: bool) -> str:
     """開頭問候，依 7 號提供的範本；被保險人姓名平台沒有，留給使用者填。
 
@@ -266,7 +287,13 @@ def _without_document_section(
     )
     if not todos:
         return None
-    return "\n".join(["未隨信附上的文件", *(f"・{t.title}（另行提供）" for t in todos)])
+    kind = ctx.incident_type_name or "事故"
+    return "\n".join(
+        [
+            "未隨信附上的文件",
+            *(f"・{_document_name(t, kind)}（另行提供）" for t in todos),
+        ]
+    )
 
 
 # 行程頁的兩張待辦卡：先「事故當下」、再「回國後整理」
@@ -307,8 +334,8 @@ def _trip_without_document_section(
     labels: dict[uuid.UUID, str],
     unattached: frozenset[uuid.UUID] = frozenset(),
 ) -> str | None:
-    """行程版「未隨信附上的文件」：規則同事件版。事件的待辦前面加事故名稱，分得出是哪個事故的；
-    共同文件只寫待辦名稱。"""
+    """行程版「未隨信附上的文件」：規則同事件版，名稱和附件檔名同一個寫法。
+    事件的待辦用該事故的名稱（同類型第二次起加「(2)」）；共同文件和 6 號存檔一樣用第一個事故的名稱。"""
     order = _trip_todo_order(trip)
     todos = sorted(
         (
@@ -321,10 +348,11 @@ def _trip_without_document_section(
     if not todos:
         return None
 
+    first = labels.get(trip.incidents[0].incident_id) if trip.incidents else None
+
     def line(t: TodoView) -> str:
-        label = labels.get(t.incident_id) if t.incident_id else None
-        title = f"{label}：{t.title}" if label else t.title
-        return f"・{title}（另行提供）"
+        label = labels.get(t.incident_id) if t.incident_id else first
+        return f"・{_document_name(t, label or '事故')}（另行提供）"
 
     return "\n".join(["未隨信附上的文件", *(line(t) for t in todos)])
 

@@ -153,11 +153,13 @@ async def test_附件照事件順序_共同文件排最後且只附一次() -> N
     assert package.missing_todo_ids == []
 
 
-async def test_未隨信附上的文件_事件的待辦加事故名稱_共同文件只寫名稱() -> None:
+async def test_未隨信附上的文件_名稱和附件檔名同一個寫法_同類型第二次加序號() -> None:
     first, second = _delay(), _delay()
     skipped1 = _owned(_todo("done", title="延誤證明", without_document=True), first)
     skipped2 = _owned(_todo("done", title="延誤證明", without_document=True), second)
-    shared = _owned(_todo("done", title="理賠申請書", without_document=True), None)
+    shared = _owned(
+        _todo("done", title="理賠申請書", without_document=True, scope="policy"), None
+    )
     trip = _trip(
         first.model_copy(update={"todos": [skipped1]}),
         second.model_copy(update={"todos": [skipped2]}),
@@ -168,8 +170,8 @@ async def test_未隨信附上的文件_事件的待辦加事故名稱_共同文
 
     assert (
         "未隨信附上的文件\n"
-        "・班機延誤：延誤證明（另行提供）\n"
-        "・班機延誤(2)：延誤證明（另行提供）\n"
+        "・班機延誤_延誤證明（另行提供）\n"
+        "・班機延誤(2)_延誤證明（另行提供）\n"
         "・理賠申請書（另行提供）"
     ) in package.body
     assert "相關文件另行提供" in package.body
@@ -361,7 +363,10 @@ async def test_未隨信附上的文件也照行程頁的順序() -> None:
         "after_return",
     )
     claim_form = _phase(
-        _owned(_todo("done", title="理賠申請書", without_document=True), None),
+        _owned(
+            _todo("done", title="理賠申請書", without_document=True, scope="policy"),
+            None,
+        ),
         "after_return",
     )
     boarding = _phase(
@@ -380,8 +385,8 @@ async def test_未隨信附上的文件也照行程頁的順序() -> None:
 
     assert (
         "未隨信附上的文件\n"
-        "・機票及登機證（另行提供）\n"
-        "・班機延誤：費用收據（另行提供）\n"
+        "・班機延誤_機票及登機證（另行提供）\n"
+        "・班機延誤_費用收據（另行提供）\n"
         "・理賠申請書（另行提供）"
     ) in package.body
 
@@ -411,3 +416,25 @@ def test_平台建立的7號用設定裡的建議收件者(monkeypatch: pytest.M
 
     assert factory.create_gmail_packager().recipient_hint == "claims@example.com"
     assert factory.create_offline_packager().recipient_hint == "claims@example.com"
+
+
+@pytest.mark.parametrize(
+    ("title", "code"),
+    [
+        ("向航空公司申請延誤證明", "D01"),
+        ("機票及登機證，或航空業者出具的搭機證明", "D02"),
+        ("填寫理賠申請書", "D10"),
+        ("準備存摺封面/護照影本", "D11"),
+    ],
+)
+def test_未隨信附上的文件名稱和6號存到Drive的檔名一致(title: str, code: str) -> None:
+    # 2026-11-19：兩邊各自寫一份命名規則，這裡比對 6 號的 document_file_name，避免之後改了一邊
+    from app.agents.document.storage import document_file_name
+    from app.agents.package.packager import _document_name
+
+    ctx = _delay()
+    todo = _todo("done", title=title).model_copy(update={"document_code": code})
+
+    stored = document_file_name(ctx, code, todo, "application/pdf")
+
+    assert stored == f"{_document_name(todo, '班機延誤')}_1.pdf"
