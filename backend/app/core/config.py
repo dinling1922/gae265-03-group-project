@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     AGENT_5_IMPL: str = "fake"  # 事件釐清、問答、待辦
     AGENT_6_IMPL: str = "fake"  # 文件辨識
     AGENT_7_IMPL: str = "fake"  # 打包追蹤
+    # 7 號送件信的建議收件者：送件頁的收件者欄位預先帶入，使用者可以改；留空就不帶
+    AGENT_7_RECIPIENT_HINT: str | None = None
     # 5 號 v1 的 Jev 守門（TypeSafe）；沒設就不守門，直接進追問
     TYPESAFE_API_KEY: SecretStr | None = None
 

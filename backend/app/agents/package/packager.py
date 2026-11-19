@@ -269,16 +269,22 @@ def _without_document_section(
     return "\n".join(["未隨信附上的文件", *(f"・{t.title}（另行提供）" for t in todos)])
 
 
+# 行程頁的兩張待辦卡：先「事故當下」、再「回國後整理」
+_PHASE_ORDER = {"on_site": 0, "after_return": 1}
+
+
 def _trip_todo_order(
     trip: TripContext,
-) -> dict[uuid.UUID, tuple[int, int, int]]:
-    """行程版的待辦順序：先各事件的待辦（事件依發生時間），再共同文件（D02、D10 等），各自依待辦順序。"""
-    order: dict[uuid.UUID, tuple[int, int, int]] = {}
+) -> dict[uuid.UUID, tuple[int, int, int, int]]:
+    """行程版的待辦順序，和行程頁的待辦清單一致（規格「後續變更」2026-11-18）：
+    先依階段（事故當下 → 回國後整理）；同一階段裡先各事件的待辦（事件依發生時間），
+    再共同文件（D02、D10 等）；同一組依待辦順序。"""
+    order: dict[uuid.UUID, tuple[int, int, int, int]] = {}
     for n, incident in enumerate(trip.incidents):
         for t in incident.todos:
-            order[t.id] = (0, n, t.sort_order)
+            order[t.id] = (_PHASE_ORDER.get(t.phase, 2), 0, n, t.sort_order)
     for t in trip.shared_todos:
-        order[t.id] = (1, 0, t.sort_order)
+        order[t.id] = (_PHASE_ORDER.get(t.phase, 2), 1, 0, t.sort_order)
     return order
 
 
@@ -291,7 +297,9 @@ def _trip_attachment_documents(trip: TripContext) -> list[DocumentView]:
         if d.todo_id is not None and d.todo_id in order and _can_attach(d)
     ]
     # sorted 是穩定排序：同一項待辦的多份文件維持上傳順序
-    return sorted(documents, key=lambda d: order[d.todo_id] if d.todo_id else (2, 0, 0))
+    return sorted(
+        documents, key=lambda d: order[d.todo_id] if d.todo_id else (3, 0, 0, 0)
+    )
 
 
 def _trip_without_document_section(
@@ -457,7 +465,11 @@ class _Attachments:
     unavailable: list[UnavailableAttachment]
 
     def package(
-        self, subject: str, sections: list[str | None], todos: list[TodoView]
+        self,
+        subject: str,
+        sections: list[str | None],
+        todos: list[TodoView],
+        recipient_hint: str | None = None,
     ) -> ClaimPackage:
         return ClaimPackage(
             subject=subject,
@@ -469,14 +481,19 @@ class _Attachments:
                 t.id for t in todos if t.status == "pending" or t.id in self.blocking
             ],
             unavailable_attachments=self.unavailable,
+            recipient_hint=recipient_hint,
         )
 
 
 class GmailClaimPackager:
-    def __init__(self, google_api: GoogleApi | None = None) -> None:
+    def __init__(
+        self, google_api: GoogleApi | None = None, recipient_hint: str | None = None
+    ) -> None:
         # 平台用 factory 建立時一定會給（正式版或離線版）；只做送件包預覽時可以不給，
         # 這時 send 回「開發中」，什麼都不寄
         self.google_api = google_api
+        # 建議的收件者（設定 AGENT_7_RECIPIENT_HINT）：送件頁預先帶入，使用者可以改
+        self.recipient_hint = recipient_hint or None
 
     async def build(
         self,
@@ -496,7 +513,9 @@ class GmailClaimPackager:
             CLOSING,
             DISCLAIMER,
         ]
-        return found.package(_subject(ctx.policy), sections, ctx.todos)
+        return found.package(
+            _subject(ctx.policy), sections, ctx.todos, self.recipient_hint
+        )
 
     async def build_trip(
         self,
@@ -524,7 +543,9 @@ class GmailClaimPackager:
             CLOSING,
             DISCLAIMER,
         ]
-        return found.package(_subject(trip.policy), sections, trip.todos)
+        return found.package(
+            _subject(trip.policy), sections, trip.todos, self.recipient_hint
+        )
 
     async def _check_attachments(
         self,
