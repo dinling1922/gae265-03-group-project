@@ -20,8 +20,14 @@ from app.agents.incident.judge import (
     DATE_INFERRED_LABEL,
     DELAY_BAND_KEY,
     DELAY_HOURS_KEY,
+    ILLNESS,
+    ILLNESS_CODE,
+    INJURY,
+    INJURY_CODE,
+    KIND_KEY,
     PLANNED_DATE_KEY,
     DateBackfill,
+    Judgement,
     align_year,
     backfilled_date,
     backfilled_stated_date,
@@ -69,15 +75,15 @@ MAX_TOTAL_ASKS = 15  # 整段追問最多幾輪（必問欄位 8 題，留重問
 JUDGED_INSURANCE_CODES = {
     flow.FLIGHT_DELAY: frozenset({"FUBON03", "TA46", "CHUBB05", "TFMI01", "HUANAN01"}),
     flow.BAGGAGE_LOSS: frozenset({"FUBON03", "TA49", "CHUBB05", "TFMI01", "HUANAN01"}),
-    # 就醫只核對了安達海外突發疾病健康保險（乙型）CHUBB04 第 4、5、6、8 條（11/14）；
-    # 傷害醫療、食物中毒慰問與其他公司的就醫條文還沒核對，對到的一律資訊不足
-    flow.MEDICAL: frozenset({"CHUBB04"}),
+    # 就醫只核對了安達的兩個險種：海外突發疾病健康保險（乙型）CHUBB04 第 4、5、6、8 條（11/14），
+    # 傷害醫療保險 CHUBB02 第 1～4 條與主約 CHUBB01 第 2、9 條（#546）；
+    # 食物中毒慰問與其他公司的就醫條文還沒核對，對到的一律資訊不足
+    flow.MEDICAL: frozenset({"CHUBB04", "CHUBB02"}),
 }
-# 各事故類型的判斷規則
+# 各事故類型的判斷規則（所有險種共用同一個結論）；就醫依險種分開判斷，見 `_conclude` 的 `verdict_of`
 JUDGES = {
     flow.FLIGHT_DELAY: judge_flight_delay,
     flow.BAGGAGE_LOSS: judge_baggage_loss,
-    flow.MEDICAL: judge_medical,
 }
 OTHER_INSURER_REASON = "這項保障需要由保險公司確認是否符合，建議直接詢問保險公司"
 AMOUNT_NOTE = "方案所載額度，實際以保單為準"  # 不計算金額（spec #128）
@@ -378,6 +384,21 @@ def _coverages_of(
         return event.coverages
     judged = JUDGED_INSURANCE_CODES[type_code]
     return [c for c in ctx.policy.coverages if c.insurance_code in judged]
+
+
+def _medical_matching(
+    coverages: list[CoverageRef], known: dict[str, str]
+) -> list[CoverageRef]:
+    """就醫：生病或受傷已確定時，只留符合的險種（生病 CHUBB04、受傷 CHUBB02），拿掉另一個已核對的就醫險種。
+
+    不符的險種列出來只會多一列紅色的「不在保障範圍」（Demo 的急性腸胃炎事故卡不該出現傷害醫療，#546）。
+    保單沒有符合的險種時不拿，照舊列出不符的並寫明原因，免得整張卡變成沒有就醫保障；
+    還不知道生病或受傷時兩個都留。其他險種（沒核對的）不動。"""
+    match = {ILLNESS: ILLNESS_CODE, INJURY: INJURY_CODE}.get(known.get(KIND_KEY, ""))
+    if match is None or not any(c.insurance_code == match for c in coverages):
+        return coverages
+    other = ({ILLNESS_CODE, INJURY_CODE} - {match}).pop()
+    return [c for c in coverages if c.insurance_code != other]
 
 
 def _clock_times_fix(text: str, known: dict[str, str]) -> dict[str, str]:
@@ -896,7 +917,18 @@ class IncidentAgentV1:
         """必問欄位都有答案：回報事故類型與每項保障的結論，平台依結論建立待辦（契約 v2）。"""
         event = next(t for t in ctx.event_types if t.code == type_code)
         coverages = _coverages_of(ctx, event, type_code)
-        verdict = JUDGES[type_code](known, ctx.policy.start_date, ctx.policy.end_date)
+        if type_code == flow.MEDICAL:
+            # 要在算 codes、scope（出處）之前拿掉：出處只查列出的險種
+            coverages = _medical_matching(coverages, known)
+        start, end = ctx.policy.start_date, ctx.policy.end_date
+
+        def verdict_of(insurance_code: str) -> Judgement:
+            # 就醫依險種分開判斷（突發疾病 CHUBB04、傷害醫療 CHUBB02）；
+            # 班機延誤、行李所有險種條文相同，共用同一個結論
+            if type_code == flow.MEDICAL:
+                return judge_medical(known, start, end, insurance_code)
+            return JUDGES[type_code](known, start, end)
+
         clauses = [
             ClauseUpdate(
                 insurance_code=c.insurance_code,
@@ -915,6 +947,7 @@ class IncidentAgentV1:
             )
             for c in coverages
             for checked in [c.insurance_code in JUDGED_INSURANCE_CODES[type_code]]
+            for verdict in [verdict_of(c.insurance_code)]
         ]
         applicable = any(c.conclusion == "applicable" for c in clauses)
         todo_applicability = todo_changes(ctx, known, applicable)

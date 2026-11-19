@@ -99,7 +99,8 @@ async def test_事故_A_問完日期_住院_醫療費_結論可能適用海外�
     assert (facts["hosp"], facts["paid"]) == ("否", "是")
     assert reply.finished is True
     assert reply.incident_type_code == "medical"
-    # 平台沒有給就醫的保障：從保單的保障挑出已核對的 CHUBB04
+    # 平台沒有給就醫的保障：從保單的保障挑出已核對的險種；生病只列海外突發疾病 CHUBB04，
+    # 不列不符的傷害醫療 CHUBB02（#546，Demo 事故卡不多一列紅色的「不在保障範圍」）
     assert reply.clauses is not None
     assert [(c.insurance_code, c.conclusion) for c in reply.clauses] == [
         ("CHUBB04", "applicable")
