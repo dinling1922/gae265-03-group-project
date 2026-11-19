@@ -246,6 +246,23 @@ def backfilled_date(known: dict[str, str], planned: str | None) -> DateBackfill 
     return None
 
 
+def backfilled_stated_date(
+    known: dict[str, str], said: str | None, start: date | None, end: date | None
+) -> DateBackfill | None:
+    """就醫、行李等沒有其他日期可推的事故：事故日期缺或「不知道」，旅客這句話明講了日期（#532）。
+
+    `said` 是旅客明講的日期（`explicit_date` 的結果）。要有保險期間、而且日期落在期間內才回填：
+    「11/20 前要送件嗎」的 11/20 是期限，不是事故日。已經有明確日期的不覆蓋。"""
+    if start is None or end is None:
+        return None
+    if parse_date(known.get(PLANNED_DATE_KEY)) is not None:
+        return None
+    stated = parse_date(said)
+    if stated is None or not start <= stated <= end:
+        return None
+    return DateBackfill(f"{stated:%Y/%m/%d}", inferred=False)
+
+
 def parse_date(value: str | None) -> date | None:
     m = _DATE.match(value or "")
     if not m:
@@ -359,11 +376,15 @@ def delay_minutes_of(known: dict[str, str]) -> int | None:
 def _outside_period(
     known: dict[str, str], start: date | None, end: date | None
 ) -> Judgement | None:
-    """事故日期不在保險期間內（或不知道日期）時的結論；在期間內回 None。各事故類型共用。"""
+    """事故日期不在保險期間內（或不知道日期）時的結論；在期間內回 None。各事故類型共用。
+
+    不知道日期的理由直接請旅客補日期（#532）：旅客看得出「告訴我是哪一天就能繼續」。"""
     happened = parse_date(known.get("date"))
     if start and end:
         if happened is None:
-            return Judgement("insufficient", "需確認事故發生日期是否在保險期間內")
+            return Judgement(
+                "insufficient", "請告訴我事故是哪一天發生的，才能確認是否在保險期間內"
+            )
         if not start <= happened <= end:
             return Judgement("excluded", "事故不在保險期間內，依條款不在保障範圍")
     return None
