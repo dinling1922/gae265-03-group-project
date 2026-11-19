@@ -85,11 +85,11 @@ async def count(session: AsyncSession) -> int:
     return (await session.exec(select(func.count()).select_from(Comparison))).one()
 
 
-async def create(client: Client, request: str = "我想去日本", **extra: object):
+async def create(client: Client, request: str = "12/20 去日本", **extra: object):
     return await client.call_tool("create_comparison", {"request": request} | extra)
 
 
-async def ok(client: Client, request: str = "我想去日本", **extra: object) -> dict:
+async def ok(client: Client, request: str = "12/20 去日本", **extra: object) -> dict:
     result = await create(client, request, **extra)
     assert not result.is_error, result
     assert result.structured_content is not None
@@ -379,10 +379,7 @@ async def test_needs_more_info_writes_nothing(
 ):
     llm.output = output
     async with mcp_client(endpoint, write_token) as c:
-        out = await ok(
-            c,
-            "隨便說說",
-        )
+        out = await ok(c, "12/20 隨便說說")
     assert set(out) == TOP_KEYS
     assert out["status"] == "needs_more_info" and out["comparison"] is None
     assert {m["field"] for m in out["missing"]} == fields
@@ -601,3 +598,67 @@ def test_prompt_carries_today_weekday_and_fixed_fields():
     assert "destination" in prompt and "concerns" in prompt  # 已指定的欄位不抽取
     assert "下週五去東京" in prompt
     assert "不要輸出任何金額、保費或保額" in trip_extraction.SYSTEM_PROMPT
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    ["我想下個月去東京玩五天，擔心生病和班機延誤", "年底想去韓國玩一週", "夏天去日本"],
+)
+async def test_vague_time_is_never_guessed(
+    session: AsyncSession,
+    endpoint: McpEndpoint,
+    write_token: str,
+    llm: FakeExtractor,
+    request_text: str,
+):
+    """原話沒有明確的日子時，LLM 猜的出發日不算：回 needs_more_info、不建立（實測發現的缺口）。"""
+    llm.output = {
+        "destination": "日本",
+        "depart_date": "2026-12-01",  # LLM 猜的
+        "stated_days": 5,
+        "concerns": ["突然生病就醫", "班機延誤"],
+    }
+    before = await count(session)
+    async with mcp_client(endpoint, write_token) as c:
+        out = await ok(c, request_text)
+    assert out["status"] == "needs_more_info"
+    assert [m["field"] for m in out["missing"]] == ["depart_date"]
+    assert out["understood"]["depart_date"] is None
+    assert await count(session) == before
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    [
+        "12/20 去日本",
+        "12 月 20 日出發",
+        "下個月 5 號出發",
+        "明天出發",
+        "後天出發",
+        "下週五出發",
+        "兩週後出發",
+        "10天後出發",
+    ],
+)
+def test_day_level_dates_are_recognised(request_text: str):
+    assert trip_extraction.has_day_level_date(request_text)
+
+
+@pytest.mark.parametrize(
+    "request_text",
+    ["下個月去東京五天", "年底想去", "夏天去日本", "我想去日本玩 5 天", "下個月初"],
+)
+def test_vague_times_are_not_day_level(request_text: str):
+    assert not trip_extraction.has_day_level_date(request_text)
+
+
+@pytest.mark.usefixtures("seed")
+async def test_overrides_depart_date_does_not_need_day_level_wording(
+    endpoint: McpEndpoint, write_token: str, llm: FakeExtractor
+):
+    """呼叫端用 overrides 明確指定出發日時，原話再模糊也行（日期是客戶端給的，不是 LLM 猜的）。"""
+    llm.output = {"destination": "日本", "stated_days": 5, "concerns": ["班機延誤"]}
+    async with mcp_client(endpoint, write_token) as c:
+        out = await ok(c, "下個月去玩", overrides={"depart_date": "2026-12-20"})
+    assert out["status"] == "created"
+    assert out["understood"]["depart_date"] == "2026-12-20"
