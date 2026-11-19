@@ -18,7 +18,7 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 
 ## Flex 卡片與 postback（[ADR-0035](../adr/0035-line-flex-cards-and-rich-menu.md)）
 
-回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前只有「說明」選單卡（FLEX-1），比較卡、待辦卡是 FLEX-2、FLEX-3。
+回覆可以是 Flex 卡片；卡片按鈕用 postback，不會在聊天室多出使用者沒打的字。目前有「說明」選單卡（FLEX-1）與待辦卡（FLEX-3），比較卡是 FLEX-2。
 
 **組裝**：`backend/app/line_bot/flex.py` 放共用積木（`bubble`、`text`、`box`、`postback_button`、`uri_button`、`carousel`、`postback_data`、`check_contents`）與 LINE 上限常數；它只管排版，不放任何一張卡的內容。內容只來自既有文字或 MCP 工具輸出，不查資料庫、不產生數字（ADR-0004）。
 
@@ -45,6 +45,14 @@ LINE bot 轉接層（[ADR-0033](../adr/0033-line-bot-adapter-over-mcp.md)）讓�
 - **找不到**：id 不是 uuid、不存在、或是別人的，都回同一句「找不到這筆比較紀錄」（沿用工具的錯誤處理，不洩漏紀錄存不存在）。其他失敗（未綁定、綁定失效、限流、工具錯誤）沿用 `failures.py` 的既有文案。
 - **打字的 `比較 N` 維持純文字**（決定：issue 規定純文字不變；要看卡片請按輪播上的「看推薦」）。編號以呼叫當下的最新列表為準。
 - **降級**：組裝失敗或 LINE 拒收 Flex 時，列表降級成 `format_list` 的純文字（附快速回覆），詳情降級成 `format_detail`，和 FLEX-1 之前的回覆相同。
+
+## 待辦卡（FLEX-3，`cards/todo.py`）
+
+`待辦`（打字或 postback `cmd=todo`）回進度卡：每個行程一張 bubble（多個行程是輪播），標題是目的地，內容是日期、「已完成 N／M」（工具的 done／total 原樣，不重算）、依事件分組的待辦與共同文件。LINE 仍然只能查、不能改，要勾選或補文件按「到網頁處理」。文案與版面暫定，待設計者確認。
+
+- **網址按鈕**：`flex.uri_button`，網址由 `PUBLIC_BASE_URL` 組成：只有一個行程時指到 `/trip/<行程 id>`（網頁行程頁），多個行程時指到 `/trip`；**沒設定 `PUBLIC_BASE_URL` 就不顯示按鈕**，其餘內容照常。
+- **內容上限**：每張卡最多列 15 項待辦，超過的註明「還有 N 項，請到網頁查看全部」；行程超過 12 個時前 11 個各一張，最後一張說明還有幾個行程；整則仍超過 50 KB 時逐步減少每張卡列的項目數，最後才降級。
+- **降級與不變的回覆**：降級純文字用 `commands/todo.format_todos`（和 FLEX 之前完全一樣）；沒有行程、未綁定、權杖失效、MCP 失敗、用法錯誤仍是原本的純文字。
 
 ## 你需要提供的東西
 

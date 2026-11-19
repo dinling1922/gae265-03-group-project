@@ -7,7 +7,9 @@ from datetime import UTC, date, datetime
 
 import pytest
 from app.api.deps import current_user
-from app.line_bot import texts
+from app.core.config import settings
+from app.line_bot import flex, texts
+from app.line_bot.client import FlexMessage, TextMessage
 from app.line_bot.commands import todo as cmd
 from app.line_bot.limits import MAX_TEXT_LENGTH
 from app.main import app
@@ -26,15 +28,16 @@ from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from tests import line_mcp_support as lm
+from tests.line_mcp_support import PATH
+from tests.line_support import (
+    postback_event,
+    signed_headers,
+    user_message,
+    webhook_body,
+)
 from tests.test_mcp_list_todos import SECRETS, build_world
 
-line, endpoint, rate_limit, http, chat = (
-    lm.line,
-    lm.endpoint,
-    lm.rate_limit,
-    lm.http,
-    lm.chat,
-)
+line, endpoint, rate_limit, http = lm.line, lm.endpoint, lm.rate_limit, lm.http
 
 PENDING_REPLY = """未完成的理賠待辦
 
@@ -58,6 +61,41 @@ DONE_REPLY = """已完成的理賠待辦
 　‧ 機票與登機證（回國後整理）
 
 要勾選或補文件，請回網頁處理。"""
+
+
+class TodoChat(lm.Chat):
+    """待辦現在回 Flex 卡：`send`／`say` 取卡片的 alt_text（與降級純文字同一份文字），空狀態與錯誤仍是純文字。
+    卡片本身的結構另外用 `send_card` 檢查。"""
+
+    async def send_any(self, text: str) -> TextMessage | FlexMessage:
+        self.n += 1
+        body = webhook_body(
+            user_message(
+                text, event_id=f"{self.user_id}-{self.n}", user_id=self.user_id
+            )
+        )
+        before = len(self.line.replies)
+        resp = await self.http.post(PATH, content=body, headers=signed_headers(body))
+        assert resp.status_code == 200
+        new = self.line.replies[before:]
+        assert len(new) == 1 and len(new[0][1]) == 1
+        return new[0][1][0]
+
+    async def send(self, text: str) -> TextMessage:
+        message = await self.send_any(text)
+        if isinstance(message, FlexMessage):
+            return TextMessage(message.alt_text, message.quick_replies)
+        return message
+
+    async def send_card(self, text: str) -> FlexMessage:
+        message = await self.send_any(text)
+        assert isinstance(message, FlexMessage)
+        return message
+
+
+@pytest.fixture
+def chat(http: AsyncClient, line: lm.FakeLineClient) -> TodoChat:
+    return TodoChat(http, line, "U1")
 
 
 async def world(session: AsyncSession, label: str = "") -> Policy:
@@ -294,7 +332,7 @@ async def test_other_users_trips_never_appear(chat: lm.Chat, session: AsyncSessi
     await session.commit()
     alices_text = await chat.say("待辦") + await chat.say("待辦 已完成")
     assert "2027-01-09" not in alices_text
-    bobs_chat = lm.Chat(chat.http, chat.line, "U2")
+    bobs_chat = TodoChat(chat.http, chat.line, "U2")
     assert "2027-01-09" in await bobs_chat.say("待辦")
 
 
@@ -353,3 +391,223 @@ async def test_goes_through_the_audited_gate_read_only(
     assert [
         t.status for t in (await session.exec(select(IncidentTodo))).all()
     ] == before
+
+
+# ---- 待辦卡（Flex，FLEX-3） ----
+
+BASE_URL = "https://app.example.com"
+
+
+def card_texts(node: object) -> list[str]:
+    """卡片裡所有 text 節點的文字（依出現順序）。"""
+    found: list[str] = []
+    if isinstance(node, dict):
+        if node.get("type") == "text":
+            found.append(node["text"])
+        for value in node.values():
+            found += card_texts(value)
+    elif isinstance(node, list):
+        for item in node:
+            found += card_texts(item)
+    return found
+
+
+def card_uris(node: object) -> list[str]:
+    found: list[str] = []
+    if isinstance(node, dict):
+        if node.get("type") == "uri":
+            found.append(node["uri"])
+        for value in node.values():
+            found += card_uris(value)
+    elif isinstance(node, list):
+        for item in node:
+            found += card_uris(item)
+    return found
+
+
+async def test_card_shows_trip_progress_incidents_and_todos(
+    chat: TodoChat, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    await world(session)
+    card = await chat.send_card("待辦")
+    assert card.contents["type"] == "bubble"
+    seen = card_texts(card.contents)
+    assert "2026-12-01～2026-12-06" in seen
+    assert "已完成 2／6" in seen
+    assert "▍就醫（2026-12-04）" in seen
+    assert "▍共同文件（整個行程只收一份）" in seen
+    assert "‧ 診斷書（事故當下）" in seen
+    assert "‧ 理賠申請書（回國後整理）" in seen
+    assert "已完成 2／6" in card.alt_text  # alt_text 就是降級純文字
+    assert lm.quick_texts(TextMessage("", card.quick_replies)) == [
+        "待辦 已完成",
+        "比較",
+        "說明",
+    ]
+    flex.check_contents(card.contents)
+
+
+async def test_postback_gives_the_same_card_as_typing(
+    chat: TodoChat, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    await world(session)
+    typed = await chat.send_card("待辦")
+    body = webhook_body(postback_event("cmd=todo", event_id="pb-1"))
+    resp = await chat.http.post(PATH, content=body, headers=signed_headers(body))
+    assert resp.status_code == 200
+    pressed = chat.line.replies[-1][1][0]
+    assert isinstance(pressed, FlexMessage)
+    assert pressed.contents == typed.contents
+
+
+async def test_done_card_lists_done_items(chat: TodoChat, session: AsyncSession):
+    await world(session)
+    card = await chat.send_card("待辦 已完成")
+    seen = card_texts(card.contents)
+    assert "‧ 醫療收據（回國後整理）" in seen
+    assert "‧ 診斷書（事故當下）" not in seen
+    assert any(t.startswith(cmd.DONE_TITLE) for t in card_texts(card.contents)) or (
+        cmd.DONE_TITLE in card.contents["header"]["contents"][0]["text"]
+    )
+
+
+async def test_url_button_points_to_trip_page_when_base_url_is_set(
+    chat: TodoChat, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL + "/")
+    policy = await world(session)
+    card = await chat.send_card("待辦")
+    assert card_uris(card.contents) == [f"{BASE_URL}/trip/{policy.id}"]
+    button = card.contents["footer"]["contents"][0]
+    assert button["action"]["label"] == "到網頁處理"
+
+
+@pytest.mark.parametrize("base", [None, "", "  "])
+async def test_no_url_button_without_public_base_url(
+    chat: TodoChat, session: AsyncSession, monkeypatch: pytest.MonkeyPatch, base
+):
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", base)
+    await world(session)
+    card = await chat.send_card("待辦")
+    assert card_uris(card.contents) == []
+    assert "footer" not in card.contents
+    assert "已完成 2／6" in card_texts(card.contents)  # 其餘內容照常
+
+
+async def test_multiple_trips_make_a_carousel_pointing_to_each_trip(
+    chat: TodoChat, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    user = await lm.make_bound_user(session)
+    await build_world(session, user, "甲")
+    await build_world(session, user, "乙")
+    card = await chat.send_card("待辦")
+    assert card.contents["type"] == "carousel"
+    bubbles = card.contents["contents"]
+    assert len(bubbles) == 2
+    assert card_uris(card.contents) == [f"{BASE_URL}/trip"] * 2
+    for b in bubbles:
+        assert "已完成 2／6" in card_texts(b)
+
+
+async def test_more_than_12_trips_are_cut_with_a_notice(
+    chat: TodoChat, session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", BASE_URL)
+    user = await lm.make_bound_user(session)
+    for i in range(14):
+        await build_world(session, user, str(i))
+    card = await chat.send_card("待辦")
+    assert card.contents["type"] == "carousel"
+    bubbles = card.contents["contents"]
+    assert len(bubbles) == 12
+    assert "還有 3 個行程沒有列出，請到網頁查看全部。" in card_texts(bubbles[-1])
+    assert card_uris(bubbles[-1]) == [f"{BASE_URL}/trip"]
+
+
+async def test_many_todos_are_capped_and_card_stays_within_limits(
+    chat: TodoChat, session: AsyncSession
+):
+    await world(session)
+    incident = (await session.exec(select(Incident))).first()
+    assert incident is not None
+    session.add_all(
+        IncidentTodo(
+            incident_id=incident.id,
+            phase="after_return",
+            title=f"自訂{i}",
+            sort_order=100 + i,
+        )
+        for i in range(1000)
+    )
+    await session.commit()
+    card = await chat.send_card("待辦")
+    flex.check_contents(card.contents)
+    seen = card_texts(card.contents)
+    assert "‧ 診斷書（事故當下）" in seen  # 前面的內容保留
+    assert any("請到網頁查看全部" in t and t.startswith("…還有 ") for t in seen)
+    assert len([t for t in seen if t.startswith("‧ ")]) <= 15
+
+
+async def test_many_trips_with_many_todos_still_fit_50kb(
+    chat: TodoChat, session: AsyncSession
+):
+    user = await lm.make_bound_user(session)
+    for i in range(13):
+        await build_world(session, user, str(i))
+    incidents = (await session.exec(select(Incident))).all()
+    for incident in incidents:
+        session.add_all(
+            IncidentTodo(
+                incident_id=incident.id,
+                phase="after_return",
+                title="長" * 200,
+                sort_order=100 + i,
+            )
+            for i in range(30)
+        )
+    await session.commit()
+    message = await chat.send_any("待辦")
+    # 要嘛是合規的卡，要嘛降級成純文字；不會沒回應
+    if isinstance(message, FlexMessage):
+        flex.check_contents(message.contents)
+    else:
+        assert len(message.text) <= MAX_TEXT_LENGTH
+
+
+async def test_long_destination_is_cut_in_the_card(
+    chat: TodoChat, session: AsyncSession
+):
+    await world(session)
+    incident = (await session.exec(select(Incident))).first()
+    assert incident is not None
+    incident.destination = "長" * 6000
+    session.add(incident)
+    await session.commit()
+    card = await chat.send_card("待辦")
+    flex.check_contents(card.contents)
+    assert all(len(t) < 200 for t in card_texts(card.contents))
+
+
+async def test_line_rejection_degrades_to_the_todo_text(
+    chat: TodoChat, session: AsyncSession
+):
+    await world(session)
+    chat.line.reject_flex = True
+    reply = await chat.send("待辦")
+    assert isinstance(reply, TextMessage)
+    assert reply.text == PENDING_REPLY
+    assert lm.quick_texts(reply) == ["待辦 已完成", "比較", "說明"]
+
+
+async def test_empty_and_error_states_stay_plain_text(
+    chat: TodoChat, session: AsyncSession
+):
+    await lm.make_bound_user(session)
+    message = await chat.send_any("待辦")
+    assert isinstance(message, TextMessage) and message.text == cmd.NO_TRIPS_TEXT
+    unbound = TodoChat(chat.http, chat.line, "U9")
+    message = await unbound.send_any("待辦")
+    assert isinstance(message, TextMessage) and message.text == texts.NOT_BOUND_TEXT
