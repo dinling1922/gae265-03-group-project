@@ -127,6 +127,8 @@ class Settings(BaseSettings):
 
     # MCP 伺服器（ADR-0032）：每把存取權杖每分鐘最多呼叫幾次（每個 worker 各算各的）
     MCP_RATE_LIMIT_PER_MINUTE: int = 60
+    # 呼叫後端 LLM 的 MCP 工具（成本較高）每把權杖每分鐘最多幾次，獨立於上面的整體上限（ADR-0034）
+    MCP_LLM_TOOL_RATE_LIMIT_PER_MINUTE: int = 10
 
     # LINE bot 轉接層（ADR-0033）：兩個都設定才啟用，沒設時 /line/webhook 回 404
     LINE_CHANNEL_SECRET: SecretStr = SecretStr("")

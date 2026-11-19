@@ -230,6 +230,12 @@ export type ApiTokenCreate = {
      * Name
      */
     name: string;
+    /**
+     * Scopes
+     *
+     * 權限範圍：只能是 ["read"]（預設，唯讀）或 ["read", "write"]（可建立資料）；只有 write 或空的回 422
+     */
+    scopes?: Array<'read' | 'write'>;
 };
 
 /**

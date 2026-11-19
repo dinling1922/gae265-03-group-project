@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.domain.access_tokens import TokenIdentity
+from app.mcp_server.ratelimit import RateLimiter
 
 SessionMaker = Callable[[], AsyncSession]
 
@@ -19,6 +20,10 @@ SessionMaker = Callable[[], AsyncSession]
 class ToolEnv:
     identity: TokenIdentity
     session_maker: SessionMaker
+    # 每個工具各自的限流（鍵是權杖加工具名稱）與呼叫後端 LLM 的工具的預設上限；
+    # 沒給（None）就不做工具層限流，只剩守門層每把權杖的整體上限
+    tool_limiter: RateLimiter | None = None
+    llm_tool_rate_limit_per_minute: int = 10
 
 
 _env: ContextVar[ToolEnv | None] = ContextVar("mcp_tool_env", default=None)
