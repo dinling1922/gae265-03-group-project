@@ -56,6 +56,10 @@ eval-retrieval: ## 跑檢索驗收題，報告寫到 docs/reports/（會呼叫 e
 eval-incident: ## 5 號穩定度量測：真模型走完整對話，看有沒有產生正確的待辦（先 make up；會呼叫 LLM 供應商；args="--runs 2 --only 行李"）
 	$(BACKEND) uv run python -m app.eval.incident_stability $(args)
 
+.PHONY: eval-trip-extraction
+eval-trip-extraction: ## create_comparison 抽取評估：用真 LLM 對 data/eval/trip_extraction_questions.json 抽取並核對，報告寫到 docs/reports/（args="--runs 3 --only 相對日期"；會呼叫 LLM 供應商，不碰資料庫）
+	$(BACKEND) uv run python -m app.eval.trip_extraction $(args)
+
 .PHONY: eval-subchunk
 eval-subchunk: ## 子塊檢索評估：用 data/eval/subchunk_questions.json 比較整條向量與子塊向量（只讀；args="--configs 800:300 --out docs/reports/x.md"；會呼叫 embedding 供應商）
 	$(BACKEND) uv run python -m app.eval.subchunk $(args)
@@ -103,6 +107,14 @@ e2e: ## 執行 e2e 冒煙測試（先 make up；前端不在 localhost:5173 時�
 .PHONY: e2e-fake
 e2e-fake: ## 另起「假 5 號」的後端與前端（埠 8001／5174）再跑 e2e；docker 開發環境的 5 號是真實實作，完整 e2e 要用這個（先 make up；args 傳給 playwright）
 	scripts/e2e-fake.sh $(args)
+
+.PHONY: worktree-setup
+worktree-setup: ## 新開的 git worktree 先跑這個：.env 連回主目錄、mise trust、uv sync、pnpm install
+	@scripts/worktree-setup.sh
+
+.PHONY: dev-worktree
+dev-worktree: ## 起這個 worktree 的後端與前端（埠 8001／5174，連 docker 的資料庫），在 worktree 驗證改動（先在主目錄 make up）
+	@scripts/dev-worktree.sh
 
 .PHONY: client
 client: ## 從後端的 OpenAPI 產生前端 API client（frontend/src/client/）；改了 API 的 schema 要重跑

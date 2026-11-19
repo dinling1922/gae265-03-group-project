@@ -38,7 +38,7 @@ TOP_KEYS = {
     "alternative",
 }
 TRIP_KEYS = {"destination", "depart_date", "return_date", "days"}
-PLAN_KEYS = {"name", "company", "sum_insured", "premium"}
+PLAN_KEYS = {"plan_id", "name", "company", "sum_insured", "premium"}
 
 
 @pytest.fixture
@@ -91,6 +91,7 @@ async def test_complete_matches_web_api(
     for key in ("recommended", "alternative"):
         card = web["recommendation"][key]
         assert out[key] == {
+            "plan_id": card["plan_code"],
             "name": card["name"],
             "company": card["company"],
             "sum_insured": card["sum_insured"],

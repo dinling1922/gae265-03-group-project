@@ -7,13 +7,12 @@ from sqlmodel import col, select
 
 from app.api.deps import CurrentUser, SessionDep
 from app.domain.benefits import BenefitCategory
+from app.domain.plan_details import plan_benefits, sum_insured_options
 from app.domain.plans import UPLOAD_ONLY_MESSAGE, Plan, get_plan, load_plans
 from app.models import (
     Conversation,
     ConversationInsurance,
     Insurance,
-    PlanBenefit,
-    PlanPremium,
 )
 
 router = APIRouter(tags=["plans"])
@@ -137,14 +136,7 @@ async def list_plan_sum_insured_options(
     """方案可投保的身故保額（元），由小到大；各方案不同（ADR-0018）。方案不存在回 404。"""
     if get_plan(plan_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"找不到方案「{plan_id}」")
-    values = (
-        await session.exec(
-            select(PlanPremium.sum_insured)
-            .where(PlanPremium.plan_code == plan_id)
-            .distinct()
-            .order_by(col(PlanPremium.sum_insured))
-        )
-    ).all()
+    values = await sum_insured_options(session, plan_id)
     return PlanSumInsuredOptionsOut(plan_id=plan_id, sum_insured=list(values))
 
 
@@ -160,27 +152,14 @@ async def list_plan_benefits(
 
     額度是試算表顯示的金額，不是保證的理賠上限；未列的保障不等於沒有保障。
     """
-    rows = (
-        await session.exec(
-            select(PlanBenefit)
-            .where(
-                PlanBenefit.plan_code == plan_id, PlanBenefit.sum_insured == sum_insured
-            )
-            .order_by(col(PlanBenefit.position))
-        )
-    ).all()
-    if not rows:
+    lines = await plan_benefits(session, plan_id, sum_insured)
+    if not lines:
         raise HTTPException(
             status.HTTP_404_NOT_FOUND,
             f"方案「{plan_id}」沒有身故保額 {sum_insured} 元的保障資料",
         )
     benefits = [
-        PlanBenefitOut(
-            name=r.name,
-            category=BenefitCategory(r.category) if r.category else None,
-            amount=r.amount,
-        )
-        for r in rows
+        PlanBenefitOut(name=b.name, category=b.category, amount=b.amount) for b in lines
     ]
     return PlanBenefitsOut(
         plan_id=plan_id,

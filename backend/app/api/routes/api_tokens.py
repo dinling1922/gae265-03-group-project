@@ -5,10 +5,10 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Response, status
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 
 from app.api.deps import CurrentUser, SessionDep
 from app.domain.access_tokens import (
@@ -29,6 +29,17 @@ class ApiTokenCreate(BaseModel):
     name: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)
     ]
+    scopes: list[Literal["read", "write"]] = Field(
+        default=["read"],
+        description='權限範圍：只能是 ["read"]（預設，唯讀）或 ["read", "write"]（可建立資料）；只有 write 或空的回 422',
+    )
+
+    @field_validator("scopes")
+    @classmethod
+    def _read_required(cls, v: list[str]) -> list[str]:
+        if "read" not in v:
+            raise ValueError("write 權杖必須同時包含 read")
+        return sorted(set(v), key=("read", "write").index)
 
 
 class ApiTokenOut(BaseModel):
@@ -65,9 +76,9 @@ class ApiTokenCreated(ApiTokenOut):
 async def create_api_token(
     body: ApiTokenCreate, session: SessionDep, user: CurrentUser
 ) -> ApiTokenCreated:
-    """建立存取權杖；有效權杖已滿 5 把回 409。"""
+    """建立存取權杖；scopes 預設唯讀，不合法的組合回 422；有效權杖已滿 5 把回 409。"""
     try:
-        row, plaintext = await create_token(session, user.id, body.name)
+        row, plaintext = await create_token(session, user.id, body.name, body.scopes)
     except TokenLimitError:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
