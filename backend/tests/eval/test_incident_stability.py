@@ -14,6 +14,7 @@ from app.agents.incident.agent import (
     UNRELATED_MESSAGE,
     UNSURE_MESSAGE,
 )
+from app.domain.chat.answer import NOT_COVERED
 from app.eval.incident_stability import (
     FollowUp,
     Run,
@@ -94,12 +95,14 @@ def test_正式的劇本檔都讀得進來_而且兩個_Demo_劇本帶後續句(
         "更正延誤時數",
         "發生日期不知道、補充原定日期",
         "就醫、日期先答不知道、問答補日期",
+        "班機延誤、問條文沒寫的事",
     }
     assert {f.expect for f in with_follow_up.values()} == {
         "new_situation",
         "qa",
         "excluded",
         "applicable",
+        "not_covered",
     }
     # 正式站 11/15 的三句更正（#384）：各一個劇本，預期更正後文件不再適用
     corrections = {
@@ -136,6 +139,36 @@ def test_條款問答要有出處_而且不是退回貼原文() -> None:
     )
     original = {"message": ORIGINAL_NOTICE, "citations": [CITATION]}
     assert "原文" in (judge_follow_up("qa", original, SAME, SAME) or "")
+
+
+def test_問答回了保單未載明_原因寫條款問答回了保單未載明_不是沒有出處() -> None:
+    reply = {"message": NOT_COVERED, "citations": []}
+
+    problem = judge_follow_up("qa", reply, SAME, SAME)
+
+    assert problem == "條款問答回了保單未載明"
+
+
+def test_not_covered_問條文沒寫的事_回保單未載明才算過() -> None:
+    reply = {"message": NOT_COVERED, "citations": []}
+
+    assert judge_follow_up("not_covered", reply, SAME, SAME) is None
+
+
+def test_not_covered_回了白話說明就不過() -> None:
+    answer = {"message": "延誤四小時以上可請領。", "citations": [CITATION]}
+
+    problem = judge_follow_up("not_covered", answer, SAME, SAME)
+
+    assert problem and "保單未載明" in problem
+
+
+def test_not_covered_貼原文或新狀況也不過() -> None:
+    original = {"message": ORIGINAL_NOTICE, "citations": [CITATION]}
+    new_situation = {"message": NEW_SITUATION_MESSAGE, "citations": []}
+
+    assert judge_follow_up("not_covered", original, SAME, SAME)
+    assert judge_follow_up("not_covered", new_situation, SAME, SAME)
 
 
 def test_問答不能是新狀況的固定訊息() -> None:
@@ -522,3 +555,26 @@ def test_更正類後續句的報告列出每次的回覆與結論() -> None:
 
     assert "| 更正 | 原訂14:00，實際16:00 | excluded | 1/1 | — |" in report
     assert "- 更正 第 1 次：回覆「好的，已更正。」；結論 excluded" in report
+
+
+def test_條款問答類後續句的報告也列出每次的回覆() -> None:
+    base = _scenario(None)
+    scenarios = [
+        Scenario(**{**base.__dict__, "name": name, "follow_up": FollowUp("問", kind)})
+        for name, kind in [("問答", "qa"), ("沒寫", "not_covered")]
+    ]
+    results = {
+        "問答": [_run(follow_up_ok=True, follow_up_reply="每滿四小時給付一次。")],
+        "沒寫": [_run(follow_up_ok=True, follow_up_reply=NOT_COVERED)],
+    }
+
+    report = render_report(
+        scenarios=scenarios,
+        results=results,
+        day=__import__("datetime").date(2026, 11, 20),
+        provider="p",
+        model="m",
+    )
+
+    assert "- 問答 第 1 次：回覆「每滿四小時給付一次。」" in report
+    assert f"- 沒寫 第 1 次：回覆「{NOT_COVERED}」" in report
