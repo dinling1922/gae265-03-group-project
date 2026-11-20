@@ -135,10 +135,26 @@ def _empty_text(trip: dict[str, Any], done_view: bool) -> str:
     return PENDING_NONE_PARTIAL_TEXT
 
 
+def _has_listed_todos(trip: dict[str, Any]) -> bool:
+    return bool(trip["shared_documents"]) or any(g["todos"] for g in trip["incidents"])
+
+
+def visible_trips(content: dict[str, Any]) -> list[dict[str, Any]]:
+    """待辦卡要列的行程：略過沒有待辦的行程（FLEX-6，#560）。
+
+    未完成：略過 `total` 為 0 的行程（沒有任何待辦）；`total > 0` 但全部完成的行程保留，
+    卡上寫「全部完成了」。已完成：略過沒有已完成待辦可列的行程，不送空卡。
+    `done／total` 原樣取自工具輸出，不重算（ADR-0004）。"""
+    trips: list[dict[str, Any]] = content["trips"]
+    if content["status"] == "done":
+        return [t for t in trips if _has_listed_todos(t)]
+    return [t for t in trips if t["total"] > 0]
+
+
 def _build(content: dict[str, Any], max_items: int) -> flex.FlexNode:
     done_view = content["status"] == "done"
     kind = DONE_TITLE if done_view else PENDING_TITLE
-    trips: list[dict[str, Any]] = content["trips"]
+    trips = visible_trips(content)
     shown = trips
     if len(trips) > flex.MAX_CAROUSEL_BUBBLES:
         shown = trips[: flex.MAX_CAROUSEL_BUBBLES - 1]

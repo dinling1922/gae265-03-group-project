@@ -72,17 +72,21 @@ class LineContext:
         *,
         fallback_text: str | None = None,
         quick_replies: Sequence[QuickReply] = (),
+        fallback_quick_replies: Sequence[QuickReply] | None = None,
     ) -> None:
         """回覆一則 Flex 卡（bubble 或 carousel，用 `app.line_bot.flex` 組）。
 
         `alt_text` 是通知與舊版 LINE 顯示的文字，用既有的純文字摘要；`contents` 也可以給一個
         回傳卡片的函式，組裝時丟任何例外都會降級。降級規則（ADR-0035）：組裝失敗、超過 LINE 上限
         （單則 50 KB、輪播 12 張）或 LINE 拒絕時，改回純文字 `fallback_text`（沒給就用 `alt_text`），
-        使用者一定有回應。快速回覆兩種情況都會附上。"""
+        使用者一定有回應。`quick_replies` 附在 Flex 上；降級純文字時附 `fallback_quick_replies`
+        （沒給就同 `quick_replies`）。卡片本身有按鈕時，通常只給 `fallback_quick_replies`：
+        卡片送成功就不重複附快速回覆，降級成沒有按鈕的純文字時才補上。"""
         await self.reply_flex_messages(
             [(alt_text, contents)],
             fallback_text=fallback_text or alt_text,
             quick_replies=quick_replies,
+            fallback_quick_replies=fallback_quick_replies,
         )
 
     async def reply_flex_messages(
@@ -91,6 +95,7 @@ class LineContext:
         *,
         fallback_text: str,
         quick_replies: Sequence[QuickReply] = (),
+        fallback_quick_replies: Sequence[QuickReply] | None = None,
     ) -> None:
         """一次回多則 Flex（每則 `(alt_text, contents)`，最多 5 則）；降級規則同 `reply_flex`，降級成一則純文字。
         快速回覆掛在最後一則。"""
@@ -100,6 +105,9 @@ class LineContext:
             return
         self._replied = True
         quick = tuple(quick_replies)
+        fallback_quick = (
+            quick if fallback_quick_replies is None else tuple(fallback_quick_replies)
+        )
         sent = False
         try:
             if not 1 <= len(cards) <= MAX_MESSAGES_PER_REPLY:
@@ -123,7 +131,11 @@ class LineContext:
         if not sent:
             await self._client.reply(
                 token,
-                [TextMessage(fit_text(fallback_text), clamp_quick_replies(quick))],
+                [
+                    TextMessage(
+                        fit_text(fallback_text), clamp_quick_replies(fallback_quick)
+                    )
+                ],
             )
 
 

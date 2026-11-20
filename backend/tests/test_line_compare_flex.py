@@ -141,7 +141,7 @@ async def test_compare_replies_carousel_matching_tool_output(
         "id": str(old.id),
     }
     assert message.alt_text.startswith("最近的比較紀錄")
-    assert [q.text for q in message.quick_replies] == ["比較 1", "比較 2"]
+    assert message.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
 
 
 async def test_carousel_caps_at_limit_with_web_note(
@@ -202,7 +202,7 @@ async def test_press_replies_detail_card_matching_web_api(
     assert "保費 985 元" in card.alt_text  # 通知文字是純文字詳情
     back = card.contents["footer"]["contents"][0]["action"]["data"]
     assert flex.parse_postback_data(back) == {"cmd": "compare"}
-    assert [q.text for q in card.quick_replies] == ["比較", "待辦", "說明"]
+    assert card.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
 
 
 async def test_press_gets_the_card_record_even_if_order_changed(

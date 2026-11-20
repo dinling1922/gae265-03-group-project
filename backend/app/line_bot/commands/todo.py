@@ -129,13 +129,18 @@ async def todo_command(ctx: LineContext) -> None:
     if not result.content.get("trips"):
         await ctx.reply(NO_TRIPS_TEXT, quick)
         return
-    from app.line_bot.cards.todo import (
-        todo_card,  # 卡片要用本檔的文案常數，延後匯入避開循環
+    from app.line_bot.cards.todo import (  # 卡片要用本檔的文案常數，延後匯入避開循環
+        todo_card,
+        visible_trips,
     )
 
     content = result.content
+    if not visible_trips(content):
+        # 行程都沒有可列的待辦：不送空卡，回既有的純文字說明
+        await ctx.reply(format_todos(content), quick)
+        return
     await ctx.reply_flex(
         format_todos(content),
         lambda: todo_card(content),
-        quick_replies=quick,
+        fallback_quick_replies=quick,  # 卡片有按鈕，降級純文字才補快速回覆
     )

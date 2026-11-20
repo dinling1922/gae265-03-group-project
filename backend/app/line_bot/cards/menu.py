@@ -45,5 +45,5 @@ async def reply_menu(ctx: LineContext, *, welcome: bool = False) -> None:
     await ctx.reply_flex(
         text,
         lambda: menu_card(welcome=welcome),
-        quick_replies=texts.HELP_QUICK_REPLIES,
+        fallback_quick_replies=texts.HELP_QUICK_REPLIES,  # 卡片有按鈕，降級純文字才補快速回覆
     )

@@ -124,7 +124,7 @@ async def test_follow_replies_menu_card(http: AsyncClient, line: FakeLineClient)
     assert token == "token-f1"
     assert isinstance(message, FlexMessage)
     assert message.alt_text == texts.WELCOME_TEXT
-    assert [q.text for q in message.quick_replies] == ["比較", "待辦", "說明"]
+    assert message.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
 
 
 @pytest.mark.parametrize("text", ["你好", "我想買保險", "", "  比較紀錄  "])

@@ -112,7 +112,7 @@ async def test_pending_is_grouped_by_trip_then_incident_with_shared_docs(
     await world(session)
     reply = await chat.send("待辦")
     assert reply.text == PENDING_REPLY
-    assert lm.quick_texts(reply) == ["待辦 已完成", "比較", "說明"]
+    assert reply.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
     lm.assert_line_limits(reply)
 
 
@@ -121,7 +121,7 @@ async def test_done_lists_only_done(chat: lm.Chat, session: AsyncSession, arg: s
     await world(session)
     reply = await chat.send(f"待辦 {arg}")
     assert reply.text == DONE_REPLY
-    assert lm.quick_texts(reply) == ["待辦", "比較", "說明"]  # 可切回未完成
+    assert reply.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
 
 
 async def test_pending_and_done_never_overlap(chat: lm.Chat, session: AsyncSession):
@@ -260,6 +260,54 @@ async def test_trip_with_only_unconfirmed_todos_total_zero_is_not_called_all_don
     text = await chat.say("待辦")
     assert "已完成 0／0" in text
     assert cmd.PENDING_NONE_TEXT not in text and cmd.PENDING_NONE_PARTIAL_TEXT in text
+
+
+async def _add_empty_trip(session: AsyncSession, user_id) -> None:
+    """同一位使用者再加一個有已確認事件、但沒有任何計入待辦的行程（0／0）。"""
+    policy = Policy(user_id=user_id, display_name="y", plan_id="y", sum_insured=1)
+    session.add(policy)
+    await session.flush()
+    incident = Incident(policy_id=policy.id, title="t", description="d")
+    session.add(incident)
+    await session.flush()
+    session.add(
+        Conversation(
+            user_id=user_id,
+            policy_id=policy.id,
+            kind="incident_qa",
+            incident_id=incident.id,
+        )
+    )
+    await session.commit()
+
+
+async def test_card_skips_trips_with_zero_todos(chat: TodoChat, session: AsyncSession):
+    """#560：total 為 0 的行程不佔一張待辦卡；有待辦的行程照常。"""
+    policy = await world(session)
+    await _add_empty_trip(session, policy.user_id)
+    card = await chat.send_card("待辦")
+    assert card.contents["type"] == "bubble"  # 只剩一個有待辦的行程，不是輪播
+    assert "0／0" not in str(card.contents)
+
+
+async def test_all_trips_zero_todos_replies_plain_text_not_silence(
+    chat: TodoChat, session: AsyncSession
+):
+    user = await lm.make_bound_user(session)
+    await _add_empty_trip(session, user.id)
+    message = await chat.send_any("待辦")
+    assert isinstance(message, TextMessage)
+    assert "已完成 0／0" in message.text
+    assert cmd.PENDING_NONE_PARTIAL_TEXT in message.text
+
+
+async def test_done_card_skips_trips_without_done_items(
+    chat: TodoChat, session: AsyncSession
+):
+    policy = await world(session)
+    await _add_empty_trip(session, policy.user_id)
+    card = await chat.send_card("待辦 已完成")
+    assert card.contents["type"] == "bubble"  # 沒有已完成待辦的行程不顯示空卡
 
 
 # ---- 參數 ----
@@ -440,11 +488,7 @@ async def test_card_shows_trip_progress_incidents_and_todos(
     assert "‧ 診斷書（事故當下）" in seen
     assert "‧ 理賠申請書（回國後整理）" in seen
     assert "已完成 2／6" in card.alt_text  # alt_text 就是降級純文字
-    assert lm.quick_texts(TextMessage("", card.quick_replies)) == [
-        "待辦 已完成",
-        "比較",
-        "說明",
-    ]
+    assert card.quick_replies == ()  # 卡片有按鈕，不重複附快速回覆（#560）
     flex.check_contents(card.contents)
 
 

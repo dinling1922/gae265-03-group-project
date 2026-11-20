@@ -165,7 +165,7 @@ async def _reply_detail_for_postback(ctx: LineContext, raw_id: str) -> None:
             if content["status"] != "complete"
             else None,
         ),
-        quick_replies=NAV_QUICK_REPLIES,
+        fallback_quick_replies=NAV_QUICK_REPLIES,  # 卡片有按鈕，降級純文字才補快速回覆
     )
 
 
@@ -208,7 +208,7 @@ async def compare_command(ctx: LineContext) -> None:
         await ctx.reply_flex(
             format_list(items, more=more),
             lambda: compare_carousel(items, more_limit=LIST_LIMIT if more else None),
-            quick_replies=list_quick_replies(items),
+            fallback_quick_replies=list_quick_replies(items),
         )
         return
     if not 1 <= index <= len(items):
