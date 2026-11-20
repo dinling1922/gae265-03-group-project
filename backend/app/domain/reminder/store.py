@@ -2,7 +2,7 @@
 
 import uuid
 
-from sqlmodel import and_, col, exists, or_, select
+from sqlmodel import col, exists, or_, select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from app.models import Incident, IncidentClause, IncidentTodo
@@ -27,9 +27,14 @@ async def policy_todos(
                 col(IncidentTodo.incident_id).in_(incident_ids),
                 IncidentTodo.policy_id == policy_id,
             ),
-            ~and_(
-                col(IncidentTodo.todo_template_id).is_not(None),
-                col(IncidentTodo.incident_id).in_(_uncovered_incident_ids(policy_id)),
+            # 共同文件的 incident_id 是 NULL，`NULL IN (...)` 是 NULL、`NOT` 之後還是 NULL
+            # 會被濾掉（#482）；所以用 or_ 把 NULL 的情況明講成「不排除」
+            or_(
+                col(IncidentTodo.todo_template_id).is_(None),
+                col(IncidentTodo.incident_id).is_(None),
+                col(IncidentTodo.incident_id).not_in(
+                    _uncovered_incident_ids(policy_id)
+                ),
             ),
         )
     )

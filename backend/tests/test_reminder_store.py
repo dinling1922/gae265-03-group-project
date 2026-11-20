@@ -145,6 +145,46 @@ async def test_不符保障的事故裡文件類的待辦不算_和行程頁反�
     assert titles == {"不符保障的自訂待辦", "保障內的文件", "追問中的文件"}
 
 
+async def test_有範本的共同文件照算_保單有不符保障的事故時也一樣(
+    session: AsyncSession,
+) -> None:
+    """共同文件的 incident_id 是 NULL；`NULL IN (...)` 是 NULL，不能被排除條件濾掉（#482）。"""
+    policy = await make_policy(session, "a@example.com")
+    insurance = Insurance(code="TEST01", name="測試旅平險")
+    template = TodoTemplate(phase="after_return", title="理賠申請書")
+    session.add_all([insurance, template])
+    await session.flush()
+    excluded = Incident(policy_id=policy.id, title="颱風", description="颱風")
+    session.add(excluded)
+    await session.flush()
+    session.add_all(
+        [
+            IncidentClause(
+                incident_id=excluded.id,
+                insurance_id=insurance.id,
+                section="第一章",
+                conclusion="excluded",
+            ),
+            IncidentTodo(
+                policy_id=policy.id,
+                todo_template_id=template.id,
+                phase="after_return",
+                title="有範本的共同文件",
+            ),
+            IncidentTodo(
+                incident_id=excluded.id,
+                todo_template_id=template.id,
+                phase="after_return",
+                title="不符保障的文件",
+            ),
+        ]
+    )
+    await session.commit()
+
+    titles = {t.title for t in await policy_todos(session, policy.id)}
+    assert titles == {"有範本的共同文件"}
+
+
 async def test_還沒確認的事故的待辦不算_和行程頁一樣等使用者按確認(
     session: AsyncSession,
 ) -> None:
