@@ -32,7 +32,7 @@ def models(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_沒設定時_三個模型都不帶_reasoning_effort(models, monkeypatch) -> None:
-    monkeypatch.setattr(settings, "AZURE_OPENAI_QA_REASONING_EFFORT", "")
+    monkeypatch.setattr(settings, "INCIDENT_QA_REASONING_EFFORT", "")
 
     factory.build_agent()
 
@@ -45,7 +45,7 @@ def test_沒設定時_三個模型都不帶_reasoning_effort(models, monkeypatch
 def test_設定_none_時_只有條款問答的模型帶_reasoning_effort(
     models, monkeypatch
 ) -> None:
-    monkeypatch.setattr(settings, "AZURE_OPENAI_QA_REASONING_EFFORT", "none")
+    monkeypatch.setattr(settings, "INCIDENT_QA_REASONING_EFFORT", "none")
 
     factory.build_agent()
 
