@@ -135,7 +135,7 @@ def test_qa_model_without_setting_is_the_same_as_the_default_model() -> None:
     from app.core.llm import get_qa_chat_model
 
     s = Settings(**AZURE)  # pyright: ignore[reportArgumentType]
-    assert s.AZURE_OPENAI_QA_REASONING_EFFORT == ""
+    assert s.INCIDENT_QA_REASONING_EFFORT == ""
 
     qa = get_qa_chat_model(s)
 
@@ -149,7 +149,7 @@ def test_qa_model_with_setting_carries_reasoning_effort_but_the_default_model_do
 ):
     from app.core.llm import get_qa_chat_model
 
-    s = Settings(**AZURE, AZURE_OPENAI_QA_REASONING_EFFORT="none")  # pyright: ignore[reportArgumentType]
+    s = Settings(**AZURE, INCIDENT_QA_REASONING_EFFORT="none")  # pyright: ignore[reportArgumentType]
 
     qa = get_qa_chat_model(s)
     default = get_chat_model(s)
@@ -175,7 +175,7 @@ def test_qa_setting_only_applies_to_azure_openai(
 ) -> None:
     from app.core.llm import get_qa_chat_model
 
-    s = Settings(**config, AZURE_OPENAI_QA_REASONING_EFFORT="none")  # pyright: ignore[reportArgumentType]
+    s = Settings(**config, INCIDENT_QA_REASONING_EFFORT="none")  # pyright: ignore[reportArgumentType]
 
     qa = get_qa_chat_model(s)
 
@@ -189,7 +189,7 @@ def test_qa_model_for_the_fake_provider_is_unchanged() -> None:
     s = Settings(
         _env_file=None,  # pyright: ignore[reportCallIssue]
         LLM_PROVIDER="fake",
-        AZURE_OPENAI_QA_REASONING_EFFORT="none",
+        INCIDENT_QA_REASONING_EFFORT="none",
     )
 
     assert type(get_qa_chat_model(s)) is type(get_chat_model(s))

@@ -46,10 +46,10 @@ def get_qa_chat_model(s: Settings = settings) -> BaseChatModel:
     """5 號條款問答用的 chat model（#462）：問答要帶工具，gpt-6-luna 這類推理模型要
     reasoning_effort="none" 才不會回 400；gpt-4.1-mini 不認得這個參數，所以預設不帶。
 
-    只在 azure_openai 且 AZURE_OPENAI_QA_REASONING_EFFORT 有值時才帶；其他供應商、沒設定時
+    只在 azure_openai 且 INCIDENT_QA_REASONING_EFFORT 有值時才帶；其他供應商、沒設定時
     和 get_chat_model() 一樣。get_chat_model() 本身不變，其他用 LLM 的地方不受影響。"""
     model = get_chat_model(s)
-    effort = s.AZURE_OPENAI_QA_REASONING_EFFORT
+    effort = s.INCIDENT_QA_REASONING_EFFORT
     if s.LLM_PROVIDER == "azure_openai" and effort:
         return model.model_copy(update={"reasoning_effort": effort})
     return model
