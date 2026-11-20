@@ -1,4 +1,5 @@
 import type { DocumentView, TodoView, TripOut } from "../../client/types.gen";
+import { btnSm } from "../../components/ui/buttons";
 import { ProgressPill } from "../../components/ui/Tag";
 import { dateOf } from "../incident/IncidentCard";
 import { card } from "../incident/shared";
@@ -40,11 +41,14 @@ export function TripTodoCards({
   disabled,
   onToggle,
   onDeleteDocument,
+  onAssistantSay,
 }: {
   trip: TripOut;
   disabled: boolean;
   onToggle: (todo: TodoView, checked: boolean) => void;
   onDeleteDocument?: (document: DocumentView) => void;
+  /** 有的話，「事故當下」卡片右上角顯示「小助理幫你說」按鈕（由行程頁依 can_assistant_say 決定）。 */
+  onAssistantSay?: () => void;
 }) {
   const documents: DocumentView[] = [
     ...trip.shared_documents,
@@ -78,6 +82,16 @@ export function TripTodoCards({
               <ProgressPill>
                 {counted.filter((t) => t.is_done).length}／{counted.length}
               </ProgressPill>
+              {phase === "on_site" && onAssistantSay && (
+                <button
+                  type="button"
+                  onClick={onAssistantSay}
+                  data-testid="assistant-say-open"
+                  className={`${btnSm} ml-auto`}
+                >
+                  小助理幫你說
+                </button>
+              )}
             </div>
             {groups.map((g) => (
               <div key={g.key} data-testid={g.key === "trip" ? "todo-group-trip" : "todo-group"}>

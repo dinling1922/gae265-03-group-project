@@ -329,6 +329,24 @@ export type ApiTokenOut = {
 };
 
 /**
+ * AssistantSayOut
+ */
+export type AssistantSayOut = {
+    /**
+     * Language
+     *
+     * 當地語言代碼（目前只有 ja）；只顯示英文時是 null
+     */
+    language: string | null;
+    request: SayLine;
+    /**
+     * Sections
+     */
+    sections: Array<SaySectionOut>;
+    thanks: SayLine;
+};
+
+/**
  * AttachmentRef
  */
 export type AttachmentRef = {
@@ -3428,6 +3446,59 @@ export type SamplePolicyOut = {
 };
 
 /**
+ * SayDocumentOut
+ */
+export type SayDocumentOut = {
+    /**
+     * Code
+     */
+    code: string;
+    name: SayLine;
+    /**
+     * Items
+     *
+     * 請櫃檯載明的項目
+     */
+    items: Array<SayLine>;
+};
+
+/**
+ * SayLine
+ */
+export type SayLine = {
+    /**
+     * Local
+     *
+     * 當地語言；只顯示英文時是 null
+     */
+    local: string | null;
+    /**
+     * English
+     */
+    english: string;
+    /**
+     * Chinese
+     *
+     * 中文小字，直接用原句，不經過 LLM
+     */
+    chinese: string;
+};
+
+/**
+ * SaySectionOut
+ */
+export type SaySectionOut = {
+    /**
+     * 開立單位
+     */
+    unit: SayLine;
+    /**
+     * Documents
+     */
+    documents: Array<SayDocumentOut>;
+};
+
+/**
  * ScenarioOut
  */
 export type ScenarioOut = {
@@ -4432,6 +4503,12 @@ export type TripOut = {
      * 所有事件都不符保障，可以結案（不寄信）
      */
     can_close: boolean;
+    /**
+     * Can Assistant Say
+     *
+     * 顯示「小助理幫你說」按鈕：行程沒結案，而且有事故當下要向當地單位拿的文件
+     */
+    can_assistant_say: boolean;
     submission: SubmissionStatusOut;
     /**
      * Reminder Rounds
@@ -6914,6 +6991,36 @@ export type GetTripDriveFolderResponses = {
 };
 
 export type GetTripDriveFolderResponse = GetTripDriveFolderResponses[keyof GetTripDriveFolderResponses];
+
+export type CreateAssistantSayData = {
+    body?: never;
+    path: {
+        /**
+         * Policy Id
+         */
+        policy_id: string;
+    };
+    query?: never;
+    url: '/api/v1/policies/{policy_id}/assistant-say';
+};
+
+export type CreateAssistantSayErrors = {
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateAssistantSayError = CreateAssistantSayErrors[keyof CreateAssistantSayErrors];
+
+export type CreateAssistantSayResponses = {
+    /**
+     * Successful Response
+     */
+    200: AssistantSayOut;
+};
+
+export type CreateAssistantSayResponse = CreateAssistantSayResponses[keyof CreateAssistantSayResponses];
 
 export type UploadTripDocumentData = {
     body: BodyUploadTripDocument;

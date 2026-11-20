@@ -84,6 +84,24 @@ class TodoTemplate(BaseTable, table=True):
     major_priority: int | None = Field(
         default=None, description="重大注意事項的優先序，小的先；整個行程最多列 4 條"
     )
+    issuer: str | None = Field(
+        default=None,
+        description="開立單位（小助理幫你說依它分段），例如航空公司、醫院；同一份文件在各事故類型都一樣",
+    )
+    counter_name: str | None = Field(
+        default=None,
+        description="給櫃檯看的文件名稱（小助理幫你說只翻譯這欄，不用待辦標題：標題是寫給旅客的待辦句）；旅客自備與回國後的文件為空",
+    )
+    counter_items: list[str] = Field(
+        default_factory=list,
+        sa_column=Column(JSON, nullable=False, server_default=text("'[]'")),
+        description="請櫃檯載明的項目（小助理幫你說）：只寫請櫃檯寫在文件上的內容，不放給旅客的提醒",
+    )
+    self_prepared: bool = Field(
+        default=False,
+        sa_column_kwargs={"server_default": text("false")},
+        description="旅客自備的文件（機票及登機證、購物收據、車票）：小助理幫你說不列",
+    )
     keywords: list[str] = Field(
         default_factory=list,
         sa_column=Column(JSON, nullable=False),

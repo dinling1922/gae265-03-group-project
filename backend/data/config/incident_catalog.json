@@ -381,6 +381,12 @@
     {
       "code": "D01",
       "name": "航空業者出具、載有班機延誤期間或取消的證明",
+      "issuer": "航空公司",
+      "counter_name": "班機延誤或取消證明",
+      "counter_items": [
+        "原定與實際起飛時間（或延誤時數）；班機取消時載明取消"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -399,6 +405,10 @@
     {
       "code": "D02",
       "name": "機票及登機證，或航空業者出具的搭機證明",
+      "issuer": "航空公司",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": true,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -417,6 +427,12 @@
     {
       "code": "D03",
       "name": "保留新航班機票或改票證明",
+      "issuer": "航空公司",
+      "counter_name": "改搭班機的機票或變更證明",
+      "counter_items": [
+        "改搭班機的日期"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -434,6 +450,12 @@
     {
       "code": "D04",
       "name": "取得額外住宿收據正本",
+      "issuer": "飯店",
+      "counter_name": "住宿費用收據（正本）",
+      "counter_items": [
+        "住客姓名、住宿日期、地點、金額"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -457,6 +479,10 @@
     {
       "code": "D05",
       "name": "保存刷卡的信用卡帳單",
+      "issuer": "發卡銀行",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": "約一個月後出帳",
       "notes": [
@@ -473,6 +499,12 @@
     {
       "code": "D06",
       "name": "向航空公司申請行李事故報告（PIR）",
+      "issuer": "航空公司",
+      "counter_name": "行李事故報告（PIR）",
+      "counter_items": [
+        "事故編號（PIR 編號）"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -490,6 +522,10 @@
     {
       "code": "D07",
       "name": "保留購買必需品的收據",
+      "issuer": "商店",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": true,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -509,6 +545,10 @@
     {
       "code": "D08",
       "name": "取得航空公司賠償或處理結果證明",
+      "issuer": "航空公司",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": "約 2～4 週",
       "notes": [
@@ -525,6 +565,10 @@
     {
       "code": "D10",
       "name": "填寫理賠申請書",
+      "issuer": "保險公司",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
@@ -541,6 +585,10 @@
     {
       "code": "D11",
       "name": "準備存摺封面與護照影本",
+      "issuer": "銀行",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
@@ -558,6 +606,12 @@
     {
       "code": "D13",
       "name": "請醫院開立診斷書",
+      "issuer": "醫院",
+      "counter_name": "診斷書",
+      "counter_items": [
+        "病名、就診日期"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -577,6 +631,12 @@
     {
       "code": "D14",
       "name": "保留醫療費用收據正本",
+      "issuer": "醫院",
+      "counter_name": "醫療費用收據（正本）",
+      "counter_items": [
+        "需為正本（不接受影本）"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -597,6 +657,12 @@
     {
       "code": "D15",
       "name": "請醫院開立住院證明",
+      "issuer": "醫院",
+      "counter_name": "住院證明",
+      "counter_items": [
+        "住院日期與出院日期"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -616,6 +682,12 @@
     {
       "code": "D16",
       "name": "向當地警察申請報案證明",
+      "issuer": "當地警察局",
+      "counter_name": "報案證明",
+      "counter_items": [
+        "報案日期"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -632,6 +704,12 @@
     {
       "code": "D17",
       "name": "取得重新申辦旅行文件的證明（例如新護照或入國證明書）",
+      "issuer": "駐外辦事處",
+      "counter_name": "重新申辦手續費收據",
+      "counter_items": [
+        "重新申辦的手續費金額"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -649,6 +727,10 @@
     {
       "code": "D18",
       "name": "向發卡銀行申請掛失證明",
+      "issuer": "發卡銀行",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
@@ -665,6 +747,10 @@
     {
       "code": "D19",
       "name": "列印被盜刷的交易明細",
+      "issuer": "發卡銀行",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": "下期帳單出帳後",
       "notes": [
@@ -681,6 +767,10 @@
     {
       "code": "D20",
       "name": "保留轉往其他城市的交通收據",
+      "issuer": "交通業者",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": true,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -700,6 +790,12 @@
     {
       "code": "D21",
       "name": "取得取消原因的證明（例：診斷書、住院證明）",
+      "issuer": "醫院或相關單位",
+      "counter_name": "取消原因證明",
+      "counter_items": [
+        "取消原因與日期"
+      ],
+      "self_prepared": false,
       "phase": "on_site",
       "wait_note": null,
       "notes": [
@@ -716,6 +812,10 @@
     {
       "code": "D22",
       "name": "取得旅行社或業者的退費證明",
+      "issuer": "旅行社或業者",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
@@ -732,6 +832,10 @@
     {
       "code": "D23",
       "name": "保留機票與住宿的付款收據",
+      "issuer": "業者",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
@@ -748,6 +852,10 @@
     {
       "code": "D24",
       "name": "準備受益人身分證明",
+      "issuer": "戶政事務所",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
@@ -762,6 +870,10 @@
     {
       "code": "D25",
       "name": "保險單或其謄本",
+      "issuer": "保險公司",
+      "counter_name": null,
+      "counter_items": [],
+      "self_prepared": false,
       "phase": "after_return",
       "wait_note": null,
       "notes": [
