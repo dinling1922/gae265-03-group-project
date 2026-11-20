@@ -620,6 +620,68 @@ html.in-phone{scrollbar-width:none}
 }
 @media (prefers-reduced-motion:reduce){.spin{animation:none}*{transition:none!important}}
 
+/* ===== 1-1 規劃旅遊日程（v3.11） ===== */
+.p11-hero{border-radius:var(--r-card);padding:26px 32px;background:linear-gradient(120deg,#285442 0%,#3f7a3a 60%,#78a817 130%);color:#fff;display:flex;flex-direction:column;gap:4px}
+.p11-hero .ey{font-size:14px;font-weight:700;opacity:.85}.p11-hero h2{margin:0;font-size:30px;line-height:42px;color:#fff}.p11-hero>span:last-child{font-size:16px;opacity:.92}
+.p11{display:grid;grid-template-columns:300px minmax(0,1fr) 330px;gap:20px;align-items:start}
+.p11-l{gap:18px}.p11-l .btn{width:100%;justify-content:center}
+.p11-m{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.dtabs{display:flex;gap:8px;overflow-x:auto;padding:16px 20px 14px;border-bottom:1px solid var(--color-line);scrollbar-width:thin}
+.dtab{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:104px;padding:10px 14px;border:1px solid var(--color-line);border-radius:12px;background:var(--color-surface);text-align:left;font-size:13px;line-height:20px;color:var(--color-muted)}
+.dtab b{font-size:15px;color:var(--color-heading)}.dtab .k{font-size:12px}
+.dtab.on{border:2px solid var(--color-brand);padding:9px 13px;background:var(--color-soft)}
+.dhead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:18px 20px 8px}
+.dhead .ey{font-size:13px;font-weight:700;color:var(--color-muted)}
+.slots{display:flex;flex-direction:column;gap:6px;padding:8px 20px 20px}
+.slot{display:grid;grid-template-columns:64px minmax(0,1fr) auto;align-items:center;gap:12px;border-radius:12px;min-height:46px;padding:6px 12px;text-align:left}
+.slot .tm{font-size:13px;line-height:18px;font-weight:700;color:var(--color-muted)}.slot .tm small{font-weight:400}
+.slot.free{border:1px dashed var(--color-line);background:transparent;color:var(--color-muted);font-size:14px;grid-template-columns:64px 1fr}
+.slot.free:hover{border-color:var(--color-brand);color:var(--color-brand);background:var(--color-soft)}
+.slot.act{border:1px solid var(--color-line);border-left:4px solid var(--color-green);background:var(--color-surface);min-height:calc(var(--rows)*46px + (var(--rows) - 1)*6px);align-items:start;padding:10px 12px}
+.slot.act .ab{display:flex;flex-direction:column;gap:2px;min-width:0}.slot.act b{font-size:16px;line-height:24px;color:var(--color-heading);overflow-wrap:anywhere}
+.slot.act .cat{align-self:flex-start;font-size:12px;font-weight:700;color:var(--color-brand);background:var(--color-soft);border-radius:999px;padding:0 10px;line-height:22px}
+.slot.act .where,.slot.act .memo{font-size:13px;line-height:20px;color:var(--color-muted);overflow-wrap:anywhere}
+.slot .x{width:32px;height:32px;border:1px solid var(--color-line);border-radius:8px;background:var(--color-surface);font-size:18px;line-height:1;color:var(--color-muted)}
+.slot .x:hover{border-color:var(--color-coral);color:var(--color-coral)}
+.p11-r{gap:14px}
+.mseg{display:flex;flex-wrap:wrap;gap:6px}.mseg button{border:1px solid var(--color-line);background:var(--color-surface);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--color-text)}
+.mseg button.on{border:2px solid var(--color-brand);padding:3px 11px;color:var(--color-heading);font-weight:700}
+.map svg{width:100%;height:auto;display:block}
+.mord{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;font-size:14px;line-height:22px}
+.mord li{display:flex;gap:10px;align-items:flex-start}.mn{flex:none;width:22px;height:22px;border-radius:50%;background:var(--color-brand);color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.risk12{gap:14px}.rlist{display:flex;flex-direction:column}
+.ritem{display:grid;grid-template-columns:96px minmax(0,1fr);gap:14px;padding:14px 0;border-top:1px solid var(--color-line)}.ritem:first-child{border-top:0;padding-top:4px}
+.ritem .rd{font-size:14px;font-weight:700;color:var(--color-muted);line-height:24px}.ritem p{margin:0}
+.rt1{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:16px;line-height:24px}.rt1 b{color:var(--color-heading)}
+.pill.ok{background:var(--color-soft);color:var(--color-brand);font-weight:700}
+@media (max-width:1180px){.p11{grid-template-columns:280px minmax(0,1fr)}.p11-r{grid-column:1 / -1}}
+@media (max-width:767px){.p11{grid-template-columns:minmax(0,1fr)}.p11-hero{padding:20px}.p11-hero h2{font-size:24px;line-height:34px}.ritem{grid-template-columns:minmax(0,1fr);gap:4px}.slot{grid-template-columns:52px minmax(0,1fr) auto}.slot.free{grid-template-columns:52px 1fr}}
+
+/* ===== 2-3j 小助理幫你說 ===== */
+.say-btn{margin-left:auto;gap:6px}.say-btn svg{width:16px;height:16px}
+.say .pop-card{max-width:620px;max-height:86vh;gap:16px}
+.say-h{display:flex;align-items:flex-start;gap:12px}.say-h>div{flex:1}
+.say-load{display:flex;align-items:center;gap:10px;color:var(--color-muted);margin:8px 0 12px}
+.say-body{display:flex;flex-direction:column;gap:14px}
+.sl p{margin:0}.sl .l1{font-size:16px;line-height:26px;font-weight:700;color:var(--color-heading)}.sl .l2{font-size:14px;line-height:22px;color:var(--color-text)}
+.sl.big .l1{font-size:20px;line-height:31px}.sl.big .l2{font-size:16px;line-height:25px}
+.sl .zh{font-size:12.5px;line-height:20px;color:var(--color-muted);margin-top:2px}
+.say-req{background:var(--color-soft);border-radius:14px;padding:14px 16px}
+.say-sec{border-top:1px solid var(--color-line);padding-top:12px;display:flex;flex-direction:column;gap:10px}
+.say-iss{margin:0;font-size:14px;font-weight:700;color:var(--color-brand)}.say-iss span{color:var(--color-muted);font-weight:400}
+.say-need{padding-left:20px;margin-top:4px}
+.say-thx{border-top:1px solid var(--color-line);padding-top:12px}
+.say-foot{font-size:12px;margin:0}
+@media (max-width:767px){.say .pop-card{max-height:92vh}.todos .head{flex-wrap:wrap}}
+.p11-l .btn svg{width:18px;height:18px;flex:none}
+/* 「＋有新狀況」放在問答框左下角（v3.11 修正） */
+.chatbox{display:flex;flex-direction:column;background:var(--color-bg);border:1px solid var(--color-line);border-radius:16px;overflow:hidden}
+.chatbox .chat{border:0;border-radius:0;background:transparent}
+.chat-foot{display:flex;justify-content:flex-start;padding:10px 20px 14px}
+.chat-foot .newinc{min-height:36px;padding:0 14px;border:1px solid var(--color-line);border-radius:10px;font-size:14px;line-height:22px;background:var(--color-surface);color:var(--color-brand)}
+.chat-foot .newinc:hover{border-color:var(--color-brand);background:var(--color-surface)}
+@media (max-width:767px){.rcol .qa-card .chatbox{flex:1;min-height:0}.chat-foot{padding:8px 14px 10px}}
+
 </style>
 </head>
 <body>
@@ -790,16 +852,16 @@ function recommend(c){
  if(cands.length>1){const ch=r===cheap2[0]?[]:cheap2.filter(k=>k!==r&&prem[k]<prem[r]);alt=ch[0]||cands.filter(k=>k!==r).sort(cmp)[0]}
  const cw=(x,y)=>x>y?'較高':x<y?'較低':'相同';
  const basis=cs.map(cn=>alt?`${cn.n}：推薦方案${cw(tot(r,cn),tot(alt,cn))}（${shortOf(r,cn.calc,sums[r])} vs ${shortOf(alt,cn.calc,sums[alt])}）`:`${cn.n}：${shortOf(r,cn.calc,sums[r])}`);
- if(c.note)basis.push(budget?'其他在意的事：提到預算，以保費優先比較':`其他在意的事：「${c.note.slice(0,14)}」已納入考量`);
+ if(c.note)basis.push(budget?'行程提到預算，以保費優先比較':`其他在意的事：「${c.note.slice(0,14)}」已納入考量`);
  basis.push(alt?`保費：推薦方案${cw(prem[r],prem[alt])}（${money(prem[r])} vs ${money(prem[alt])}）`:`保費：${money(prem[r])}`);
  const rule={high:'該方案最高保額',mid:'該方案第二高的保額',low:'該方案中間的保額'}[tier];
  const sumNote=`${c.dest}屬醫療費${TIER_N[tier]}等級，因此選擇${rule}：推薦方案 ${wan(sums[r])}${alt?`、次推薦 ${wan(sums[alt])}`:''}。`;
  let reason;
- if(!alt)reason=`目前只有${planName(r)}符合你的年齡、目的地與天數，因此只有推薦方案。實際給付條件請參考比較表。`;
+ if(!alt)reason=`目前只有${planName(r)}符合你的目的地與天數，因此只有推薦方案。實際給付條件請參考比較表。`;
  else{const c1=cs[0],w=cw(tot(r,c1),tot(alt,c1));
   const diff=ORDER.find(i=>amount(r,i,sums[r])!==amount(alt,i,sums[alt]));
   const pd=prem[r]-prem[alt];
-  reason=(budget?'你提到預算，所以優先比較保費。':'')+`你最在意「${c1.n}」，推薦方案在這一項${w==='相同'?'和次推薦相同':'的額度'+w}。和次推薦相比，主要差在${ITEMS[diff||'death'].n}，保費${pd>=0?'多':'少'} ${money(Math.abs(pd))}。實際給付條件請參考比較表。`}
+  reason=(budget?'你的行程提到預算，所以優先比較保費。':'')+`你最在意「${c1.n}」，推薦方案在這一項${w==='相同'?'和次推薦相同':'的額度'+w}。和次推薦相比，主要差在${ITEMS[diff||'death'].n}，保費${pd>=0?'多':'少'} ${money(Math.abs(pd))}。實際給付條件請參考比較表。`}
  return {rec:r,alt,sums,prem,tier,days:d,basis,sumNote,reason,cands,eligN:elig.length};
 }
 const sumOf=(c,k)=>(c.adj&&c.adj[k])||c.result.sums[k];
@@ -1096,6 +1158,7 @@ const SRC_HTML='<!DOCTYPE html>'+document.documentElement.outerHTML;
 const IN_PHONE=window.name==='hx-phone';
 /* ================= 圖示（同一組，桌機／手機共用） ================= */
 const IC={
+ chat:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg>',
  plane:'<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.5 15.2v-1.9l-8.3-5.2V3.3c0-.8-.6-1.5-1.3-1.5s-1.3.7-1.3 1.5v4.8l-8.3 5.2v1.9l8.3-2.6v4.8l-2.2 1.6v1.5l3.5-1 3.5 1v-1.5l-2.2-1.6v-4.8z" transform="rotate(45 12 12)"/></svg>',
  shield:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M12 2.8 4.5 5.6v6c0 4.6 3.1 8.2 7.5 9.6 4.4-1.4 7.5-5 7.5-9.6v-6z"/><path d="m8.6 12 2.4 2.4 4.6-4.8"/></svg>',
  doc:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M14 2.8H6.5A1.5 1.5 0 0 0 5 4.3v15.4a1.5 1.5 0 0 0 1.5 1.5h11a1.5 1.5 0 0 0 1.5-1.5V7.8z"/><path d="M14 2.8v5h5M8.5 12.5h7M8.5 16.5h7"/></svg>',
@@ -1157,29 +1220,143 @@ function scrAll(){const comp=S.allKind==='comp';const list=comp?visComps():visTr
  <div class="actions"><button class="btn" data-act="home">回首頁</button></div></div>`}
 
 /* ================= 功能一 ================= */
+/* ================= 功能一 1-1 規劃旅遊日程（11/20 v3.11） ================= */
+const ACT_CATS=['美食','探索','文化','咖啡','休息','住宿'];
+const H0=7,H1=22,WDN='日一二三四五六';
+const nDays=c=>c.dep&&c.ret&&c.ret>=c.dep?Math.min(dayN(c.dep,c.ret),10):0;
+const dOf=(c,i)=>new Date(Date.parse(c.dep)+i*864e5);
+const mdw=dt=>`${dt.getUTCMonth()+1}/${dt.getUTCDate()}（${WDN[dt.getUTCDay()]}）`;
+const hh=h=>String(h).padStart(2,'0')+':00';
+/* 示意：上線後依地點查座標；原型以地點文字產生固定位置，沒填地點視為查不到 */
+function geo(w){w=(w||'').trim();if(!w)return null;let h=0;for(const ch of w)h=(h*31+ch.charCodeAt(0))>>>0;return {x:34+h%232,y:30+((h>>>9)%150)}}
+const actsOf=(c,day)=>(c.acts||[]).filter(a=>day==null||a.day===day).sort((a,b)=>a.day-b.day||a.h-b.h);
+function freeRun(c,day,h){let n=0;for(let k=h;k<=H1;k++){if((c.acts||[]).some(a=>a.day===day&&k>=a.h&&k<a.h+a.dur))break;n++}return n}
+
 function err11(c){const s=c.id?S.comps.find(x=>x.id===c.id):null;const m=[];
  if(c.dep&&(!s||s.dep!==c.dep)&&c.dep<TODAY)m.push('出發日要從今天起。');
  if(c.dep&&c.ret&&c.ret<c.dep)m.push('回程日不能早於出發日。');
- if(c.dep&&c.ret&&c.ret>=c.dep&&dayN(c.dep,c.ret)>10)m.push('旅遊天數最長 10 天。');
- if(c.age!==''&&c.age!=null&&(!Number.isInteger(+c.age)||+c.age<AGE_MIN||+c.age>AGE_MAX))m.push(`年齡請填 ${AGE_MIN}～${AGE_MAX} 的整數。`);return m.join(' ')}
-const ok11=c=>c.dest&&c.dep&&c.ret&&c.age!==''&&c.age!=null&&!err11(c);
+ if(c.dep&&c.ret&&c.ret>=c.dep&&dayN(c.dep,c.ret)>10)m.push('旅遊天數最長 10 天。');return m.join(' ')}
+const ok11=c=>c.dest&&c.dep&&c.ret&&!err11(c);
 
-function scr11(){const c=curComp();const d=c.dep&&c.ret&&c.ret>=c.dep?dayN(c.dep,c.ret):null;const e=err11(c);
- return `<div class="wrap narrow stack">${pageHead(F1+' · 1／3','輸入旅遊背景','單人、國外旅遊')}
- <div class="card pad form">
- <label class="fld"><span class="lab">目的地</span><select class="inp" id="f-dest"><option value="">請選擇</option>${ALLD.map(n=>`<option${n===c.dest?' selected':''}>${n}</option>`).join('')}</select></label>
- <div class="row2"><label class="fld"><span class="lab">出發日</span><input class="inp" type="date" id="f-dep" min="${TODAY}" value="${c.dep||''}"></label>
- <label class="fld"><span class="lab">回程日</span><input class="inp" type="date" id="f-ret" min="${c.dep||TODAY}" ${c.dep?`max="${new Date(Date.parse(c.dep)+9*864e5).toISOString().slice(0,10)}"`:''} value="${c.ret||''}"><small>旅遊天數最多 10 天（含頭尾）</small></label></div>
- <label class="fld"><span class="lab">年齡</span><input class="inp" type="number" id="f-age" inputmode="numeric" min="${AGE_MIN}" max="${AGE_MAX}" step="1" value="${c.age??''}" style="max-width:240px"><small>可輸入 ${AGE_MIN}～${AGE_MAX} 歲</small></label>
- <div class="days" aria-live="polite">${d?`共<b>${d}</b>天`:'選好兩個日期後顯示天數'}</div>
- <p class="err" id="e11" role="alert">${e}</p></div>
- <div class="actions"><button class="btn pri push" data-act="n11" ${ok11(c)?'':'disabled'}>下一步</button></div></div>`}
-function scr12(){const c=curComp();const full=c.concerns.length>=3;
+function mapSVG(c,sel){const pts=actsOf(c,sel==='all'?null:sel).map(a=>({a,g:geo(a.where)})).filter(p=>p.g);
+ const line=pts.length>1?`<polyline points="${pts.map(p=>p.g.x+','+p.g.y).join(' ')}" fill="none" stroke="#285442" stroke-width="2.5" stroke-dasharray="6 5" stroke-linecap="round"/>`:'';
+ return {n:pts.length,pts,svg:`<svg viewBox="0 0 300 210" role="img" aria-label="日程地圖，${pts.length} 個地點"><rect width="300" height="210" rx="14" fill="#eef3e6"/>
+ <path d="M-10 150 C60 120 110 170 170 130 S260 90 310 110" stroke="#dbe8f2" stroke-width="16" fill="none"/>
+ <path d="M40 -10 L80 220 M-10 60 L310 40 M190 -10 L230 220 M-10 190 L310 170" stroke="#fff" stroke-width="7" fill="none"/>
+ <rect x="110" y="62" width="44" height="30" rx="6" fill="#dfe9cf"/><rect x="236" y="120" width="40" height="34" rx="6" fill="#dfe9cf"/>
+ ${line}${pts.map((p,i)=>`<g><circle cx="${p.g.x}" cy="${p.g.y}" r="12" fill="#285442" stroke="#fff" stroke-width="2.5"/><text x="${p.g.x}" y="${p.g.y+4.5}" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">${i+1}</text></g>`).join('')}
+ ${pts.length?'':`<text x="150" y="110" text-anchor="middle" font-size="13" fill="#647364">新增有地點的活動後會標在這裡</text>`}</svg>`}}
+
+function scr11(){const c=curComp();c.acts=c.acts||[];const n=nDays(c);const e=err11(c);const di=Math.min(S.d11||0,Math.max(n-1,0));S.d11=di;
+ const ms=S.map11==null||S.map11==='all'||S.map11>=n?'all':S.map11;
+ const left=`<section class="card pad form p11-l" aria-label="目的地與日期"><p class="lead" style="margin:0">填好目的地和日期，剩下的細節可以交給 agent。</p>
+ <label class="fld"><span class="lab">目的地</span><select class="inp" id="f-dest"><option value="">請選擇</option>${ALLD.map(x=>`<option${x===c.dest?' selected':''}>${x}</option>`).join('')}</select></label>
+ <label class="fld"><span class="lab">城市（選填）</span><input class="inp" id="f-city" maxlength="30" placeholder="例：東京" value="${esc(c.city||'')}"></label>
+ <label class="fld"><span class="lab">出發日</span><input class="inp" type="date" id="f-dep" min="${TODAY}" value="${c.dep||''}"></label>
+ <label class="fld"><span class="lab">回程日</span><input class="inp" type="date" id="f-ret" min="${c.dep||TODAY}" ${c.dep?`max="${new Date(Date.parse(c.dep)+9*864e5).toISOString().slice(0,10)}"`:''} value="${c.ret||''}"><small>旅遊天數最多 10 天（含頭尾）</small></label>
+ <div class="days" aria-live="polite">${n?`共<b>${n}</b>天`:'選好兩個日期後顯示天數'}</div>
+ <p class="err" id="e11" role="alert">${e}</p>
+ <button class="btn pri" data-act="n11" ${ok11(c)?'':'disabled'}>下一步：確認旅途風險${IC.arrow}</button></section>`;
+ const hero=`<div class="p11-hero"><span class="ey">你的旅遊日程</span><h2>${c.dest?`${c.city?esc(c.city)+'，':''}${c.dest}`:'還沒選目的地'}</h2><span>${n?`${mdw(dOf(c,0))} — ${mdw(dOf(c,n-1))} · ${n} 天`:'選好日期後顯示日期區間'}</span></div>`;
+ let mid;
+ if(!n)mid=`<section class="card pad p11-m"><p class="empty" style="margin:0">選好出發日與回程日後，就可以排每天的活動。活動可以不排，直接按「下一步」。</p></section>`;
+ else{const day=actsOf(c,di);const rows=[];for(let h=H0;h<=H1;h++){const a=day.find(x=>x.h===h);
+   if(a){rows.push(`<div class="slot act" style="--rows:${a.dur}"><span class="tm">${hh(a.h)}<br><small>${a.dur} 小時</small></span><div class="ab"><span class="cat">${a.cat}</span><b>${esc(a.what)}</b><span class="where">${a.where?esc(a.where):'沒有填地點'}${geo(a.where)?'':' · 不在地圖上'}</span>${a.memo?`<span class="memo">${esc(a.memo)}</span>`:''}</div><button class="x" data-delact="${a.id}" aria-label="刪除活動：${esc(a.what)}">×</button></div>`);h+=a.dur-1;continue}
+   rows.push(`<button class="slot free" data-slot="${h}"><span class="tm">${hh(h)}</span><span>＋ 空檔，點這裡新增</span></button>`)}
+  mid=`<section class="card p11-m" aria-label="每天的活動"><div class="dtabs" role="tablist">${Array.from({length:n},(_,i)=>{const k=actsOf(c,i).length;return `<button role="tab" class="dtab${i===di?' on':''}" aria-selected="${i===di}" data-d11="${i}"><b>第 ${i+1} 天</b><span>${mdw(dOf(c,i))}</span><span class="k">${k} 個活動</span></button>`}).join('')}</div>
+  <div class="dhead"><div><span class="ey">第 ${di+1} 天 · ${mdw(dOf(c,di))}</span><h3 class="stitle" style="font-size:20px;line-height:30px">這一天的安排</h3></div><span class="pill">${day.length} 個活動</span></div>
+  <div class="slots">${rows.join('')}</div></section>`}
+ const M=mapSVG(c,ms);
+ const right=`<section class="card pad p11-r" aria-label="日程地圖"><div><h3 class="stitle" style="font-size:20px;line-height:30px">日程地圖</h3><p class="disc" style="margin:0">一站一站照順序走</p></div>
+ ${n?`<div class="mseg" role="group" aria-label="地圖顯示範圍"><button data-map11="all" class="${ms==='all'?'on':''}">全部天數</button>${Array.from({length:n},(_,i)=>`<button data-map11="${i}" class="${ms===i?'on':''}">第 ${i+1} 天</button>`).join('')}</div>`:''}
+ <div class="map">${M.svg}</div><p class="disc" style="margin:0">${M.n} 個地點</p>
+ ${M.n?`<div><p class="kv-h">${ms==='all'?'整趟的順序':'這一天的順序'}</p><ol class="mord">${M.pts.map(p=>`<li><span class="mn">${M.pts.indexOf(p)+1}</span><span>${ms==='all'?`第 ${p.a.day+1} 天 `:''}${hh(p.a.h)}　${esc(p.a.what)}</span></li>`).join('')}</ol></div>`:''}</section>`;
+ return `<div class="wrap stack">${pageHead(F1+' · 1／3','規劃旅遊日程','單人、國外旅遊。可以讓你自己的 AI 助理透過 WebMCP 幫你排這一頁。')}${hero}<div class="p11">${left}${mid}${right}</div></div>`}
+
+/* Agent 3 行程風險預選（示意：上線後由 Agent 3 判斷；原型以關鍵字模擬） */
+const RISK_RULES=[
+ [/機場|搭機|航班|班機|飛機|起飛|回台|回國|飛往/,'c1','搭機行程可能遇到延誤。'],
+ [/轉機|托運/,'c3','轉機時行李可能沒跟著到。'],
+ [/滑雪|登山|爬山|健行|潛水|浮潛|衝浪|攀岩|單車|騎車|雪場/,'c8','戶外活動受傷時，可能需要緊急送醫。'],
+ [/生魚|海鮮|夜市|路邊攤|生食|屋台|吃到飽/,'c5','吃生食或路邊攤，可能腸胃不適要就醫。'],
+ [/購物|逛街|藥妝|百貨|outlet|Outlet|免稅|電器|商場/,'c7','在國外大量刷卡，要留意盜刷。'],
+ [/租車|自駕|開車/,'c9','自己開車，可能不小心碰撞到人或車。'],
+ [/祭典|市集|跨年|演唱會|人潮|煙火/,'c6','人多的地方，證件比較容易被偷。'],
+ [/住宿|飯店|旅館|民宿|入住/,'c2','行程有變時，住宿可能退不回來。']];
+const aSig=c=>JSON.stringify((c.acts||[]).map(a=>[a.day,a.h,a.what,a.where,a.memo,a.cat]));
+function preselect(c){const out=[],risks=[];
+ for(const a of actsOf(c)){const t=[a.what,a.where,a.memo,a.cat].join(' ');const r=RISK_RULES.find(x=>x[0].test(t));
+  if(r&&!out.includes(r[1])&&out.length<3){out.push(r[1]);risks.push({day:a.day,what:a.what,con:r[1],why:`${a.what}，${r[2]}`})}}
+ c.concerns=out;c.risks=risks;c.note=(c.acts||[]).some(a=>/預算|便宜|省錢|划算|平價|小資/.test([a.what,a.memo].join(' ')))?'行程提到預算':'';c.preSig=aSig(c)}
+
+function scr12(){const c=curComp();const full=c.concerns.length>=3;const rk=(c.acts||[]).length?(c.risks||[]):[];
  return `<div class="wrap narrow stack">${pageHead(F1+' · 2／3','推薦保障重點')}
- <div class="card pad form"><p class="lead">依你的行程，建議優先注意這幾項。你可以再調整，最多 3 項。</p>
- <div class="ccards">${CONCERNS.map(cn=>{const i=c.concerns.indexOf(cn.id);return `<button class="ccard${i>=0?' on':''}" data-con="${cn.id}" aria-pressed="${i>=0}" ${full&&i<0?'disabled':''}>${IC[CON_IC[cn.id]]}${cn.n}${i>=0?`<span class="ord" aria-label="第 ${i+1} 在意">${i+1}</span>`:''}</button>`}).join('')}</div>
- <label class="fld"><span class="lab">其他在意的事（選填）</span><textarea class="inp" id="f-note" rows="3" maxlength="200" placeholder="例：會去滑雪、帶高價相機">${esc(c.note)}</textarea><small>補充說明會納入推薦考量，問答時也會參考。（${(c.note||'').length}/200）</small></label></div>
+ <div class="card pad form"><p class="lead">${rk.length?'<b>依你的行程，建議優先注意這幾項。</b>你可以再調整，最多 3 項。':'<b>這趟旅行你最擔心什麼？</b>依重要程度點選，最多 3 項。'}</p>
+ <div class="ccards">${CONCERNS.map(cn=>{const i=c.concerns.indexOf(cn.id);return `<button class="ccard${i>=0?' on':''}" data-con="${cn.id}" aria-pressed="${i>=0}" ${full&&i<0?'disabled':''}>${IC[CON_IC[cn.id]]}${cn.n}${i>=0?`<span class="ord" aria-label="第 ${i+1} 在意">${i+1}</span>`:''}</button>`}).join('')}</div></div>
+ ${rk.length?`<section class="card pad risk12" aria-label="行程風險"><h3 class="stitle" style="font-size:20px;line-height:30px">我們從你的日程看到這些風險</h3><div class="rlist">${[...rk].sort((a,b)=>a.day-b.day).map(r=>`<div class="ritem"><span class="rd">${mdw(dOf(c,r.day))}</span><div class="rb"><p class="rt1"><b>${esc(r.what)}</b> <span class="muted">→ ${CON[r.con].n}</span>${c.concerns.includes(r.con)?'<span class="pill ok">✓ 已選</span>':''}</p><p class="disc">${esc(r.why)}</p></div></div>`).join('')}</div><p class="disc" style="margin:0">示意：上線後由 Agent 3 依行程內容預選，只依你寫下的活動判斷。</p></section>`:''}
  <div class="actions"><button class="btn" data-act="go" data-to="1-1">上一步</button><button class="btn pri push" data-act="n12" ${c.concerns.length?'':'disabled'}>下一步</button></div></div>`}
+
+/* 1-1l 新增活動 */
+function actHTML(L){const c=curComp();const mx=Math.min(4,freeRun(c,L.day,L.h));
+ return `<div class="pop" data-close="1"><div class="pop-card" role="dialog" aria-modal="true" aria-labelledby="acth"><div><h4 id="acth">新增活動</h4><p class="disc" style="margin:0">${mdw(dOf(c,L.day))} ${hh(L.h)}</p></div>
+ <label class="fld"><span class="lab">要做什麼</span><input class="inp" id="a-what" maxlength="40" placeholder="例如：錦市場吃生魚片丼" value="${esc(L.what)}"></label>
+ <label class="fld"><span class="lab">地點</span><input class="inp" id="a-where" maxlength="60" placeholder="店名、地區或地址" value="${esc(L.where)}"></label>
+ <label class="fld"><span class="lab">備註</span><textarea class="inp" id="a-memo" rows="2" maxlength="200" placeholder="想記下的細節">${esc(L.memo)}</textarea></label>
+ <div class="row2"><label class="fld"><span class="lab">分類</span><select class="inp" id="a-cat">${ACT_CATS.map(x=>`<option${x===L.cat?' selected':''}>${x}</option>`).join('')}</select></label>
+ <label class="fld"><span class="lab">時長</span><select class="inp" id="a-dur">${Array.from({length:mx},(_,i)=>`<option value="${i+1}"${i+1===L.dur?' selected':''}>${i+1} 小時</option>`).join('')}</select></label></div>
+ <p class="disc" style="margin:0">儲存時會依地點自動查座標；查不到的活動不會出現在地圖上。</p>
+ <div class="actions"><button class="btn" data-act="close">取消</button><button class="btn pri" id="b-act" data-act="saveAct" ${L.what.trim()?'':'disabled'}>儲存</button></div></div></div>`}
+function addAct(c,a){c.acts=c.acts||[];const n=nDays(c);if(a.day<0||a.day>=n)return '沒有這一天';if(a.h<H0||a.h>H1)return '時段要在 07:00～22:00';
+ const dur=Math.max(1,Math.min(4,a.dur||1));if(freeRun(c,a.day,a.h)<dur)return '這個時段已經有活動';
+ c.acts.push({id:uid('a'),day:a.day,h:a.h,dur,what:a.what,where:a.where||'',memo:a.memo||'',cat:ACT_CATS.includes(a.cat)?a.cat:'探索'});return ''}
+function trimActs(c){const n=nDays(c);if(!n||!c.acts)return;const k=c.acts.length;c.acts=c.acts.filter(a=>a.day<n);if(c.acts.length<k)toast(`日期縮短，已移除 ${k-c.acts.length} 個超出日期的活動。`)}
+function demoActs(c){const n=nDays(c);if(!n)return false;c.acts=[];const L=[[0,12,'錦市場吃生魚片丼','錦市場','美食',2],[Math.min(1,n-1),9,'清水寺散步','清水寺','文化',2],[Math.min(2,n-1),14,'藥妝店、百貨公司購物','四條河原町','探索',3],[n-1,16,'搭機回台灣','關西機場','探索',2]];
+ L.forEach(([d,h,w,p,cat,dur])=>{if(freeRun(c,d,h)>=dur)c.acts.push({id:uid('a'),day:d,h,dur,what:w,where:p,memo:'',cat})});return true}
+
+function demo11(){if(S.screen!=='1-1')J('1-1');const c=curComp();if(!c.dep||!c.ret){c.dest=c.dest||'日本';c.city=c.city||'京都';c.dep=new Date(Date.parse(TODAY)+14*864e5).toISOString().slice(0,10);c.ret=new Date(Date.parse(TODAY)+18*864e5).toISOString().slice(0,10)}demoActs(c);S.d11=0;render();toast('已填入範例活動，可按「下一步：確認旅途風險」看 Agent 3 預選。')}
+/* 8.8 WebMCP：讓使用者自己的 AI 助理操作 1-1（瀏覽器支援 navigator.modelContext 時註冊） */
+(function(){const mc=navigator.modelContext;if(!mc)return;const cc=()=>S.screen==='1-1'?curComp():null;const no={error:'請先打開 1-1 規劃旅遊日程'};const r=x=>({content:[{type:'text',text:JSON.stringify(x)}]});
+ const tools=[
+  {name:'get_trip_state',description:'讀取目的地、城市、日期、每天的活動數',readOnly:true,inputSchema:{type:'object',properties:{}},execute:()=>{const c=cc();if(!c)return r(no);const n=nDays(c);return r({dest:c.dest,city:c.city||'',dep:c.dep,ret:c.ret,days:Array.from({length:n},(_,i)=>({day:i+1,activities:actsOf(c,i).length})),selectedDay:S.d11+1})}},
+  {name:'get_day_plan',description:'讀取某一天的活動、空著的時段與地圖編號',readOnly:true,inputSchema:{type:'object',properties:{day:{type:'number'}},required:['day']},execute:({day})=>{const c=cc();if(!c)return r(no);const d=day-1;const free=[];for(let h=H0;h<=H1;h++)if(freeRun(c,d,h))free.push(hh(h));let k=0;return r({activities:actsOf(c,d).map(a=>({id:a.id,time:hh(a.h),hours:a.dur,what:a.what,where:a.where,cat:a.cat,mapNo:geo(a.where)?++k:null})),free})}},
+  {name:'set_trip_details',description:'設定目的地、城市與日期（YYYY-MM-DD）',inputSchema:{type:'object',properties:{dest:{type:'string',enum:ALLD},city:{type:'string'},dep:{type:'string'},ret:{type:'string'}}},execute:async(o)=>{const c=cc();if(!c)return r(no);const nx={...c,...o};const n=nDays(nx);const cut=(c.acts||[]).filter(a=>n&&a.day>=n).length;if(cut&&!window.confirm(`縮短日期會移除 ${cut} 個活動，確定嗎？`))return r({ok:false,reason:'使用者沒有同意'});Object.assign(c,o);trimActs(c);render();return r({ok:true,error:err11(c)||null})}},
+  {name:'add_itinerary_activities',description:'在空檔加入一或多個活動（day 從 1 起，hour 7～22）',inputSchema:{type:'object',properties:{activities:{type:'array',items:{type:'object',properties:{day:{type:'number'},hour:{type:'number'},hours:{type:'number'},what:{type:'string'},where:{type:'string'},memo:{type:'string'},cat:{type:'string',enum:ACT_CATS}},required:['day','hour','what']}}},required:['activities']},execute:({activities})=>{const c=cc();if(!c)return r(no);const res=activities.map(a=>{const e=addAct(c,{day:a.day-1,h:a.hour,dur:a.hours,what:a.what,where:a.where,memo:a.memo,cat:a.cat});return {what:a.what,ok:!e,reason:e||undefined}});render();return r(res)}},
+  {name:'update_itinerary_activity',description:'修改一個活動的內容，或移到其他日子與時段',inputSchema:{type:'object',properties:{id:{type:'string'},day:{type:'number'},hour:{type:'number'},hours:{type:'number'},what:{type:'string'},where:{type:'string'},memo:{type:'string'},cat:{type:'string'}},required:['id']},execute:(o)=>{const c=cc();if(!c)return r(no);const a=(c.acts||[]).find(x=>x.id===o.id);if(!a)return r({ok:false,reason:'找不到活動'});const old={...a};c.acts=c.acts.filter(x=>x!==a);const e=addAct(c,{day:o.day!=null?o.day-1:old.day,h:o.hour??old.h,dur:o.hours??old.dur,what:o.what??old.what,where:o.where??old.where,memo:o.memo??old.memo,cat:o.cat??old.cat});if(e)c.acts.push(old);else c.acts[c.acts.length-1].id=old.id;render();return r({ok:!e,reason:e||undefined})}},
+  {name:'remove_itinerary_activity',description:'移除一個活動',inputSchema:{type:'object',properties:{id:{type:'string'}},required:['id']},execute:({id})=>{const c=cc();if(!c)return r(no);const k=(c.acts||[]).length;c.acts=(c.acts||[]).filter(a=>a.id!==id);render();return r({ok:c.acts.length<k})}},
+  {name:'clear_itinerary_activities',description:'清除整趟所有活動（需使用者確認）',inputSchema:{type:'object',properties:{}},execute:()=>{const c=cc();if(!c)return r(no);if(!window.confirm('要清除整趟所有活動嗎？'))return r({ok:false,reason:'使用者沒有同意'});c.acts=[];render();return r({ok:true})}},
+  {name:'set_map_view',description:'切換地圖顯示某一天（day）或整趟（省略 day）',inputSchema:{type:'object',properties:{day:{type:'number'}}},execute:({day})=>{S.map11=day?day-1:'all';render();return r({ok:true})}}];
+ try{if(mc.provideContext)mc.provideContext({tools});else if(mc.registerTool)tools.forEach(t=>mc.registerTool(t))}catch(_){}})();
+
+/* ================= 2-3j 小助理幫你說（示意：上線後由 Agent 5 即時翻譯；原型只示範日文＋英文） ================= */
+const SAY_SELF=['D02','D07','D20'];/* 使用者手上已經有的，不列 */
+const SAY_ISS={'醫院':['病院・クリニック','Hospital / Clinic'],'航空公司':['航空会社','Airline'],'飯店':['ホテル','Hotel'],'當地警察局':['警察署','Police station'],'駐外辦事處':['台北駐日経済文化代表処','Taipei Economic and Cultural Office'],'醫院或相關單位':['病院など','Hospital or related office']};
+const SAY_DOC={
+ D01:['遅延・欠航証明書','Flight delay or cancellation certificate','予定と実際の出発時刻（または遅延時間）、または欠航であることを記載してください。','Please state the scheduled and actual departure times (or the delay), or that the flight was cancelled.'],
+ D03:['振替便の航空券または変更証明','Ticket or change certificate for the rebooked flight','振替便の日付を記載してください。','Please include the date of the rebooked flight.'],
+ D04:['宿泊費の領収書（原本）','Original hotel receipt','宿泊者名・日付・場所・金額を記載してください。','Please include the guest name, dates, place and amount.'],
+ D06:['手荷物事故報告書（PIR）','Property Irregularity Report (PIR)','事故番号を記載してください。','Please include the report reference number.'],
+ D13:['診断書','Medical certificate','病名と受診日を記載してください。','Please include the diagnosis and the date of the visit.'],
+ D14:['医療費の領収書（原本）','Original receipt for medical expenses','原本をお願いします（コピーは不可）。','The original is required; copies are not accepted.'],
+ D15:['入院証明書','Certificate of hospitalization','入院日と退院日を記載してください。','Please include the admission and discharge dates.'],
+ D16:['被害届の受理証明','Police report certificate','届出日を記載してください。','Please include the date of the report.'],
+ D17:['再発行手数料の領収書','Receipt for the reissue fee','手数料の金額を記載してください。','Please include the fee amount.'],
+ D21:['取消理由の証明書','Proof of the cancellation reason','取消理由と日付がわかるように記載してください。','Please state the reason and the date.']};
+function sayDocs(t){if(closed(t))return [];return t.todos.filter(x=>x.st!=='na'&&DOCS[x.code].t==='now'&&!SAY_SELF.includes(x.code)&&ISSUER[x.code])}
+const sayKey=t=>sayDocs(t).map(x=>x.iid+x.code).join(',');
+function sayHTML(L){const t=curTrip();const ja=t.dest==='日本';
+ const head=`<div class="say-h"><div><h4 id="sayh">小助理幫你說</h4><p class="disc" style="margin:0">把手機拿給櫃檯人員看，對方就知道要開哪些文件。</p></div><button class="btn sm" data-act="close">關閉</button></div>`;
+ const wrap=inner=>`<div class="pop say" data-close="1"><div class="pop-card" role="dialog" aria-modal="true" aria-labelledby="sayh">${head}${inner}</div></div>`;
+ if(L.loading)return wrap(`<p class="say-load" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>正在翻譯…（Agent 5）</p>`);
+ const xs=sayDocs(t);const iss=[...new Set(xs.map(x=>ISSUER[x.code]))];
+ const line=(a,b,zh,big)=>`<div class="sl${big?' big':''}">${ja&&a?`<p class="l1">${a}</p>`:''}${b?`<p class="${ja?'l2':'l1'}">${b}</p>`:''}<p class="zh">${zh}</p></div>`;
+ const seen=new Set();
+ const secs=iss.map(u=>{const lab=SAY_ISS[u]||[u,u];const items=xs.filter(x=>ISSUER[x.code]===u&&!seen.has(x.code)&&seen.add(x.code));if(!items.length)return '';
+  return `<section class="say-sec"><p class="say-iss">${ja?lab[0]+' / ':''}${lab[1]}<span>（${u}）</span></p>${items.map(x=>{const d=SAY_DOC[x.code]||[null,DOCS[x.code].n,'',''];const zh=(DOCS[x.code].notes||[]).join('；');
+   return `<div class="say-doc">${line(d[0]&&('■ '+d[0]),(ja?'':'■ ')+d[1],DOCS[x.code].n,true)}<div class="say-need">${line(d[2],d[3],zh)}</div></div>`}).join('')}</section>`}).join('');
+ return wrap(`<div class="say-body"><div class="say-req">${line('旅行保険の保険金請求のため、以下の書類の発行をお願いします。','I need the following documents for a travel insurance claim. Could you please issue them?','申請旅遊保險理賠，需要以下文件，麻煩您開立。',true)}</div>
+ ${secs}<div class="say-thx">${line('ご協力ありがとうございます。','Thank you for your help.','謝謝您的協助。',true)}</div></div>
+ <p class="disc say-foot">${ja?'':'原型只示範日文；其他地區上線後會顯示當地語言＋英文。'}不顯示姓名、保單號碼與金額。示意：上線後由 Agent 5 依理賠文件規則即時翻譯，翻好後跟著事故存下。</p>`)}
+
 function term(i){return `<button class="iname" data-item="${i}"><span>${ITEMS[i].n}</span>${IC.info}</button>`}
 /* 比較表格子：金額（粗）＋給付條件（細） */
 function cellOf(k,i,sum){if(!covered(k,i))return {main:'不在保障範圍',na:1};const p=PLANS[k],v=p.v[i],a=amount(k,i,sum);
@@ -1190,7 +1367,7 @@ function cellOf(k,i,sum){if(!covered(k,i))return {main:'不在保障範圍',na:1
  if(i==='bdelay')return {main:money(v.a),sub:`延誤滿 ${v.h} 小時給付`};
  return {main:`最高 ${money(v)}`,sub:'依收據實支實付'}}
 function scr13(){const c=curComp(),R=c.result;
- if(R.none)return `<div class="wrap narrow stack">${pageHead(F1,'沒有符合條件的方案','請調整年齡、目的地或日期後再試一次。')}<div class="actions"><button class="btn" data-act="go" data-to="1-1">上一步</button></div></div>`;
+ if(R.none)return `<div class="wrap narrow stack">${pageHead(F1,'沒有符合條件的方案','請調整目的地或日期後再試一次。')}<div class="actions"><button class="btn" data-act="go" data-to="1-1">上一步</button></div></div>`;
  const {rec:r,alt:a,days}=R;const sums={},prem={};[r,a].filter(Boolean).forEach(k=>{sums[k]=sumOf(c,k);prem[k]=premOf(c,k)});
  const card=(k,isRec)=>{const p=PLANS[k],adj=sums[k]!==R.sums[k];return `<article class="plan${isRec?' recommended-card':''}" aria-label="${isRec?'推薦':'次推薦'}方案"><div class="ptag">${isRec?'推薦':'次推薦'}</div>
   <div class="co">${CO[p.co].n}</div><div class="pn">${p.n}</div>
@@ -1308,7 +1485,7 @@ function scr23(){const t=curTrip();const incs=[...t.incidents].sort(byDate);cons
  const now=list('now'),home=list('home');
  const qa=cl?`<section class="card pad"><p class="disc" style="margin:0">此行程已結案，只能查看與下載文件。</p></section>`:`<section class="card qa-card${nw?' is-new':''}" aria-labelledby="h23e"><span class="grab" aria-hidden="true"></span>
   <div class="qhead"><div class="qh-row"><span class="qh-k">${nw?'新的對話 · 草稿':'這個事故的問答'}</span><span style="flex:1"></span>${nw?'<button class="btn sm" data-act="cancelChg">取消</button>':''}<button class="btn sm qa-close" data-act="qaclose">收起</button></div><h2 class="stitle" id="h23e">${nw?'有新狀況':si?incLabel(si):'問答'}</h2></div>
-  <div class="chat" id="chat" aria-live="polite">${qa23HTML(t)||`<p class="disc">${nw?'':'這個事故還沒有問答。可以問任何跟這個事故理賠有關的問題。'}</p>`}</div>
+  <div class="chatbox"><div class="chat" id="chat" aria-live="polite">${qa23HTML(t)||`<p class="disc">${nw?'':'這個事故還沒有問答。可以問任何跟這個事故理賠有關的問題。'}</p>`}</div>${nw?'':`<div class="chat-foot"><button class="newinc" type="button" id="newinc" data-act="update" title="同一趟旅行又發生新的事故時按這裡，會開一段新的對話。補充或修正既有事故，請直接在這裡問。">＋ 有新狀況</button></div>`}</div>
   ${dSel&&chipsFor(dr).length?`<div class="chips">${chipsFor(dr).map(c=>`<button class="chip" data-chip="${esc(c)}">${esc(c)}</button>`).join('')}</div>`:''}
   <div class="ask"><input class="inp" id="f-q" maxlength="300" placeholder="${dSel?(dr.ask?'回答上面的問題，或點選項':'描述新發生的事'):'關於這個事故的任何問題'}" aria-label="問題" value="${esc(S.qa)}"><span class="cnt" id="qcnt">${S.qa.length}/300</span><button class="btn pri" id="b-q" data-act="ask23" ${S.qa.trim()?'':'disabled'}>送出</button></div>
   <p class="disc">回答由 AI 依條款整理，實際以保險公司審核為準。</p></section>`;
@@ -1316,13 +1493,13 @@ function scr23(){const t=curTrip();const incs=[...t.incidents].sort(byDate);cons
  <div class="card bar"><h1 class="bt" style="margin:0">${t.dest} ${rangeF(t.start,t.end)}</h1><span class="bm">${planName(t.plan)} · ${wan(t.sum)}</span><span class="prog">${compText(t)}</span>${cl?'<span class="pill closed">已結案</span>':''}</div>
  <div class="split${S.qaopen?' qaopen':''}"><div class="lcol">
  <section class="stack" style="gap:12px" aria-labelledby="h23a"><h2 class="stitle" id="h23a">狀況總結</h2>${sec}
-  ${cl?'':`<div class="newinc-wrap"><button class="newinc${nw?' on':''}" type="button" id="newinc" data-act="update">＋ 有新狀況</button><span class="disc">同一趟旅行又發生新的事故時按這裡，會開一段新的對話。補充或修正既有事故，請直接在該事故的問答裡說。</span></div>`}
+
   <p class="disc">以上為可能適用的項目，實際以保險公司審核為準。</p></section>
  ${mj.length?`<section class="card major" aria-labelledby="h23b"><h2 class="stitle" id="h23b" style="font-size:20px;line-height:30px">重大注意事項</h2><ol>${mj.map(m=>`<li>${m}</li>`).join('')}</ol></section>`:''}
  <section class="stack" style="gap:16px" aria-labelledby="h23c"><h2 class="stitle" id="h23c">理賠待辦</h2>
   ${all.total&&!all.open?`<p class="alldone">目前列出的待辦已完成，請依保險公司指示確認後續處理。</p>`:''}
   ${upBox(t,cl)}
-  <div class="card todos"><div class="head"><h3 class="stitle" style="font-size:20px;line-height:30px">事故當下</h3><span class="prog pill">${now.head}</span></div>${now.html}</div>
+  <div class="card todos"><div class="head"><h3 class="stitle" style="font-size:20px;line-height:30px">事故當下</h3><span class="prog pill">${now.head}</span>${sayDocs(t).length?`<button class="btn sm pri say-btn" data-act="say23">${IC.chat||''}小助理幫你說</button>`:''}</div>${now.html}</div>
   <div class="card todos"><div class="head"><h3 class="stitle" style="font-size:20px;line-height:30px">回國後整理</h3><span class="prog pill">${home.head}</span></div>${home.html}</div></section>
  ${sendHTML(t)}
  <div class="actions"><button class="btn push" data-act="home">完成</button></div></div>
@@ -1406,6 +1583,8 @@ function layerHTML(){const L=S.layer;if(!L)return '';
    <div class="actions"><button class="btn" data-act="sheet">返回</button></div>`,'bottom')}
   return pop('從過去的比較帶入',`<h4>從過去的比較帶入</h4><div class="rows">${cs.map(c=>compRow(c,'data-sheet="1"')).join('')}</div><div class="actions"><button class="btn" data-act="close">取消</button></div>`,'bottom')}
  if(L.k==='cf22'){const t=curTrip(),hasTodo=t.incidents.some(i=>judge(i,t).ok.length);return `<div class="pop cf22"><div class="pop-card" role="dialog" aria-modal="true" aria-labelledby="cf22h"><h4 id="cf22h">確認目前的狀況</h4><p class="disc">${hasTodo?'請確認以下內容是否正確。確認後會產生理賠待辦，並進入待辦事項。':'目前還有事項需要確認，暫時不會產生待辦。可以先補充，或進入行程頁後在問答裡補充。'}</p><div class="cfb">${t.incidents.map(i=>cfCard(i,t)).join('')}<p class="disc">以上為可能適用的項目，實際以保險公司審核為準。</p></div><div class="actions"><button class="btn" data-act="cf22more">還要補充或修改</button><button class="btn pri" data-act="cf22ok">${hasTodo?'確認，進入待辦事項':'確認，進入行程頁'}</button></div></div></div>`}
+ if(L.k==='say')return sayHTML(L);
+ if(L.k==='act')return actHTML(L);
  if(L.k==='cf25')return pop('確認結案',`<h4>${L.mode==='self'?'確定自己處理？':'確定寄出？'}</h4><p>選擇後此行程即結案，之後無法再新增狀況或修改。</p><div class="actions"><button class="btn" data-act="close">取消</button><button class="btn pri" data-act="cf25ok">${L.mode==='self'?'確定':'確定寄出'}</button></div>`);
  if(L.k==='cfnf')return pop('尚未確認文件',`<h4>尚未確認文件，確定要打勾嗎？</h4><p class="disc">這項待辦的文件還沒齊。打勾後會標「未附文件」或「文件未齊」，送件時只附上已上傳的文件。</p><div class="actions"><button class="btn" data-act="close">回待辦清單</button><button class="btn pri" data-act="cfnfOk">我要打勾</button></div>`);
  if(L.k==='gdrive')return pop('Google Drive 授權',`<h4 style="display:flex;gap:10px;align-items:center">${G_LOGO}授權 Google Drive</h4><p>「好險有你」想要存取你的 Google 帳戶 suzy.chen@gmail.com：</p><ul style="margin:0;padding-left:20px"><li>把審核通過的理賠文件存在你自己的 Google Drive</li><li>寄送理賠信時從 Drive 取出這些文件</li></ul><p class="disc">本產品只在審核期間暫存你的文件，審核完成後即刪除；Drive 權限只用來存取本產品上傳的理賠文件。</p><div class="actions"><button class="btn" data-act="close">取消</button><button class="btn pri" data-act="gdriveOk">允許</button></div>`);
@@ -1417,7 +1596,7 @@ function layerHTML(){const L=S.layer;if(!L)return '';
  return ''}
 
 /* ================= 渲染 ================= */
-const TITLES={'0-2':'登入','0-1':'首頁','0-6':'全部紀錄','1-1':'輸入旅遊背景','1-2':'推薦保障重點','1-3':'推薦方案與比較表','1-4':'情境試算與問答','2-1':'建立行程','2-2':'描述事故','2-3':'行程頁','2-5':'送件'};
+const TITLES={'0-2':'登入','0-1':'首頁','0-6':'全部紀錄','1-1':'規劃旅遊日程','1-2':'推薦保障重點','1-3':'推薦方案與比較表','1-4':'情境試算與問答','2-1':'建立行程','2-2':'描述事故','2-3':'行程頁','2-5':'送件'};
 function render(){
  const map={'0-2':scrLogin,'0-1':scrHome,'0-6':scrAll,'1-1':scr11,'1-2':scr12,'1-3':scr13,'1-4':scr14,'2-1':scr21,'2-2':scr22,'2-3':scr23,'2-5':scr25};
  const H=document.getElementById('hdr');H.hidden=S.screen==='0-2';if(!H.hidden)H.innerHTML=hdr();
@@ -1438,9 +1617,9 @@ root.addEventListener('input',e=>{const t=e.target,c=curComp();
  if(t.dataset.adj&&c){c.adj=c.adj||{};c.adj[t.dataset.adj]=+t.value;touch(c);render();document.getElementById(t.id)?.focus();return}
  if(t.id==='f-subj'||t.id==='f-body'){S.mail[t.id==='f-subj'?'subj':'body']=t.value;const m=S.mail;const left=(m.body.match(/（請填寫）/g)||[]).length+(m.subj.includes('（請填寫）')?1:0);
   document.getElementById('b-send').disabled=!!left;document.getElementById('e25').textContent=left?`還有 ${left} 處「（請填寫）」要填（保單號碼、被保險人姓名、聯絡電話）。`:'';return}
- if(S.screen==='1-1'&&c){if(t.id==='f-dest')c.dest=t.value;if(t.id==='f-dep')c.dep=t.value;if(t.id==='f-ret')c.ret=t.value;if(t.id==='f-age')c.age=t.value===''?'':+t.value;
+ if(S.layer&&S.layer.k==='act'&&t.id&&t.id.startsWith('a-')){const L=S.layer,k=t.id.slice(2);L[k]=k==='dur'?+t.value:t.value;const b=document.getElementById('b-act');if(b)b.disabled=!L.what.trim();return}
+ if(S.screen==='1-1'&&c){if(t.id==='f-dest')c.dest=t.value;if(t.id==='f-city')c.city=t.value;if(t.id==='f-dep')c.dep=t.value;if(t.id==='f-ret')c.ret=t.value;if(t.id==='f-dep'||t.id==='f-ret')trimActs(c);
   let pos=null;try{pos=t.selectionStart}catch(_){}render();const el=document.getElementById(t.id);if(el){el.focus();try{if(pos!=null)el.setSelectionRange(pos,pos)}catch(_){}};return}
- if(t.id==='f-note'&&c){c.note=t.value;const sm=t.parentElement.querySelector('small');if(sm)sm.textContent=`補充說明會納入推薦考量，問答時也會參考。（${t.value.length}/200）`;return}
  if(S.screen==='2-1'){const f=S.f21;
   if(f.auto&&['f-co','f-plan','f-sum','f-dest2','f-s'].includes(t.id))f.auto=f.auto.filter(k=>k!=={'f-co':'company','f-plan':'plan','f-sum':'sum','f-dest2':'dest','f-s':'start'}[t.id]);
   if(t.id==='f-co'){f.company=t.value;f.plan='';f.sum=''}if(t.id==='f-plan'){f.plan=t.value;f.sum=''}if(t.id==='f-sum')f.sum=t.value;if(t.id==='f-dest2')f.dest=t.value;if(t.id==='f-s')f.start=t.value;if(t.id==='f-e')f.end=t.value;
@@ -1515,6 +1694,10 @@ root.addEventListener('click',e=>{
  if(d.item){S.layer={k:'pop',item:d.item};render();return}
  if(d.termk){S.layer={k:'pop',term:d.termk};render();return}
  if(d.con){const c=curComp(),i=c.concerns.indexOf(d.con);if(i>=0)c.concerns.splice(i,1);else if(c.concerns.length<3)c.concerns.push(d.con);render();document.querySelector(`[data-con="${d.con}"]`)?.focus();return}
+ if(d.d11!==undefined){S.d11=+d.d11;render();document.querySelector(`[data-d11="${d.d11}"]`)?.focus();return}
+ if(d.map11!==undefined){S.map11=d.map11==='all'?'all':+d.map11;render();return}
+ if(d.slot){S.layer={k:'act',day:S.d11||0,h:+d.slot,what:'',where:'',memo:'',cat:'探索',dur:1};render();setTimeout(()=>document.getElementById('a-what')?.focus(),0);return}
+ if(d.delact){const c=curComp();c.acts=c.acts.filter(x=>x.id!==d.delact);render();toast('已刪除活動');return}
  if(d.tab){S.tab=d.tab;render();document.querySelector(`[data-tab="${d.tab}"]`)?.focus();return}
  if(d.faq!==undefined){if(S.wait14)return;const c=curComp();const an=faqA(+d.faq,c);an.tpl=false;reply14(c,FAQS[+d.faq],an);return}
  if(d.chip){if(S.screen==='2-3')send23(d.chip);else send22(d.chip);return}
@@ -1530,9 +1713,12 @@ root.addEventListener('click',e=>{
   close(){S.layer=null;render()},
   go(){go(d.to)},
   all(){S.allKind=d.k;go('0-6')},
-  new1(){S.draft={id:null,dest:'',dep:'',ret:'',age:'',concerns:[],note:'',progress:'bg',qa:[]};S.cur=null;go('1-1')},
+  new1(){S.draft={id:null,dest:'',dep:'',ret:'',age:30,city:'',acts:[],concerns:[],note:'',progress:'bg',qa:[]};S.cur=null;go('1-1')},
   new2(){S.f21=blank21();go('2-1')},
-  n11(){const c=curComp();if(!ok11(c))return;if(S.draft){const nc=mkComp({...S.draft,progress:'bg',last:tick()});S.comps.push(nc);S.draft=null;S.cur=nc.id}else touch(c);save();go('1-2')},
+  n11(){let c=curComp();if(!ok11(c))return;if(S.draft){const nc=mkComp({...S.draft,progress:'bg',last:tick()});nc.city=S.draft.city;nc.acts=S.draft.acts;S.comps.push(nc);S.draft=null;S.cur=nc.id;c=nc}else touch(c);if(!c.age)c.age=30;save();
+   if((c.acts||[]).length){if(c.preSig===aSig(c)){go('1-2');return}loadThen('正在看你的日程，找出要注意的風險…（Agent 3）',()=>{preselect(c);go('1-2')})}else{if(c.preSig){c.concerns=[];c.preSig='';c.note=''}c.risks=[];go('1-2')}},
+  saveAct(){const L=S.layer,c=curComp();if(!L.what.trim())return;const e=addAct(c,{day:L.day,h:L.h,dur:L.dur,what:L.what.trim(),where:L.where.trim(),memo:L.memo.trim(),cat:L.cat});if(e){toast(e);return}S.layer=null;render();toast(L.where.trim()?'已新增活動':'已新增活動；沒有地點，不會顯示在地圖上。')},
+  say23(){const t=curTrip();const key=sayKey(t);if(t.say&&t.say.key===key){S.layer={k:'say'};render();return}S.layer={k:'say',loading:true};render();setTimeout(()=>{t.say={key};if(S.layer&&S.layer.k==='say'){S.layer={k:'say'};render()}},matchMedia('(prefers-reduced-motion: reduce)').matches?200:1100)},
   n12(){const c=curComp();const ch=c.sig!==sig(c);
    if(c.progress==='rec'&&!ch){go('1-3');return}
    loadThen('正在比較方案…',()=>{c.result=recommend(c);c.adj={};c.sig=sig(c);c.progress='rec';S.showBasis=false;S.showAll=false;S.tab=null;touch(c);go('1-3')})},
@@ -1546,7 +1732,7 @@ root.addEventListener('click',e=>{
    else{t=mkTrip({plan:f.plan,sum:+f.sum,dest:f.dest,start:f.start,end:f.end,last:tick()});t.progress='desc';t.conv={mode:'first',msgs:[{w:'ai',t:OPEN.first,open:true}],incidents:t.incidents,involved:[],ask:null};S.trips.push(t)}
    t.stop='2-2';touch(t);S.curTrip=t.id;S.f21=null;go('2-2');toast('已存檔')},
   b22(){const t=curTrip();t.stop='2-1';S.f21=f21From(t);save();go('2-1')},
-  update(){const t=curTrip();if(t.draft&&t.draft.iid){toast('請先完成目前這個事故的補充。');return}if(!t.draft){startUpdate(t);touch(t)}S.newView=true;S.qaopen=true;S.qa='';render();alignEl('#newinc');document.getElementById('f-q')?.focus({preventScroll:true})},
+  update(){const t=curTrip();if(t.draft&&t.draft.iid){toast('請先完成目前這個事故的補充。');return}if(!t.draft){startUpdate(t);touch(t)}S.newView=true;S.qaopen=true;S.qa='';render();alignEl('.qa-card');document.getElementById('f-q')?.focus({preventScroll:true})},
   cf22more(){const t=curTrip();S.layer=null;t.conv.confirm=false;t.conv.msgs.push({w:'ai',t:'好的，請說明要補充或修改的地方。'});save();render();document.getElementById('f-m')?.focus()},
   cf22ok(){const t=curTrip();S.layer=null;t.conv.confirm=false;const n0=t.todos.length;finish22(t,t.conv);toast(t.todos.length>n0?'已產生理賠待辦。':'目前沒有待辦；待確認事項可以在該事故的問答裡補充。')},
   pickInc(){const t=curTrip();const o=selId(t);if(o)S.acc[o]=true;t.sel=d.iid;S.acc[d.iid]=true;S.newView=false;S.qaopen=true;S.qa='';render();alignInc()},
@@ -1580,10 +1766,10 @@ function doSend25(){const t=curTrip();const d=new Date();t.send={st:'sent',at:`$
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&S.layer&&S.layer.k!=='cf22'){S.layer=null;render()}});
 
 /* ================= 示範導覽（試用用，非產品功能） ================= */
-const JUMPS=[['0-2','登入'],['0-1','首頁'],['0-6','全部紀錄'],['1-1','1-1 背景'],['1-2','1-2 在意'],['1-3','1-3 推薦'],['1-4','1-4 試算問答'],['2-1','2-1 建立'],['2-2','2-2 描述'],['2-3','2-3 行程頁'],['2-5','2-5 送件']];
+const JUMPS=[['0-2','登入'],['0-1','首頁'],['0-6','全部紀錄'],['1-1','1-1 日程'],['1-2','1-2 保障重點'],['1-3','1-3 推薦'],['1-4','1-4 試算問答'],['2-1','2-1 建立'],['2-2','2-2 描述'],['2-3','2-3 行程頁'],['2-5','2-5 送件']];
 function J(k){S.logged=k!=='0-2';
  if(k==='0-2'){go('0-2');return}
- if(k==='1-1'){S.draft={id:null,dest:'',dep:'',ret:'',age:'',concerns:[],note:'',progress:'bg',qa:[]};S.cur=null;go('1-1');return}
+ if(k==='1-1'){S.draft={id:null,dest:'',dep:'',ret:'',age:30,city:'',acts:[],concerns:[],note:'',progress:'bg',qa:[]};S.cur=null;go('1-1');return}
  if(k==='0-6'){S.empty=false;syncSeg();S.allKind='comp'}
  if(k==='0-1'||k==='0-6'){ensure(k);go(k);return}
  if(k==='2-5')S.s25='ask';if(k==='2-1')S.f21=blank21();
@@ -1595,7 +1781,7 @@ function markJ(k){if(IN_PHONE){try{parent.postMessage({hx:1,type:'scr',k:S.scree
 const phoneOn=()=>document.body.classList.contains('phone-mode');
 function phoneSend(m){const f=document.getElementById('phoneFrame');if(f&&f.contentWindow)f.contentWindow.postMessage({hx:1,...m},'*')}
 window.addEventListener('message',e=>{const m=e.data;if(!m||!m.hx)return;
- if(IN_PHONE){if(m.type==='J')J(m.k);if(m.type==='empty'){S.empty=m.v;ensure('0-1');go('0-1')}if(m.type==='init'){S.empty=m.empty;J(m.k)}if(m.type==='demo6'){S.demoArmed=true;if(S.screen!=='2-3'){S.curTrip=S.trips.find(x=>x.progress==='sum'&&!closed(x)&&upOpen(x).length).id;J('2-3')}else render();setTimeout(()=>document.getElementById('upbox')?.scrollIntoView({block:'center',behavior:'smooth'}),50);toast(`示範已準備好：按「上傳理賠文件」開始處理 ${demoNames(curTrip()).length} 份示範文件。`)}}
+ if(IN_PHONE){if(m.type==='J')J(m.k);if(m.type==='empty'){S.empty=m.v;ensure('0-1');go('0-1')}if(m.type==='init'){S.empty=m.empty;J(m.k)}if(m.type==='demo11')demo11();if(m.type==='demo6'){S.demoArmed=true;if(S.screen!=='2-3'){S.curTrip=S.trips.find(x=>x.progress==='sum'&&!closed(x)&&upOpen(x).length).id;J('2-3')}else render();setTimeout(()=>document.getElementById('upbox')?.scrollIntoView({block:'center',behavior:'smooth'}),50);toast(`示範已準備好：按「上傳理賠文件」開始處理 ${demoNames(curTrip()).length} 份示範文件。`)}}
  else if(m.type==='scr'){PHONE_SCR=m.k;markJ(m.k)}});
 function setDev(dev){const on=dev==='phone';const st=document.getElementById('phoneStage');
  document.querySelectorAll('[data-dev]').forEach(b=>b.classList.toggle('on',b.dataset.dev===dev));
@@ -1610,11 +1796,13 @@ function syncSeg(){document.querySelectorAll('[data-d]').forEach(b=>b.classList.
  p.innerHTML=`<h5>跳到頁面</h5><div class="g">${JUMPS.map(([k,n])=>`<button data-jump="${k}">${n}</button>`).join('')}</div>
  <h5 class="dev-h">裝置</h5><div class="g dev-g"><button data-dev="desk" class="on">桌機</button><button data-dev="phone">手機</button></div>
  <h5>示範資料</h5><div class="g"><button data-d="full" class="on">有紀錄</button><button data-d="empty">新使用者</button></div>
+ <h5>1-1 範例</h5><div class="g"><button data-demo11="1">填入範例活動</button></div>
  <h5>示範上傳</h5><div class="g"><button data-demo6="1">2-3 示範上傳多份文件</button></div><p style="margin:0;color:var(--color-muted)">點了會先帶你到 2-3，按「上傳理賠文件」才開始處理。</p>
  <h5>試用提示</h5><p style="margin:0;color:var(--color-muted)">方案、金額、保費、條款代碼皆為示意資料。上傳理賠文件時，檔名含待辦關鍵字（如「住宿」「醫療收據」「登機證」）→ 對應並打勾；含「缺」→ 不合格（理賠申請書除外）；含「無原因」→ 通過但有提醒；含「需確認」→ 需要你確認；含「模糊」→ 無法辨識；含「風景」或對不到任何待辦 → 辨識失敗。</p>`;
  p.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
   if(b.dataset.dev){setDev(b.dataset.dev);return}
   if(b.dataset.demo6){if(phoneOn())phoneSend({type:'demo6'});else{S.demoArmed=true;if(S.screen!=='2-3'){S.curTrip=S.trips.find(x=>x.progress==='sum'&&!closed(x)&&upOpen(x).length).id;J('2-3')}else render();setTimeout(()=>document.getElementById('upbox')?.scrollIntoView({block:'center',behavior:'smooth'}),50);toast(`示範已準備好：按「上傳理賠文件」開始處理 ${demoNames(curTrip()).length} 份示範文件。`)}return}
+  if(b.dataset.demo11){if(phoneOn()){phoneSend({type:'demo11'});return}demo11();return}
   if(b.dataset.jump){if(phoneOn())phoneSend({type:'J',k:b.dataset.jump});else J(b.dataset.jump);return}
   if(b.dataset.d){if(phoneOn())phoneSend({type:'empty',v:b.dataset.d==='empty'});S.empty=b.dataset.d==='empty';syncSeg();if(S.screen==='0-1'||S.screen==='0-6')render();else{S.logged=true;ensure('0-1');go('0-1')}}});
  const fab=document.getElementById('demoFab');fab.onclick=()=>{p.hidden=!p.hidden;fab.setAttribute('aria-expanded',String(!p.hidden))};
