@@ -110,3 +110,86 @@ def test_cloud_clients_have_a_request_timeout_and_bounded_retries() -> None:
     ):
         assert client.request_timeout == 30  # pyright: ignore[reportAttributeAccessIssue]
         assert client.max_retries == 3  # pyright: ignore[reportAttributeAccessIssue]
+
+
+# ---- 條款問答專用的模型（#462）：luna 等推理模型帶工具要 reasoning_effort="none"，
+# gpt-4.1-mini 等非推理模型不認得這個參數（400），所以只在設定有值時、只給條款問答用 ----
+
+AZURE = {
+    "LLM_PROVIDER": "azure_openai",
+    "AZURE_OPENAI_ENDPOINT": "https://example.openai.azure.com",
+    "AZURE_OPENAI_API_KEY": "test-key",
+    "AZURE_OPENAI_CHAT_DEPLOYMENT": "chat",
+    "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "embedding",
+}
+
+
+def request_payload(model) -> dict:
+    """模型送出請求時的參數（不呼叫 Azure）。"""
+    from langchain_core.messages import HumanMessage
+
+    return model._get_request_payload([HumanMessage("hi")])
+
+
+def test_qa_model_without_setting_is_the_same_as_the_default_model() -> None:
+    from app.core.llm import get_qa_chat_model
+
+    s = Settings(**AZURE)  # pyright: ignore[reportArgumentType]
+    assert s.AZURE_OPENAI_QA_REASONING_EFFORT == ""
+
+    qa = get_qa_chat_model(s)
+
+    assert isinstance(qa, AzureChatOpenAI)
+    assert qa.reasoning_effort is None
+    assert "reasoning_effort" not in request_payload(qa)
+
+
+def test_qa_model_with_setting_carries_reasoning_effort_but_the_default_model_does_not() -> (
+    None
+):
+    from app.core.llm import get_qa_chat_model
+
+    s = Settings(**AZURE, AZURE_OPENAI_QA_REASONING_EFFORT="none")  # pyright: ignore[reportArgumentType]
+
+    qa = get_qa_chat_model(s)
+    default = get_chat_model(s)
+
+    assert isinstance(qa, AzureChatOpenAI)
+    assert qa.reasoning_effort == "none"
+    assert request_payload(qa)["reasoning_effort"] == "none"
+    # get_chat_model() 的行為不變：其他用 LLM 的地方都不帶
+    assert isinstance(default, AzureChatOpenAI)
+    assert default.reasoning_effort is None
+    assert "reasoning_effort" not in request_payload(default)
+
+
+@pytest.mark.parametrize(
+    ("config", "chat_cls"),
+    [
+        ({"LLM_PROVIDER": "openai", "OPENAI_API_KEY": "test-key"}, ChatOpenAI),
+        ({"LLM_PROVIDER": "ollama"}, ChatOllama),
+    ],
+)
+def test_qa_setting_only_applies_to_azure_openai(
+    config: dict[str, str], chat_cls: type
+) -> None:
+    from app.core.llm import get_qa_chat_model
+
+    s = Settings(**config, AZURE_OPENAI_QA_REASONING_EFFORT="none")  # pyright: ignore[reportArgumentType]
+
+    qa = get_qa_chat_model(s)
+
+    assert isinstance(qa, chat_cls)
+    assert getattr(qa, "reasoning_effort", None) is None
+
+
+def test_qa_model_for_the_fake_provider_is_unchanged() -> None:
+    from app.core.llm import get_qa_chat_model
+
+    s = Settings(
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+        LLM_PROVIDER="fake",
+        AZURE_OPENAI_QA_REASONING_EFFORT="none",
+    )
+
+    assert type(get_qa_chat_model(s)) is type(get_chat_model(s))

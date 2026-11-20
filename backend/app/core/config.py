@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     AZURE_OPENAI_API_VERSION: str = "2024-10-21"
     AZURE_OPENAI_CHAT_DEPLOYMENT: str | None = None
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT: str | None = None
+    # 只給 5 號條款問答的模型用（#462）：問答要帶工具，luna 等推理模型要設 none 才不會回 400；
+    # gpt-4.1-mini 等非推理模型不認得這個參數，要留空
+    AZURE_OPENAI_QA_REASONING_EFFORT: str = ""
 
     OPENAI_API_KEY: SecretStr | None = None
     OPENAI_CHAT_MODEL: str = "gpt-4.1-mini"
