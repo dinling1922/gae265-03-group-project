@@ -9,7 +9,7 @@ from app.agents.incident.adapters import (
 )
 from app.agents.incident.agent import IncidentAgentV1
 from app.core.config import settings
-from app.core.llm import get_chat_model
+from app.core.llm import get_chat_model, get_qa_chat_model
 
 
 def build_agent() -> IncidentAgentV1:
@@ -19,5 +19,6 @@ def build_agent() -> IncidentAgentV1:
         gate=jev_gate(key.get_secret_value()) if key else no_gate,
         extract=llm_extractor(model),
         revise=llm_reviser(model),
-        answer=agent_answerer(model),
+        # 條款問答要帶工具，另外取一個模型（設定有值時帶 reasoning_effort，#462）；取欄位與更正照舊
+        answer=agent_answerer(get_qa_chat_model()),
     )
