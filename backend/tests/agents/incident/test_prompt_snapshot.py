@@ -9,7 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from app.agents.incident.adapters import llm_extractor, llm_reviser
+from app.agents.incident.adapters import QA_PROMPT, llm_extractor, llm_reviser
 from app.contracts.common import FieldView
 
 SNAPSHOTS = Path(__file__).parent / "snapshots"
@@ -49,5 +49,14 @@ async def test_提示詞和快照一字不差(build, snapshot: str) -> None:
     expected = (SNAPSHOTS / snapshot).read_text(encoding="utf-8")
     assert prompt == expected, (
         f"提示詞和 snapshots/{snapshot} 不同。確認是有意的改動之後更新快照，"
+        "並重跑 make eval-incident。"
+    )
+
+
+def test_條款問答的提示詞和快照一字不差() -> None:
+    expected = (SNAPSHOTS / "qa_prompt.txt").read_text(encoding="utf-8")
+
+    assert QA_PROMPT + "\n" == expected, (
+        "條款問答的提示詞和 snapshots/qa_prompt.txt 不同。確認是有意的改動之後更新快照，"
         "並重跑 make eval-incident。"
     )

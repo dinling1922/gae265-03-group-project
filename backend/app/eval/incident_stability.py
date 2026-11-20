@@ -27,6 +27,7 @@ from app.agents.incident.agent import (
     NEW_SITUATION_MESSAGE,
 )
 from app.core.config import ROOT_DIR, settings
+from app.domain.chat.answer import NOT_COVERED
 
 DEFAULT_BASE = "http://localhost:8000/api/v1"
 MAX_TURNS = 15
@@ -35,7 +36,7 @@ UNKNOWN = "不知道"
 ASK_AGAIN = "沒有聽懂"  # 5 號重問同一題時的說法
 # 問答退回貼條款原文時的開頭（adapters._original）；出現就表示沒有白話說明
 ORIGINAL_NOTICE = "（無法產生白話說明，以下直接列出條款原文。）"
-FOLLOW_UP_KINDS = ("new_situation", "qa", "excluded", "applicable")
+FOLLOW_UP_KINDS = ("new_situation", "qa", "excluded", "applicable", "not_covered")
 
 
 @dataclass(frozen=True)
@@ -44,6 +45,8 @@ class FollowUp:
 
     - new_situation：回新狀況的固定訊息；qa：有出處的條款問答。這兩種都不能改動已記下的狀況與結論，
       所以前後一律比對。
+    - not_covered：問條文完全沒寫的事（#566），條款問答要回固定的「保單未載明」（不是白話說明、貼原文或
+      新狀況）；前後一樣比對狀況與結論。
     - excluded：旅客更正延誤時數或起飛時間（#384），重新判斷後結論要是不在保障範圍，劇本預期的文件
       不再適用；狀況會跟著更正，所以不比對狀況。
     - applicable：旅客補充了原本缺的資訊（#451），問完那一刻的結論還不是可申請，補充後重新判斷要變成可申請，
@@ -157,8 +160,13 @@ def judge_follow_up(
     if expect == "new_situation":
         if message != NEW_SITUATION_MESSAGE:
             return "沒有回新狀況的固定訊息"
+    elif expect == "not_covered":
+        if message != NOT_COVERED:
+            return "條文沒寫的事，條款問答沒有回保單未載明"
     elif message == NEW_SITUATION_MESSAGE:
         return "預期是條款問答，卻回了新狀況的固定訊息"
+    elif message == NOT_COVERED:
+        return "條款問答回了保單未載明"
     elif not reply.get("citations"):
         return "條款問答沒有出處"
     elif message.startswith(ORIGINAL_NOTICE):
@@ -404,10 +412,11 @@ def render_report(
         corrections = [
             s
             for s in with_follow_up
-            if s.follow_up and s.follow_up.expect in ("excluded", "applicable")
+            if s.follow_up
+            and s.follow_up.expect in ("excluded", "applicable", "qa", "not_covered")
         ]
         if corrections:
-            lines += ["### 更正、補充類後續句的每次回覆與結論", ""]
+            lines += ["### 後續句的每次回覆與結論", ""]
             for s in corrections:
                 for i, r in enumerate(results[s.name], 1):
                     lines.append(
