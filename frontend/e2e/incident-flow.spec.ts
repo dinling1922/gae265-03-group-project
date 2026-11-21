@@ -429,3 +429,94 @@ test("出事了：建立草稿前有文件在 Drive 上找不到，先列出來�
   // 攔截的回應可能還在向後端讀資料：測試結束前停掉，避免「Test ended」的錯誤
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
+
+// 按「好險有你小助理幫我送出」先授權 Drive、回到送件頁：停在詢問頁、顯示「已完成 Google Drive 授權」，
+// 接著跳 Gmail 的說明視窗；Gmail 也授權回來後才進預覽（2026-11-21）。
+// 測試登入不是 Google 帳號，用 page.route 模擬成 Google 登入，並把暫存設成剛從 Drive 授權回來。
+test("出事了：看預覽前先授權 Drive 回來，停在詢問頁並接著問 Gmail", async ({ page, request }) => {
+  const config = await (await request.get("/api/v1/auth/config")).json();
+  test.skip(!config.dev_login, "後端沒有設 DEV_LOGIN_ENABLED=true");
+  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
+
+  await page.goto("/login?next=%2F");
+  await page.getByLabel("Email").fill("e2e-incident-grant-steps@example.com");
+  await page.getByRole("button", { name: "測試登入" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const id = await readyIncident(page);
+
+  await page.route("**/api/v1/auth/me", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), login_provider: "google" },
+    });
+  });
+  let gmail = false;
+  await page.route("**/api/v1/auth/google/grant", (route) =>
+    route.fulfill({ json: { status: "active", drive: true, gmail } }),
+  );
+  await page.evaluate((key) => {
+    sessionStorage.setItem(
+      key,
+      JSON.stringify({ step: "ask", intent: "preview", purpose: "drive" }),
+    );
+  }, `incident-submit:${id}`);
+
+  await page.goto(`/incident/${id}/submit?google_auth=granted`);
+  await expect(page.getByTestId("google-auth-result")).toHaveText("已完成 Google Drive 授權。");
+  await expect(page.getByTestId("ask")).toBeVisible();
+  const consent = page.getByTestId("google-consent");
+  await expect(consent).toContainText("用你的 Gmail 寄出送件信", { timeout: SLOW });
+  await expect(page.getByTestId("preview")).toHaveCount(0);
+
+  // Gmail 也授權回來：進預覽
+  gmail = true;
+  await page.goto(`/incident/${id}/submit?google_auth=granted`);
+  await expect(page.getByTestId("google-auth-result")).toHaveText("已完成 Google Gmail 授權。");
+  await expect(page.getByTestId("preview")).toBeVisible({ timeout: SLOW });
+});
+
+// 「我自己處理就好 → 建立草稿」先授權 Drive 回來：不再跳「需要幫你在 Gmail 建立草稿嗎？」，
+// 直接接著問 Gmail；Gmail 也授權回來才再問一次草稿的問題，確認後才建（2026-11-21）。
+test("出事了：建立草稿前先授權 Drive 回來，不再重問草稿、直接問 Gmail", async ({
+  page,
+  request,
+}) => {
+  const config = await (await request.get("/api/v1/auth/config")).json();
+  test.skip(!config.dev_login, "後端沒有設 DEV_LOGIN_ENABLED=true");
+  test.skip(!(await request.get("/api/v1/plans")).ok(), "條款庫沒有載入，先 make seed");
+
+  await page.goto("/login?next=%2F");
+  await page.getByLabel("Email").fill("e2e-incident-draft-grant-steps@example.com");
+  await page.getByRole("button", { name: "測試登入" }).click();
+  await expect(page).toHaveURL(/\/$/);
+  const id = await readyIncident(page);
+
+  await page.route("**/api/v1/auth/me", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), login_provider: "google" },
+    });
+  });
+  let gmail = false;
+  await page.route("**/api/v1/auth/google/grant", (route) =>
+    route.fulfill({ json: { status: "active", drive: true, gmail } }),
+  );
+  await page.evaluate((key) => {
+    sessionStorage.setItem(key, JSON.stringify({ step: "ask", intent: "draft", purpose: "drive" }));
+  }, `incident-submit:${id}`);
+
+  await page.goto(`/incident/${id}/submit?google_auth=granted`);
+  await expect(page.getByTestId("google-auth-result")).toHaveText("已完成 Google Drive 授權。");
+  await expect(page.getByTestId("google-consent")).toContainText("用你的 Gmail 建立草稿", {
+    timeout: SLOW,
+  });
+  await expect(page.getByTestId("draft-question")).toHaveCount(0);
+
+  gmail = true;
+  await page.goto(`/incident/${id}/submit?google_auth=granted`);
+  await expect(page.getByTestId("google-auth-result")).toHaveText("已完成 Google Gmail 授權。");
+  await expect(page.getByTestId("draft-question")).toBeVisible({ timeout: SLOW });
+  await expect(page.getByTestId("google-consent")).toHaveCount(0);
+});

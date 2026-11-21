@@ -45,6 +45,8 @@ type Saved = {
   values?: Record<string, string>;
   recipient?: string;
   intent?: Intent;
+  /** 這次導去 Google 授權的是哪一項：回來時的提示寫「已完成 Google Drive／Gmail 授權」 */
+  purpose?: GooglePurpose;
 };
 const storeKey = (id: string) => `incident-submit:${id}`;
 function loadSaved(id: string): Saved {
@@ -181,7 +183,12 @@ export function SubmitFlow({
   const [recipient, setRecipient] = useState(saved.recipient ?? "");
   const [intent, setIntent] = useState<Intent>(saved.intent ?? "preview");
   const [consent, setConsent] = useState<GooglePurpose | null>(null);
-  const [askingDraft, setAskingDraft] = useState(saved.intent === "draft");
+  // 授權回來的是建立草稿：沒授權成功時再問一次草稿的問題；授權成功的等查到授權再決定（見下方 resume）
+  const [askingDraft, setAskingDraft] = useState(
+    () =>
+      saved.intent === "draft" &&
+      new URL(window.location.href).searchParams.get("google_auth") !== "granted",
+  );
   const [confirmingSend, setConfirmingSend] = useState(false);
   // 建立草稿前發現有文件在 Drive 上找不到：先列出來，使用者確定後才建（2026-11-21）
   const [confirmingDraft, setConfirmingDraft] = useState(false);
@@ -204,11 +211,23 @@ export function SubmitFlow({
 
   const closed = source.closed;
 
-  // 授權回來：原本要看預覽就直接進預覽；要寄出或建立草稿的，讓使用者再按一次確認
+  // 從 Google 授權回來的結果（網址上的 google_auth；GoogleAuthResult 顯示後會從網址拿掉）
+  const [authResult] = useState(() =>
+    new URL(window.location.href).searchParams.get("google_auth"),
+  );
+  // 看預覽或建立草稿前授權成功回來：還缺的授權接著問（例如 Drive 好了、接著問 Gmail），
+  // 不再回到前一個問題；都有了，看預覽的進預覽、建立草稿的再問一次草稿的問題確認（2026-11-21）
+  const [resume, setResume] = useState<"preview" | "draft" | null>(
+    authResult === "granted" && (saved.intent === "preview" || saved.intent === "draft")
+      ? saved.intent
+      : null,
+  );
+
+  // 授權回來：要看預覽但沒授權成功（取消等）照舊進預覽；要寄出或建立草稿的，讓使用者再按一次確認
   useEffect(() => {
-    if (saved.intent === "preview") setStep("preview");
-    if (saved.intent) writeSaved(id, { ...saved, intent: undefined });
-  }, [id, saved]);
+    if (saved.intent === "preview" && authResult !== "granted") setStep("preview");
+    if (saved.intent) writeSaved(id, { ...saved, intent: undefined, purpose: undefined });
+  }, [id, saved, authResult]);
 
   // 預覽時填的空格與收件者隨時暫存：切到「上傳文件」等其他頁再回來也接得上（#155 驗收 7-2 的回饋）。
   // 送件成功會清掉；「取消」回上一步時留著（2026-11-19）；結案後不再存
@@ -334,6 +353,16 @@ export function SubmitFlow({
     else void submit("draft");
   }
 
+  /** 還缺授權就記下要做的事、跳下一項的說明視窗（先 Drive 再 Gmail），回 true；都有了回 false。 */
+  function askGrant(next: Intent): boolean {
+    const needed = hasDocuments ? (["drive", "gmail"] as const) : (["gmail"] as const);
+    const missing = needed.find((p) => !grant.data?.[p]);
+    if (!missing) return false;
+    writeSaved(id, { step, values, recipient, intent: next, purpose: missing });
+    setConsent(missing);
+    return true;
+  }
+
   /**
    * 要做某件事之前：寄信與建草稿要用 Gmail；有上傳過文件時附件要從 Drive 讀，缺哪個先說明（先 Drive 再 Gmail）。
    * 沒上傳文件的使用者可能從沒授權 Drive，這時只問 Gmail。
@@ -342,17 +371,29 @@ export function SubmitFlow({
     setIntent(next);
     if (googleUser) {
       if (!grant.data) return setError("正在確認 Google 授權，請稍候再按一次。");
-      const needed = hasDocuments ? (["drive", "gmail"] as const) : (["gmail"] as const);
-      const missing = needed.find((p) => !grant.data?.[p]);
-      if (missing) {
-        writeSaved(id, { step, values, recipient, intent: next });
-        return setConsent(missing);
-      }
+      if (askGrant(next)) return;
     }
     if (next === "preview") setStep("preview");
     if (next === "send") void submit("send");
     if (next === "draft") void confirmDraft();
   }
+
+  // 授權回來、查到目前的授權後再判斷：還缺就停在詢問頁、跳下一項的說明視窗；
+  // 都有了，看預覽的進預覽、建立草稿的跳草稿的問題（建立前最後確認一次）。查不到授權狀態時不卡住
+  // biome-ignore lint/correctness/useExhaustiveDependencies: askGrant 每次 render 都是新函式，只在查到授權時跑一次
+  useEffect(() => {
+    if (!resume) return;
+    const done = () => (resume === "preview" ? setStep("preview") : setAskingDraft(true));
+    // 要等這次打開頁面重新查到的授權，不用快取裡授權前的舊狀態
+    if (grant.data && grant.isFetchedAfterMount && !grant.isFetching) {
+      setResume(null);
+      setIntent(resume);
+      if (!askGrant(resume)) done();
+    } else if (grant.isError || !googleUser) {
+      setResume(null);
+      done();
+    }
+  }, [resume, grant.data, grant.isFetchedAfterMount, grant.isFetching, grant.isError, googleUser]);
 
   /** 說明視窗按「先不要」：看預覽照樣進預覽；寄出留在預覽；建立草稿回到草稿的問題。 */
   function declineGrant() {
@@ -388,7 +429,11 @@ export function SubmitFlow({
           preview ? "請填好收件者和標色的地方，全部填完才能寄出。寄件者是你自己的 Gmail。" : meta
         }
       />
-      <GoogleAuthResult grantedText="已完成 Google Gmail 授權。" />
+      <GoogleAuthResult
+        grantedText={
+          saved.purpose === "drive" ? "已完成 Google Drive 授權。" : "已完成 Google Gmail 授權。"
+        }
+      />
       <GoogleConsentDialog
         purpose={consent}
         next={source.next}
