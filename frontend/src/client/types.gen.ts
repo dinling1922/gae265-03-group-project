@@ -341,7 +341,7 @@ export type AssistantSayOut = {
     /**
      * Language
      *
-     * 當地語言代碼（目前只有 ja）；只顯示英文時是 null
+     * 當地語言代碼（例如 ja、fr）；只顯示英文時是 null
      */
     language: string | null;
     request: SayLine;

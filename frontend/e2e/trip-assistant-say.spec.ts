@@ -43,7 +43,7 @@ const SAY = {
   },
 };
 
-async function setup(page: Page, name: string, description: string) {
+async function setup(page: Page, name: string, description: string, destination = "日本") {
   await login(page, `e2e-say-${name}-${Date.now()}@example.com`);
   const api = page.request;
   const options = await (await api.get("/api/v1/plans/fubon_advanced/sum-insured-options")).json();
@@ -57,7 +57,7 @@ async function setup(page: Page, name: string, description: string) {
       },
     })
   ).json();
-  await api.patch(`/api/v1/policies/${policy.id}`, { data: { destination: "日本" } });
+  await api.patch(`/api/v1/policies/${policy.id}`, { data: { destination } });
   const created = await (
     await api.post(`/api/v1/policies/${policy.id}/incidents`, { data: { description } })
   ).json();
@@ -231,4 +231,51 @@ test("翻譯失敗：看到中文清單和「翻譯失敗，再試一次」，�
   await expect(dialog.getByText(SAY.request.chinese)).toBeVisible();
   await expect(retry).toHaveCount(0);
   expect(calls).toBe(2);
+});
+
+// 只顯示英文的行程（#572）：當地語言是 null，每句只有英文＋中文兩行，段落標題不重複英文
+const englishOnly = (line: { english: string; chinese: string }) => ({
+  local: null,
+  english: line.english,
+  chinese: line.chinese,
+});
+const ENGLISH_ONLY = {
+  status: "ok",
+  language: null,
+  request: englishOnly(SAY.request),
+  sections: SAY.sections.map((section) => ({
+    unit: englishOnly(section.unit),
+    documents: section.documents.map((doc) => ({
+      code: doc.code,
+      name: englishOnly(doc.name),
+      items: doc.items.map(englishOnly),
+    })),
+  })),
+  thanks: englishOnly(SAY.thanks),
+};
+
+test("只顯示英文的行程：每句是英文＋中文兩行，段落標題不重複英文", async ({ page }) => {
+  const policyId = await setup(page, "english", "班機延誤了六小時", "美國");
+  await page.route("**/api/v1/policies/*/assistant-say", (route) =>
+    route.fulfill({ json: ENGLISH_ONLY }),
+  );
+  await page.goto(`/trip/${policyId}`);
+  await page.getByTestId("assistant-say-open").click();
+
+  const dialog = page.getByRole("dialog", { name: "小助理幫你說" });
+  const content = dialog.getByTestId("assistant-say-content");
+  await expect(content).toBeVisible();
+  // 請求：英文一行、中文小字一行，沒有當地語言那一行（沒有任何 lang="ja" 的段落）
+  const request = content.locator("div").filter({ hasText: SAY.request.chinese }).first();
+  await expect(request.locator("p")).toHaveCount(2);
+  await expect(request.locator("p").nth(0)).toHaveText(SAY.request.english);
+  await expect(request.locator("p").nth(1)).toHaveText(SAY.request.chinese);
+  await expect(content.locator("[lang=ja]")).toHaveCount(0);
+  // 段落標題：「英文（中文）」，英文只出現一次
+  const heading = content.getByRole("heading", { level: 3 });
+  await expect(heading).toHaveText("Airline（航空公司）");
+  expect((await heading.textContent())?.match(/Airline/g)).toHaveLength(1);
+  // 每個英文句子在畫面上只出現一次（沒有重複）
+  for (const text of [SAY.request.english, SAY.thanks.english])
+    await expect(content.getByText(text, { exact: true })).toHaveCount(1);
 });
