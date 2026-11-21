@@ -6,12 +6,34 @@
 
 from collections.abc import Awaitable, Callable
 
-from app.domain.assistant_say import JAPANESE, Translations
+from app.domain.assistant_say import Translations
 
 # 收到「句子 ID → 中文」與目標語言代碼（None＝只要英文），回傳 LLM 的原始輸出（Translations 或同形狀的 dict）
 Translator = Callable[[dict[str, str], str | None], Awaitable[object]]
 
-LANGUAGE_NAMES = {JAPANESE: "日文"}
+# 語言代碼 → 給翻譯員提示詞用的中文名稱（對照表用到的每個代碼都要有，有測試檢查）
+LANGUAGE_NAMES = {
+    "ja": "日文",
+    "ko": "韓文",
+    "th": "泰文",
+    "vi": "越南文",
+    "id": "印尼文",
+    "fr": "法文",
+    "de": "德文",
+    "it": "義大利文",
+    "es": "西班牙文",
+    "pt": "葡萄牙文",
+    "nl": "荷蘭文",
+    "cs": "捷克文",
+    "pl": "波蘭文",
+    "hu": "匈牙利文",
+    "el": "希臘文",
+    "is": "冰島文",
+    "nb": "挪威文",
+    "sv": "瑞典文",
+    "fi": "芬蘭文",
+    "da": "丹麥文",
+}
 
 SYSTEM_PROMPT = """你是旅遊保險的翻譯助理。旅客在國外出事，要把手機拿給櫃檯人員看，請對方開立理賠需要的文件。
 把使用者給的每一句中文翻成指定的語言，櫃檯人員看了馬上知道要開什麼文件。

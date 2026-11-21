@@ -20,16 +20,59 @@ from app.models import TodoTemplate
 REQUEST = "申請旅遊保險理賠，需要以下文件，麻煩您開立。"
 THANKS = "謝謝您的協助。"
 
-# 日本與日本的城市 → 日文。其他目的地的對照表在 #572，先一律只回英文
-JAPAN_PLACES = ("日本", "東京", "大阪", "京都", "北海道", "沖繩", "福岡", "名古屋")
-JAPANESE = "ja"
+# 目的地 → 當地語言（#572）：以 config/regions.json 的地名為範圍，語言由程式決定、不交給 LLM。
+# 語言代碼（ISO 639-1；挪威文用 nb）→ 這個語言的地名
+LOCAL_LANGUAGES: dict[str, tuple[str, ...]] = {
+    "ja": ("日本", "東京", "大阪", "京都", "北海道", "沖繩", "福岡", "名古屋"),
+    "ko": ("韓國", "首爾", "釜山"),
+    "th": ("泰國", "曼谷", "清邁", "普吉"),
+    "vi": ("越南", "河內", "胡志明", "峴港"),
+    "id": ("印尼", "峇里島"),
+    "fr": ("法國", "巴黎"),
+    "de": ("德國", "奧地利"),
+    "it": ("義大利", "羅馬"),
+    "es": ("西班牙", "墨西哥"),
+    "pt": ("葡萄牙",),
+    "nl": ("荷蘭",),
+    "cs": ("捷克",),
+    "pl": ("波蘭",),
+    "hu": ("匈牙利",),
+    "el": ("希臘",),
+    "is": ("冰島",),
+    "nb": ("挪威",),
+    "sv": ("瑞典",),
+    "fi": ("芬蘭",),
+    "da": ("丹麥",),
+}
+# 只顯示英文的地名：英語系國家（當地語言就是英文，不重複顯示）、多國或多語（猜哪一種都可能錯）、
+# 中文地區（彈出框本來就有中文小字，不另外翻中文）
+ENGLISH_ONLY_PLACES: tuple[str, ...] = (
+    # 英語系
+    "美國", "夏威夷", "紐約", "洛杉磯", "英國", "倫敦", "愛爾蘭", "澳洲", "紐西蘭",
+    # 多國或多語
+    "歐洲", "比利時", "瑞士", "加拿大", "新加坡", "馬來西亞", "吉隆坡", "沙巴", "菲律賓",
+    # 中文地區
+    "中國", "香港", "澳門",
+)  # fmt: skip
 
 
 def local_language_of(destination: str | None) -> str | None:
-    """目的地的當地語言代碼；判斷不出（或不需要另外顯示）是 None，只顯示英文。"""
-    if destination and any(place in destination for place in JAPAN_PLACES):
-        return JAPANESE
-    return None
+    """目的地的當地語言代碼；判斷不出（或不需要另外顯示）是 None，只顯示英文。
+
+    目的地字串比對所有地名，收集每個比到的結果（語言代碼，或「只顯示英文」）。
+    只有一種語言代碼、而且沒有其他結果時才用那個語言；沒比到、比到只顯示英文的地名、
+    或比到兩種以上（例如「法國、義大利」「日本、夏威夷」）一律只顯示英文，不猜。
+    """
+    if not destination:
+        return None
+    hits: set[str | None] = {
+        code
+        for code, places in LOCAL_LANGUAGES.items()
+        if any(place in destination for place in places)
+    }
+    if any(place in destination for place in ENGLISH_ONLY_PLACES):
+        hits.add(None)
+    return hits.pop() if len(hits) == 1 else None
 
 
 @dataclass(frozen=True)
@@ -188,7 +231,7 @@ class AssistantSayOut(BaseModel):
         ),
     )
     language: str | None = Field(
-        description="當地語言代碼（目前只有 ja）；只顯示英文時是 null"
+        description="當地語言代碼（例如 ja、fr）；只顯示英文時是 null"
     )
     request: SayLine
     sections: list[SaySectionOut]
