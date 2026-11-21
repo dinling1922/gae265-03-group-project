@@ -73,7 +73,7 @@ async function setup(page: Page, name: string, description: string) {
 /** 翻譯的 API 換成固定回應，並先等一下，才看得到「正在翻譯…」。 */
 async function fakeTranslation(page: Page) {
   await page.route("**/api/v1/policies/*/assistant-say", async (route) => {
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await new Promise((resolve) => setTimeout(resolve, 1200));
     await route.fulfill({ json: SAY });
   });
 }
@@ -138,4 +138,34 @@ test("按「關閉」回到行程頁", async ({ page }) => {
   await expect(dialog).toHaveCount(0);
   await expect(page.getByTestId("trip-title")).toBeVisible();
   await expect(page.getByTestId("assistant-say-open")).toBeVisible();
+});
+
+test("第二次打開（重新整理頁面後）不會出現「正在翻譯…」，直接顯示後端存下的內容", async ({
+  page,
+}) => {
+  // 這個測試走真實的翻譯員（要證明是後端存的，不是前端快取），沒有可用的 LLM 就略過
+  test.setTimeout(120_000);
+  const policyId = await setup(page, "saved", "班機延誤了六小時");
+  const first = await page.request.post(`/api/v1/policies/${policyId}/assistant-say`, {
+    timeout: 90_000,
+  });
+  test.skip(!first.ok(), `翻譯員不能用（${first.status()}），略過`);
+
+  // 重新載入頁面（前端沒有任何快取），記下「正在翻譯…」有沒有出現過，再打開
+  await page.addInitScript(() => {
+    const w = window as unknown as { sawTranslating?: boolean };
+    new MutationObserver(() => {
+      if (document.body?.textContent?.includes("正在翻譯…")) w.sawTranslating = true;
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  });
+  await page.goto(`/trip/${policyId}`);
+  await page.reload();
+  await page.getByTestId("assistant-say-open").click();
+
+  const dialog = page.getByRole("dialog", { name: "小助理幫你說" });
+  await expect(dialog.getByTestId("assistant-say-content")).toBeVisible({ timeout: 5000 });
+  await expect(dialog.getByText("航空公司", { exact: false }).first()).toBeVisible();
+  expect(
+    await page.evaluate(() => (window as unknown as { sawTranslating?: boolean }).sawTranslating),
+  ).toBeFalsy();
 });

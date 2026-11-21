@@ -1,9 +1,12 @@
 import { useMutation } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createAssistantSayMutation } from "../../client/@tanstack/react-query.gen";
 import type { SayLine } from "../../client/types.gen";
 import { btn } from "../../components/ui/buttons";
 import { Dialog } from "../../components/ui/DialogShell";
+
+/** 打開後超過這麼久還沒回來，才顯示「正在翻譯…」（毫秒）。 */
+const SLOW_MS = 300;
 
 /** 一句話：當地語言（最大）、英文、中文小字三行並列；只顯示英文時沒有當地語言那一行。 */
 function Say({ line, level = "body" }: { line: SayLine; level?: "lead" | "unit" | "body" }) {
@@ -41,6 +44,13 @@ export function AssistantSayDialog({
     if (open) mutate({ path: { policy_id: policyId } });
     else reset();
   }, [open, policyId, mutate, reset]);
+  // 翻好的內容後端有存（#570）：再打開幾乎馬上回來，這時不閃一下「正在翻譯…」；等超過一下才顯示
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!isPending) return setSlow(false);
+    const timer = window.setTimeout(() => setSlow(true), SLOW_MS);
+    return () => window.clearTimeout(timer);
+  }, [isPending]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -60,7 +70,7 @@ export function AssistantSayDialog({
             把手機拿給櫃檯人員看，對方就知道要開哪些文件。
           </Dialog.Description>
 
-          {isPending && (
+          {isPending && slow && (
             <p role="status" className="m-0 py-6 text-xl text-heading">
               正在翻譯…
             </p>

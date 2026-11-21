@@ -4,6 +4,8 @@
 語言也由程式決定；LLM（Agent 5）只把程式組好的中文句子翻成當地語言與英文，不產生任何內容或數字（ADR-0004）。
 """
 
+import hashlib
+import json
 import re
 from dataclasses import dataclass
 
@@ -107,6 +109,19 @@ def sentences_of(sections: list[SaySection]) -> dict[str, str]:
                 out[f"item{u}_{d}_{i}"] = item
     out["thanks"] = THANKS
     return out
+
+
+def fingerprint(sentences: dict[str, str], language: str | None) -> str:
+    """要翻譯的句子（句子 ID → 中文）加目標語言的指紋。
+
+    文件清單、開立單位、文件名稱、請櫃檯載明的項目、語言任何一個變了都不一樣；勾選完成不影響。
+    """
+    canonical = json.dumps(
+        {"sentences": sentences, "language": language},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 class Translation(BaseModel):

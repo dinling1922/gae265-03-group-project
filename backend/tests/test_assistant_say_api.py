@@ -368,3 +368,150 @@ async def test_翻譯員丟出錯誤_回_502(
     assert response.status_code == 502
     assert "翻譯失敗" in response.json()["detail"]
     assert len(translator.calls) == 1
+
+
+# ---- 存下翻好的內容（#570）：整個行程存一份，清單或語言變了才重翻 ----
+
+
+async def test_第二次打開不再呼叫翻譯員_內容和第一次一樣(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D01": {}})
+
+    first = await say(client, policy)
+    second = await say(client, policy)
+
+    assert second == first
+    assert len(translator.calls) == 1
+
+
+async def test_新增有事故當下文件的事件後再打開_重新翻譯_內容有新的文件(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D01": {}}, title="班機延誤")
+    assert listed_codes(await say(client, policy)) == ["D01"]
+
+    await add_incident(session, policy, {"D13": {}}, title="就醫")
+    body = await say(client, policy)
+
+    assert sorted(listed_codes(body)) == ["D01", "D13"]
+    assert len(translator.calls) == 2
+
+
+async def test_待辦變成不適用後再打開_重新翻譯_不再列那份文件(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D13": {}, "D14": {}})
+    assert listed_codes(await say(client, policy)) == ["D13", "D14"]
+
+    todo = (
+        await session.exec(
+            select(IncidentTodo).where(IncidentTodo.document_code == "D14")
+        )
+    ).one()
+    todo.applicable = False
+    session.add(todo)
+    await session.commit()
+    body = await say(client, policy)
+
+    assert listed_codes(body) == ["D13"]
+    assert len(translator.calls) == 2
+
+
+async def test_只是勾選完成某項待辦_不重新翻譯(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D13": {}, "D14": {}})
+    first = await say(client, policy)
+
+    todo = (
+        await session.exec(
+            select(IncidentTodo).where(IncidentTodo.document_code == "D13")
+        )
+    ).one()
+    todo.status = "done"
+    todo.done_by = "user"
+    session.add(todo)
+    await session.commit()
+
+    assert await say(client, policy) == first
+    assert len(translator.calls) == 1
+
+
+async def test_請櫃檯載明的項目改了再打開_重新翻譯(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D13": {}})
+    await say(client, policy)
+
+    # 模擬 Leon 改了理賠文件規則、重跑 seed
+    for template in (
+        await session.exec(
+            select(TodoTemplate).where(TodoTemplate.document_code == "D13")
+        )
+    ).all():
+        template.counter_items = ["病名、就診日期、醫師簽章"]
+        session.add(template)
+    await session.commit()
+    body = await say(client, policy)
+
+    assert len(translator.calls) == 2
+    items = body["sections"][0]["documents"][0]["items"]
+    assert [i["chinese"] for i in items] == ["病名、就診日期、醫師簽章"]
+
+
+async def test_翻譯員出錯後再打開_會再呼叫翻譯員_失敗不存(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D01": {}})
+
+    translator.error = RuntimeError("LLM 掛了")
+    assert (
+        await client.post(f"/policies/{policy.id}/assistant-say")
+    ).status_code == 502
+    translator.error = None
+    body = await say(client, policy)
+
+    assert listed_codes(body) == ["D01"]
+    assert len(translator.calls) == 2
+    # 成功之後存下；清單變了又翻譯失敗時，不覆蓋舊的那筆：清單改回去就直接用舊的，不再呼叫
+    await add_incident(session, policy, {"D13": {}}, title="就醫")
+    translator.error = RuntimeError("LLM 又掛了")
+    assert (
+        await client.post(f"/policies/{policy.id}/assistant-say")
+    ).status_code == 502
+    todo = (
+        await session.exec(
+            select(IncidentTodo).where(IncidentTodo.document_code == "D13")
+        )
+    ).one()
+    todo.applicable = False
+    session.add(todo)
+    await session.commit()
+
+    assert await say(client, policy) == body
+    assert len(translator.calls) == 3
