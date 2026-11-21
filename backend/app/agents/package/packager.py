@@ -486,10 +486,9 @@ def _message(
 
 @dataclass(frozen=True)
 class _Attachments:
-    """附件檢查的結果：要附的、取不到又一定要附的（擋寄出）、取不到但信上寫另行提供的。"""
+    """附件檢查的結果：要附的、取不到所以信上寫另行提供的待辦、取不到的文件（給畫面提示）。"""
 
     attachments: list[AttachmentRef]
-    blocking: frozenset[uuid.UUID]
     unattached: frozenset[uuid.UUID]
     unavailable: list[UnavailableAttachment]
 
@@ -505,10 +504,8 @@ class _Attachments:
             body="\n\n".join(s for s in sections if s),
             attachments=self.attachments,
             # 還沒做的待辦；「不適用」不算缺漏，使用者自行勾選、未附文件的算完成。
-            # 需上傳、文件卻在 Drive 上取不到的也算還缺（契約 v2.8）
-            missing_todo_ids=[
-                t.id for t in todos if t.status == "pending" or t.id in self.blocking
-            ],
+            # 文件在 Drive 上取不到的不算還缺：信上寫另行提供，使用者確認後可以寄出（2026-11-21）
+            missing_todo_ids=[t.id for t in todos if t.status == "pending"],
             unavailable_attachments=self.unavailable,
             recipient_hint=recipient_hint,
         )
@@ -595,14 +592,10 @@ class GmailClaimPackager:
             if d.id in unavailable and d.todo_id not in attached_todos
         ]
         by_id = {t.id: t for t in todos}
-        lost_todo_ids = {d.todo_id for d in lost if d.todo_id in by_id}
-        # 需上傳的一定要處理，不能寄出：列為還缺的待辦，平台就會擋下（2026-11-08 決定）；
-        # 不需上傳的，信上寫另行提供
-        blocking = frozenset(
-            i for i in lost_todo_ids if i is not None and by_id[i].requires_upload
-        )
+        # 信上寫另行提供，需上傳的也一樣：使用者可以不還原就寄出，寄出前畫面會再提醒一次
+        # （2026-11-21，取代 2026-11-08「需上傳的處理好才能寄出」）
         unattached = frozenset(
-            i for i in lost_todo_ids if i is not None and i not in blocking
+            d.todo_id for d in lost if d.todo_id is not None and d.todo_id in by_id
         )
         return _Attachments(
             attachments=[
@@ -613,7 +606,6 @@ class GmailClaimPackager:
                 )
                 for d in available
             ],
-            blocking=blocking,
             unattached=unattached,
             unavailable=[
                 UnavailableAttachment(
