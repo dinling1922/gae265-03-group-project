@@ -183,6 +183,8 @@ export function SubmitFlow({
   const [consent, setConsent] = useState<GooglePurpose | null>(null);
   const [askingDraft, setAskingDraft] = useState(saved.intent === "draft");
   const [confirmingSend, setConfirmingSend] = useState(false);
+  // 建立草稿前發現有文件在 Drive 上找不到：先列出來，使用者確定後才建（2026-11-21）
+  const [confirmingDraft, setConfirmingDraft] = useState(false);
   // 7 號沒有整個行程的版本時沒有草稿的問題：自己處理直接確認後結案
   const [confirmingSelf, setConfirmingSelf] = useState(false);
   const [pkg, setPkg] = useState<ClaimPackage | null>(null);
@@ -193,8 +195,8 @@ export function SubmitFlow({
   const [result, setResult] = useState<SubmissionOut | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 建立草稿時因為一定要附上的文件找不到被擋下：詢問頁顯示提示框，說明用「建立草稿」
-  const [draftBlocked, setDraftBlocked] = useState(false);
+  // 重新讀送件包中（「重新檢查」、回到這頁自動更新、按寄出前再確認）
+  const [rechecking, setRechecking] = useState(false);
   // 寄出或建立草稿成功後的說明視窗：信在 Gmail 的哪裡、連結打開那封信
   const [showGmail, setShowGmail] = useState(false);
   // 寄出或建立草稿中：等後端回來前顯示等待視窗（自己處理不用等 Gmail，不顯示）
@@ -254,8 +256,8 @@ export function SubmitFlow({
   const blanks = filled ? missingItems(filled.subject, filled.body) : [];
   // 被保險人姓名、聯絡電話的格式（送件 API 也擋）
   const formatProblems = Object.values(fillProblems(values));
-  // 7 號在 Drive 上取不到需上傳的文件時，把那項待辦列為還缺（契約 v2.8）：處理好才能寄出
-  const lostRequired = (pkg?.missing_todo_ids?.length ?? 0) > 0;
+  // 7 號在 Drive 上取不到的文件（契約 v2.8）：不附在信裡、信上寫另行提供；不還原也能寄出，按寄出時再提醒（2026-11-21）
+  const unavailable = pkg?.unavailable_attachments ?? [];
   const recipientProblem = !recipient.trim()
     ? "請填寫收件者"
     : EMAIL.test(recipient.trim())
@@ -275,16 +277,6 @@ export function SubmitFlow({
     setPending(null);
     if (!res.data) {
       if (isTooLarge(res)) return setTooLarge(true);
-      // 送件包還缺待辦（409）時，重新讀一次送件包：如果是一定要附上的文件在 Drive 上找不到，
-      // 顯示和預覽頁一樣的提示框，不顯示平台籠統的訊息（例如從「我自己處理就好」建立草稿時）
-      if (res.response?.status === 409 && mode !== "self") {
-        const fresh = await source.loadPackage();
-        if (fresh.data?.missing_todo_ids?.length && fresh.data.unavailable_attachments?.length) {
-          setPkg(fresh.data);
-          setDraftBlocked(mode === "draft");
-          return;
-        }
-      }
       return setError(errorText(res.error, res.response?.status));
     }
     setResult(res.data);
@@ -293,16 +285,53 @@ export function SubmitFlow({
     await source.refresh();
   }
 
-  /** 重新讀送件包：使用者到垃圾桶還原或重新上傳之後按「重新檢查」。 */
-  async function recheckPackage() {
-    setError(null);
+  /**
+   * 重新讀送件包：使用者到 Drive 刪除、還原或重新上傳之後，信裡的附件清單與「未隨信附上的文件」跟著更新。
+   * 「重新檢查」、回到這個分頁時、按寄出或建立草稿前都會讀一次。讀到了回送件包，讀不到回 null。
+   */
+  async function recheckPackage(): Promise<ClaimPackage | null> {
+    setRechecking(true);
     const res = await source.loadPackage();
+    setRechecking(false);
     if (!res.data) {
-      if (isTooLarge(res)) return setTooLarge(true);
-      return setError(errorText(res.error, res.response?.status));
+      if (isTooLarge(res)) setTooLarge(true);
+      else setError(errorText(res.error, res.response?.status));
+      return null;
     }
+    setError(null);
     setTooLarge(false);
     setPkg(res.data);
+    return res.data;
+  }
+
+  // 預覽中、或建立草稿的提醒視窗開著時，切到 Google Drive 刪除或還原文件、再回到這個分頁：
+  // 自動重新讀一次送件包
+  // biome-ignore lint/correctness/useExhaustiveDependencies: recheckPackage 每次 render 都是新函式，只看是不是在預覽或草稿提醒
+  useEffect(() => {
+    if ((step !== "preview" && !confirmingDraft) || closed) return;
+    const onReturn = () => {
+      if (document.visibilityState === "visible") void recheckPackage();
+    };
+    document.addEventListener("visibilitychange", onReturn);
+    return () => document.removeEventListener("visibilitychange", onReturn);
+  }, [step, confirmingDraft, closed]);
+
+  /** 按寄出：先再確認一次 Drive 上的文件，確認視窗才列得出現在在垃圾桶或已永久刪除的文件。 */
+  async function confirmSend() {
+    setBusy(true);
+    const ok = await recheckPackage();
+    setBusy(false);
+    if (ok) setConfirmingSend(true);
+  }
+
+  /** 建立草稿：先確認一次 Drive 上的文件；有找不到的先列出來讓使用者確定，沒有就直接建。 */
+  async function confirmDraft() {
+    setBusy(true);
+    const fresh = await recheckPackage();
+    setBusy(false);
+    if (!fresh) return;
+    if ((fresh.unavailable_attachments ?? []).length > 0) setConfirmingDraft(true);
+    else void submit("draft");
   }
 
   /**
@@ -322,7 +351,7 @@ export function SubmitFlow({
     }
     if (next === "preview") setStep("preview");
     if (next === "send") void submit("send");
-    if (next === "draft") void submit("draft");
+    if (next === "draft") void confirmDraft();
   }
 
   /** 說明視窗按「先不要」：看預覽照樣進預覽；寄出留在預覽；建立草稿回到草稿的問題。 */
@@ -398,6 +427,7 @@ export function SubmitFlow({
               依你確認過的預覽信件內容，替你寄出給保險公司，並留存信件紀錄於你的 Gmail 寄件備份。
             </p>
             <p className="font-bold">寄出後這筆理賠即結案，之後無法再新增狀況或修改。</p>
+            {unavailable.length > 0 && <UnavailableWarning items={unavailable} />}
           </>
         }
         testId="send-confirm-dialog"
@@ -414,6 +444,75 @@ export function SubmitFlow({
               }}
             >
               確定寄出
+            </button>
+          </>
+        }
+      />
+      <DialogShell
+        open={confirmingDraft && !closed}
+        onOpenChange={(open) => !open && setConfirmingDraft(false)}
+        title="確定建立草稿？"
+        description={
+          <>
+            {unavailable.length > 0 ? (
+              <>
+                <p>
+                  有文件在 Google Drive 上找不到，請確認是否
+                  <a
+                    href="https://drive.google.com/drive/trash"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline"
+                    data-testid="draft-open-trash"
+                  >
+                    到 Google Drive 的垃圾桶還原
+                  </a>
+                  ，或
+                  {source.back({
+                    hash: "upload-box",
+                    className: "underline",
+                    testId: "draft-go-upload",
+                    children: "到「上傳理賠文件」重新上傳",
+                  })}
+                  。
+                </p>
+                <p>
+                  處理完回到這頁會自動更新，也可以按
+                  <button
+                    type="button"
+                    onClick={() => void recheckPackage()}
+                    disabled={rechecking}
+                    className="mx-1 cursor-pointer underline disabled:cursor-wait"
+                    data-testid="draft-recheck"
+                  >
+                    {rechecking ? "檢查中…" : "重新檢查"}
+                  </button>
+                  。不處理也能建立草稿，信上會寫「另行提供」。
+                </p>
+              </>
+            ) : (
+              <p data-testid="draft-all-found">文件都找到了，會全部附在草稿裡。</p>
+            )}
+            <p className="font-bold">
+              建立草稿後這個{source.noun}即結案，之後無法再新增狀況或修改。
+            </p>
+            {unavailable.length > 0 && <UnavailableWarning items={unavailable} />}
+          </>
+        }
+        testId="draft-confirm-dialog"
+        actions={
+          <>
+            <Dialog.Close className={btn}>取消</Dialog.Close>
+            <button
+              type="button"
+              className={btnPri}
+              data-testid="draft-confirm"
+              onClick={() => {
+                setConfirmingDraft(false);
+                void submit("draft");
+              }}
+            >
+              確定建立草稿
             </button>
           </>
         }
@@ -522,15 +621,8 @@ export function SubmitFlow({
       ) : (
         <>
           {/* 備齊時畫面上不再多一行說明（設計稿 v3.7），留給讀屏與測試；沒備齊或有問題時才顯示 */}
-          <p
-            className={`m-0 t-body text-muted ${ready && !lostRequired ? "sr-only" : ""}`}
-            data-testid="ready"
-          >
-            {ready && lostRequired ? (
-              `有一定要附上的文件在 Google Drive 上找不到，處理好才能${
-                step === "ask" && draftBlocked ? "建立草稿" : "送件"
-              }。`
-            ) : ready ? (
+          <p className={`m-0 t-body text-muted ${ready ? "sr-only" : ""}`} data-testid="ready">
+            {ready ? (
               "所有待辦都完成了，可以送件。"
             ) : missingUploads > 0 ? (
               <>
@@ -564,18 +656,6 @@ export function SubmitFlow({
               onRecheck={() => void checkReminders()}
             />
           )}
-          {step === "ask" &&
-            draftBlocked &&
-            pkg?.unavailable_attachments &&
-            pkg.unavailable_attachments.length > 0 && (
-              <UnavailableNotice
-                back={source.back}
-                items={pkg.unavailable_attachments}
-                blocking={lostRequired}
-                action="draft"
-                onRecheck={() => void recheckPackage()}
-              />
-            )}
           {step === "ask" && (
             <section
               className={`${card} flex flex-col gap-3.5`}
@@ -623,12 +703,11 @@ export function SubmitFlow({
 
           {step === "preview" && (
             <section className="flex flex-col gap-4" aria-label="預覽與寄出" data-testid="preview">
-              {pkg?.unavailable_attachments && pkg.unavailable_attachments.length > 0 && (
+              {unavailable.length > 0 && (
                 <UnavailableNotice
                   back={source.back}
-                  items={pkg.unavailable_attachments}
-                  blocking={lostRequired}
-                  action="send"
+                  items={unavailable}
+                  checking={rechecking}
                   onRecheck={() => void recheckPackage()}
                 />
               )}
@@ -697,12 +776,11 @@ export function SubmitFlow({
                     !source.canSend ||
                     !ready ||
                     !pkg ||
-                    lostRequired ||
                     blanks.length > 0 ||
                     formatProblems.length > 0 ||
                     recipientProblem !== ""
                   }
-                  onClick={() => setConfirmingSend(true)}
+                  onClick={() => void confirmSend()}
                   className={btnPri}
                   data-testid="submit"
                 >
@@ -749,7 +827,7 @@ function SizeNotice({
         <button
           type="button"
           onClick={onRecheck}
-          className="mx-1 underline"
+          className="mx-1 cursor-pointer underline"
           data-testid="too-large-recheck"
         >
           重新檢查
@@ -796,7 +874,7 @@ function ReminderNotice({
           type="button"
           onClick={onRecheck}
           disabled={checking}
-          className="mx-1 underline"
+          className="mx-1 cursor-pointer underline disabled:cursor-wait"
           data-testid="reminders-recheck"
         >
           {checking ? "檢查中…" : "重新檢查"}
@@ -844,7 +922,7 @@ function FailedNotice({ back, reason }: { back: BackLink; reason?: string | null
             hash: "upload-box",
             className: "underline",
             testId: "go-upload",
-            children: "到「上傳文件」重新上傳",
+            children: "到「上傳理賠文件」重新上傳",
           })}
           ，完成後回到這頁再按一次。
         </p>
@@ -854,30 +932,38 @@ function FailedNotice({ back, reason }: { back: BackLink; reason?: string | null
 }
 
 const UNAVAILABLE_REASON: Record<UnavailableAttachment["reason"], string> = {
-  not_found: "已刪除",
+  not_found: "已永久刪除",
   trashed: "在垃圾桶裡",
 };
 
+/** 檔名加上紅字的狀態（在垃圾桶裡／已永久刪除）。 */
+function UnavailableItem({ item }: { item: UnavailableAttachment }) {
+  return (
+    <li data-testid="unavailable-attachment">
+      ・{item.file_name}
+      <span className="t-caption-bold text-danger" data-testid="unavailable-reason">
+        （{UNAVAILABLE_REASON[item.reason]}）
+      </span>
+    </li>
+  );
+}
+
 /**
- * 預覽時 7 號在 Drive 上取不到的附件（契約 v2.8）：不會附在信裡，提示使用者重新上傳或到垃圾桶還原。
- * 已經重新上傳的不會列在這裡。需上傳的文件（blocking）處理好才能寄出或建立草稿（依 action 說明）；其他的不處理也能寄出，
- * 信上寫「（另行提供）」。這些說明只在畫面上，不會出現在寄給保險公司的信裡。
+ * 預覽時 7 號在 Drive 上取不到的附件（契約 v2.8）：不會附在信裡，信上寫「（另行提供）」。
+ * 提示使用者到垃圾桶還原或重新上傳；不處理也能寄出，按寄出時確認視窗會再列一次（2026-11-21）。
+ * 已經重新上傳的不會列在這裡。這些說明只在畫面上，不會出現在寄給保險公司的信裡。
  */
 function UnavailableNotice({
   back,
   items,
-  blocking,
-  action,
+  checking,
   onRecheck,
 }: {
   back: BackLink;
   items: UnavailableAttachment[];
-  blocking: boolean;
-  /** 使用者這次要做的事：寄出（預覽頁）或建立草稿（「我自己處理就好」） */
-  action: "send" | "draft";
+  checking: boolean;
   onRecheck: () => void;
 }) {
-  const trashed = items.some((item) => item.reason === "trashed");
   return (
     <div
       role="status"
@@ -889,47 +975,72 @@ function UnavailableNotice({
       </p>
       <ul className="m-0 list-none p-0">
         {items.map((item) => (
-          <li key={item.document_id} data-testid="unavailable-attachment">
-            ・{item.file_name}（{UNAVAILABLE_REASON[item.reason]}）
-          </li>
+          <UnavailableItem key={item.document_id} item={item} />
         ))}
       </ul>
       <p className="m-0">
-        {blocking ? "這是一定要附上的文件，" : "要附上的話，"}
-        {trashed && (
-          <>
-            <a
-              href="https://drive.google.com/drive/trash"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-              data-testid="unavailable-open-trash"
-            >
-              到 Google Drive 的垃圾桶還原
-            </a>
-            ，或
-          </>
-        )}
+        這些文件於 Google Drive 已找不到，請確認是否
+        <a
+          href="https://drive.google.com/drive/trash"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline"
+          data-testid="unavailable-open-trash"
+        >
+          到 Google Drive 的垃圾桶還原
+        </a>
+        ，或
         {back({
           hash: "upload-box",
           className: "underline",
           testId: "unavailable-go-upload",
-          children: "到「上傳文件」重新上傳",
+          children: "到「上傳理賠文件」重新上傳",
         })}
-        ，處理完按
+        。
+      </p>
+      <p className="m-0">
+        處理完回到這頁會自動更新，也可以按
         <button
           type="button"
           onClick={onRecheck}
-          className="mx-1 underline"
+          disabled={checking}
+          className="mx-1 cursor-pointer underline disabled:cursor-wait"
           data-testid="unavailable-recheck"
         >
-          重新檢查
+          {checking ? "檢查中…" : "重新檢查"}
         </button>
-        。
-        {blocking
-          ? `處理好之前不能${action === "draft" ? "建立草稿" : "寄出"}。`
-          : "不處理也能寄出，信上會寫「另行提供」。"}
+        。不處理也能寄出，信上會寫「另行提供」。
       </p>
+    </div>
+  );
+}
+
+/** 寄出與建立草稿確認視窗裡的提醒：哪些文件在垃圾桶還沒還原、哪些已被永久刪除，寄出後信上寫「另行提供」。 */
+function UnavailableWarning({ items }: { items: UnavailableAttachment[] }) {
+  const groups = [
+    { reason: "trashed", title: "在 Google Drive 的垃圾桶裡、還沒還原：" },
+    { reason: "not_found", title: "已被永久刪除：" },
+  ] as const;
+  return (
+    <div
+      className="flex flex-col gap-1 rounded-btn bg-danger-soft px-4 py-2 text-danger-ink"
+      data-testid="confirm-unavailable"
+    >
+      <p className="m-0 t-caption-bold">下面的文件不會附在信裡，信上會寫「另行提供」：</p>
+      {groups.map(({ reason, title }) => {
+        const list = items.filter((item) => item.reason === reason);
+        if (list.length === 0) return null;
+        return (
+          <div key={reason} data-testid={`confirm-${reason}`}>
+            <p className="m-0 t-caption-bold">{title}</p>
+            <ul className="m-0 list-none p-0 t-caption">
+              {list.map((item) => (
+                <li key={item.document_id}>・{item.file_name}</li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
     </div>
   );
 }

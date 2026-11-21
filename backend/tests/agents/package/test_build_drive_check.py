@@ -1,7 +1,8 @@
 """契約 v2.8：build 有 Google 授權時，確認附件還在不在 Drive（#155 驗收 7-2）。
 
 取不到的（永久刪除或在垃圾桶）不附在信裡、列在 unavailable_attachments 給畫面提示；
-那項待辦沒有其他可附的文件時，信上寫「（另行提供）」，不寫給使用者的操作說明（2026-11-08 決定）。
+那項待辦沒有其他可附的文件時，信上寫「（另行提供）」，不寫給使用者的操作說明（2026-11-08 決定）；
+需上傳的也一樣，不列為還缺、不擋寄出（2026-11-21）。
 授權與 Google 轉接器都用假的，不連 Google。
 """
 
@@ -145,26 +146,46 @@ async def test_附件都還在時照常附上_每個都查一次() -> None:
     assert _section(package.body, "未隨信附上的文件") is None
 
 
-async def test_需上傳的文件取不到又沒有其他文件時_列為還缺的待辦_不能寄出() -> None:
-    # 一定要上傳的文件不能不處理（2026-11-08 決定）：列進 missing_todo_ids，平台就不讓寄出
+async def test_需上傳的文件取不到又沒有其他文件時_信上寫另行提供_不列為還缺() -> None:
+    # 2026-11-21：不還原也能寄出（寄出前畫面再提醒一次），取代 2026-11-08「處理好才能寄出」
     drive = FakeDrive({"drive-ticket-1": "trashed"})
     ctx = _ctx(DELAY_1, TICKET_1, FORM_1)
 
     package = await GmailClaimPackager(google_api=drive).build(ctx, DRIVE, USER)
 
-    assert package.missing_todo_ids == [TICKET.id]
+    assert package.missing_todo_ids == []
     assert [a.document_id for a in package.attachments] == [DELAY_1.id, FORM_1.id]
     assert _section(package.body, "附件清單") == [
         f"・{DELAY_1.file_name}",
         f"・{FORM_1.file_name}",
     ]
-    # 不能寄出，所以不寫「另行提供」；信裡也不放給使用者的操作說明
-    assert _section(package.body, "未隨信附上的文件") is None
+    assert _section(package.body, "未隨信附上的文件") == [
+        "・班機延誤_機票及登機證，或航空業者出具的搭機證明（另行提供）"
+    ]
+    # 信是寄給保險公司的：不放給使用者的操作說明
     assert "垃圾桶" not in package.body and "重新上傳" not in package.body
     [unavailable] = package.unavailable_attachments
     assert unavailable.document_id == TICKET_1.id
     assert unavailable.file_name == TICKET_1.file_name
     assert unavailable.reason == "trashed"
+
+
+async def test_還原後重新檢查_附件與未隨信附上的文件跟著恢復() -> None:
+    drive = FakeDrive({"drive-ticket-1": "trashed"})
+    ctx = _ctx(DELAY_1, TICKET_1, FORM_1)
+    packager = GmailClaimPackager(google_api=drive)
+    await packager.build(ctx, DRIVE, USER)
+
+    drive.status = {}
+    package = await packager.build(ctx, DRIVE, USER)
+
+    assert [a.document_id for a in package.attachments] == [
+        DELAY_1.id,
+        TICKET_1.id,
+        FORM_1.id,
+    ]
+    assert _section(package.body, "未隨信附上的文件") is None
+    assert package.unavailable_attachments == []
 
 
 async def test_不需上傳的待辦文件取不到時_信上寫另行提供_可以寄出() -> None:
@@ -203,7 +224,7 @@ async def test_同一項待辦已重新上傳時_舊檔不附_也不再提示() 
         assert _section(package.body, "未隨信附上的文件") is None, reason
 
 
-async def test_附件全部取不到時_每項需上傳的待辦都列為還缺() -> None:
+async def test_附件全部取不到時_每項都寫另行提供_不列為還缺() -> None:
     drive = FakeDrive(
         {
             "drive-delay-1": "not_found",
@@ -216,8 +237,10 @@ async def test_附件全部取不到時_每項需上傳的待辦都列為還缺(
     package = await GmailClaimPackager(google_api=drive).build(ctx, DRIVE, USER)
 
     assert package.attachments == []
-    assert package.missing_todo_ids == [DELAY.id, TICKET.id, FORM.id]
+    assert package.missing_todo_ids == []
     assert _section(package.body, "附件清單") == ["・（無）"]
+    unattached = _section(package.body, "未隨信附上的文件")
+    assert unattached is not None and len(unattached) == 3
     assert [u.reason for u in package.unavailable_attachments] == [
         "not_found",
         "trashed",
