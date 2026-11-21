@@ -333,6 +333,12 @@ export type ApiTokenOut = {
  */
 export type AssistantSayOut = {
     /**
+     * Status
+     *
+     * ok 翻譯成功；failed 翻譯失敗（LLM 出錯、句子 ID 對不上、譯文有原句沒有的數字），這時只有中文，local 與 english 都是 null，不存、下一次打開會再翻譯。預設 ok：#570 存下的內容沒有這個欄位
+     */
+    status?: 'ok' | 'failed';
+    /**
      * Language
      *
      * 當地語言代碼（目前只有 ja）；只顯示英文時是 null
@@ -3469,13 +3475,15 @@ export type SayLine = {
     /**
      * Local
      *
-     * 當地語言；只顯示英文時是 null
+     * 當地語言；只顯示英文時、或翻譯失敗時是 null
      */
     local: string | null;
     /**
      * English
+     *
+     * 英文；翻譯失敗時是 null
      */
-    english: string;
+    english: string | null;
     /**
      * Chinese
      *

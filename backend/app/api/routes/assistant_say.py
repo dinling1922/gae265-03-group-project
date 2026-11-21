@@ -29,6 +29,8 @@ async def create_assistant_say(
     """把整個行程「事故當下」要向當地單位拿的文件，翻成當地語言與英文，依開立單位分段。
 
     翻好的內容整個行程存一份：句子與語言沒變就直接回存下的；變了才重新翻譯並覆蓋（#570）。行程已結案或沒有要列的文件時回 404（前端不顯示按鈕）。
+
+    翻譯失敗（LLM 出錯、句子 ID 對不上、譯文有原句沒有的數字）回 200，status 是 failed、內容只有中文；失敗不存（#571）。
     """
     policy = await _own_policy(session, user, policy_id)
     trip = await trip_domain.build_trip_context(session, policy)
@@ -53,11 +55,12 @@ async def create_assistant_say(
         translations = assistant_say.validated(
             await translator(sentences, language), sentences, language
         )
-    except Exception as e:
+    except Exception:
+        # 只記例外，不記句子與旅客的話；失敗的結果不存，下一次打開會再翻譯（前端的「再試一次」）
         logger.exception("小助理幫你說翻譯失敗（policy %s）", policy_id)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "翻譯失敗，請再試一次") from e
+        return assistant_say.assemble(sections, sentences, None, language)
     out = assistant_say.assemble(sections, sentences, translations, language)
-    # 整個行程存一份；兩個請求同時第一次打開也只會有一筆（失敗的翻譯在上面就丟出去了，不會存）
+    # 整個行程存一份；兩個請求同時第一次打開也只會有一筆（失敗的翻譯在上面就回去了，不會存）
     values = {
         "fingerprint": digest,
         "language": language,

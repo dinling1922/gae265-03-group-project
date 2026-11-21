@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, Field
 from sqlmodel import col, select
@@ -161,8 +162,8 @@ def validated(
 
 
 class SayLine(BaseModel):
-    local: str | None = Field(description="當地語言；只顯示英文時是 null")
-    english: str
+    local: str | None = Field(description="當地語言；只顯示英文時、或翻譯失敗時是 null")
+    english: str | None = Field(description="英文；翻譯失敗時是 null")
     chinese: str = Field(description="中文小字，直接用原句，不經過 LLM")
 
 
@@ -178,6 +179,14 @@ class SaySectionOut(BaseModel):
 
 
 class AssistantSayOut(BaseModel):
+    status: Literal["ok", "failed"] = Field(
+        default="ok",
+        description=(
+            "ok 翻譯成功；failed 翻譯失敗（LLM 出錯、句子 ID 對不上、譯文有原句沒有的數字），"
+            "這時只有中文，local 與 english 都是 null，不存、下一次打開會再翻譯。"
+            "預設 ok：#570 存下的內容沒有這個欄位"
+        ),
+    )
     language: str | None = Field(
         description="當地語言代碼（目前只有 ja）；只顯示英文時是 null"
     )
@@ -189,10 +198,14 @@ class AssistantSayOut(BaseModel):
 def assemble(
     sections: list[SaySection],
     sentences: dict[str, str],
-    translations: dict[str, Translation],
+    translations: dict[str, Translation] | None,
     language: str | None,
 ) -> AssistantSayOut:
+    """翻譯結果組成回傳內容；translations 是 None 代表翻譯失敗，只放中文。"""
+
     def line(key: str) -> SayLine:
+        if translations is None:
+            return SayLine(local=None, english=None, chinese=sentences[key])
         t = translations[key]
         return SayLine(
             local=t.local if language else None,
@@ -201,6 +214,7 @@ def assemble(
         )
 
     return AssistantSayOut(
+        status="ok" if translations is not None else "failed",
         language=language,
         request=line("request"),
         sections=[
