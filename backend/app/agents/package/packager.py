@@ -211,6 +211,7 @@ def _incident_labels(incidents: list[IncidentContext]) -> dict[uuid.UUID, str]:
 # document_file_name）。這裡照抄規則、不 import 6 號；兩邊一致由測試檢查
 _CLAIM_FORM_CODE = "D10"
 _CLAIM_FORM_NAME = "理賠申請書"
+_SHARED_NAME = "共同文件"
 _LEADING_VERB = re.compile(r"^(請|向|取得|保留|保存|準備|填寫|列印)")
 _UNSAFE = re.compile(r"[/\\:*?\"<>|\n\r\t]")
 
@@ -221,8 +222,9 @@ def _clean(text: str, limit: int) -> str:
 
 def _document_name(todo: TodoView, kind: str) -> str:
     """待辦對應的文件名稱，和附件檔名去掉「_序號.副檔名」相同，例如「班機延誤_延誤證明」。"""
-    # 理賠申請書（D10）是整個行程一項的待辦（scope=policy）
-    if todo.document_code == _CLAIM_FORM_CODE or todo.scope == "policy":
+    # 只看文件代碼，和 6 號一樣：共同文件（D02、D10、D11、D24）的 scope 都是 policy，
+    # 不能用 scope 判斷，否則受益人身分證明等也會被寫成理賠申請書
+    if todo.document_code == _CLAIM_FORM_CODE:
         return _CLAIM_FORM_NAME
     return f"{_clean(kind, 40)}_{_clean(_LEADING_VERB.sub('', todo.title), 60)}"
 
@@ -335,7 +337,8 @@ def _trip_without_document_section(
     unattached: frozenset[uuid.UUID] = frozenset(),
 ) -> str | None:
     """行程版「未隨信附上的文件」：規則同事件版，名稱和附件檔名同一個寫法。
-    事件的待辦用該事故的名稱（同類型第二次起加「(2)」）；共同文件和 6 號存檔一樣用第一個事故的名稱。"""
+    事件的待辦用該事故的名稱（同類型第二次起加「(2)」）；共同文件和 6 號行程版存檔一樣寫「共同文件」
+    （app.agents.document.recognizer 的 owner_of），理賠申請書仍只寫「理賠申請書」。"""
     order = _trip_todo_order(trip)
     todos = sorted(
         (
@@ -348,10 +351,8 @@ def _trip_without_document_section(
     if not todos:
         return None
 
-    first = labels.get(trip.incidents[0].incident_id) if trip.incidents else None
-
     def line(t: TodoView) -> str:
-        label = labels.get(t.incident_id) if t.incident_id else first
+        label = labels.get(t.incident_id) if t.incident_id else _SHARED_NAME
         return f"・{_document_name(t, label or '事故')}（另行提供）"
 
     return "\n".join(["未隨信附上的文件", *(line(t) for t in todos)])

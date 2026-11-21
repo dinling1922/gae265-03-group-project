@@ -514,7 +514,9 @@ async def test_未附文件的待辦依待辦順序排_理賠申請書在最後(
         )
 
     # 平台建 D10 時沿用範本的順序號，可能比事件待辦小
-    claim_form = without_document("理賠申請書", 0, scope="policy")
+    claim_form = without_document("理賠申請書", 0, scope="policy").model_copy(
+        update={"document_code": "D10"}
+    )
     boarding_pass = without_document("機票及登機證", 2)
     delay_proof = without_document("航空業者出具的延誤證明", 1)
     ctx = _incident(todos=[claim_form, boarding_pass, delay_proof])

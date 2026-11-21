@@ -45,6 +45,11 @@ def _delay(
     )
 
 
+def _claim_form(todo: TodoView) -> TodoView:
+    """理賠申請書：文件代碼 D10；共同文件的 scope 都是 policy（平台的寫法）。"""
+    return todo.model_copy(update={"document_code": "D10", "scope": "policy"})
+
+
 def _trip(
     *incidents: IncidentContext,
     shared_todos: list[TodoView] | None = None,
@@ -158,7 +163,7 @@ async def test_未隨信附上的文件_名稱和附件檔名同一個寫法_同
     skipped1 = _owned(_todo("done", title="延誤證明", without_document=True), first)
     skipped2 = _owned(_todo("done", title="延誤證明", without_document=True), second)
     shared = _owned(
-        _todo("done", title="理賠申請書", without_document=True, scope="policy"), None
+        _claim_form(_todo("done", title="理賠申請書", without_document=True)), None
     )
     trip = _trip(
         first.model_copy(update={"todos": [skipped1]}),
@@ -364,7 +369,7 @@ async def test_未隨信附上的文件也照行程頁的順序() -> None:
     )
     claim_form = _phase(
         _owned(
-            _todo("done", title="理賠申請書", without_document=True, scope="policy"),
+            _claim_form(_todo("done", title="理賠申請書", without_document=True)),
             None,
         ),
         "after_return",
@@ -385,7 +390,7 @@ async def test_未隨信附上的文件也照行程頁的順序() -> None:
 
     assert (
         "未隨信附上的文件\n"
-        "・班機延誤_機票及登機證（另行提供）\n"
+        "・共同文件_機票及登機證（另行提供）\n"
         "・班機延誤_費用收據（另行提供）\n"
         "・理賠申請書（另行提供）"
     ) in package.body
@@ -438,3 +443,53 @@ def test_未隨信附上的文件名稱和6號存到Drive的檔名一致(title: 
     stored = document_file_name(ctx, code, todo, "application/pdf")
 
     assert stored == f"{_document_name(todo, '班機延誤')}_1.pdf"
+
+
+async def test_未隨信附上的文件_共同文件只有D10寫成理賠申請書_受益人身分證明不會變成理賠申請書() -> (
+    None
+):
+    # 2026-11-21：共同文件的 scope 都是 policy，原本用 scope 判斷，受益人身分證明也被寫成理賠申請書。
+    # 共同文件和 6 號行程版存到 Drive 的檔名一樣寫「共同文件_待辦名稱」
+    def shared(title: str, code: str, sort_order: int) -> TodoView:
+        todo = _todo("done", title=title, without_document=True, sort_order=sort_order)
+        return _owned(
+            todo.model_copy(update={"document_code": code, "scope": "policy"}), None
+        )
+
+    sick = _incident(incident_type_name="突發疾病", description="在東京發燒就醫")
+    trip = _trip(
+        sick,
+        shared_todos=[
+            shared("填寫理賠申請書", "D10", 0),
+            shared("準備受益人身分證明", "D24", 1),
+        ],
+    )
+
+    package = await GmailClaimPackager().build_trip(trip)
+
+    section = package.body.split("未隨信附上的文件\n", 1)[1].split("\n\n", 1)[0]
+    assert section.splitlines() == [
+        "・理賠申請書（另行提供）",
+        "・共同文件_受益人身分證明（另行提供）",
+    ]
+
+
+def test_共同文件的名稱和6號行程版存到Drive的檔名一致() -> None:
+    # 6 號行程版的 owner_of 把共同文件的事故類型換成「共同文件」再取檔名
+    from app.agents.document.recognizer import owner_of
+    from app.agents.document.storage import document_file_name
+    from app.agents.package.packager import _document_name
+
+    beneficiary = _owned(
+        _todo("done", title="準備受益人身分證明").model_copy(
+            update={"document_code": "D24", "scope": "policy"}
+        ),
+        None,
+    )
+    claim_form = _owned(_claim_form(_todo("done", title="填寫理賠申請書")), None)
+    trip = _trip(_delay(), shared_todos=[beneficiary, claim_form])
+
+    for todo in (beneficiary, claim_form):
+        code = todo.document_code or ""
+        stored = document_file_name(owner_of(trip, todo), code, todo, "application/pdf")
+        assert stored == f"{_document_name(todo, '共同文件')}_1.pdf"
