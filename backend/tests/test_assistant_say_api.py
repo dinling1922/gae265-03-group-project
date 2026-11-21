@@ -482,6 +482,76 @@ async def test_原句有的數字照常通過(
     assert item["english"].endswith(" 4")
 
 
+def all_lines(body: Any) -> list[dict[str, Any]]:
+    lines = [body["request"], body["thanks"]]
+    for section in body["sections"]:
+        lines.append(section["unit"])
+        for doc in section["documents"]:
+            lines += [doc["name"], *doc["items"]]
+    return lines
+
+
+# ---- 其他目的地的語言與只顯示英文的情況（#572）----
+
+
+@pytest.mark.parametrize(
+    ("destination", "language"),
+    [("巴黎", "fr"), ("首爾", "ko"), ("曼谷", "th"), ("羅馬", "it")],
+)
+async def test_非日本的目的地_當地語言加英文(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+    destination: str,
+    language: str,
+) -> None:
+    policy = await new_policy(session, user, destination)
+    await add_incident(session, policy, {"D13": {}})
+
+    body = await say(client, policy)
+
+    assert body["language"] == language
+    assert translator.calls[0][1] == language
+    for line in all_lines(body):
+        assert (
+            line["local"] == f"{line['chinese']}[ja]"
+        )  # 假翻譯員固定標 [ja]，只看有沒有當地語言
+        assert line["english"] == f"{line['chinese']}[en]"
+
+
+@pytest.mark.parametrize(
+    "destination",
+    [
+        "歐洲",  # 多國
+        "瑞士",  # 多語
+        "美國",  # 英語系
+        "倫敦",
+        "香港",  # 中文地區
+        "杜拜",  # 對照表沒有的地名
+        "法國、義大利",  # 同時有兩種語言：不猜
+        "日本、夏威夷",  # 一種語言加上只顯示英文的地名：不猜
+    ],
+)
+async def test_只顯示英文的目的地_翻譯員收到的目標語言是_None(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+    destination: str,
+) -> None:
+    policy = await new_policy(session, user, destination)
+    await add_incident(session, policy, {"D13": {}})
+
+    body = await say(client, policy)
+
+    assert body["language"] is None
+    assert translator.calls[0][1] is None
+    for line in all_lines(body):
+        assert line["local"] is None
+        assert line["english"] == f"{line['chinese']}[en]"
+
+
 # ---- 存下翻好的內容（#570）：整個行程存一份，清單或語言變了才重翻 ----
 
 
