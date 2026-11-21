@@ -47,6 +47,7 @@ from app.contracts.package_agent import (
     TripClaimPreparer,
     TripPackageFixer,
 )
+from app.domain import assistant_say
 from app.domain.incident import trip as trip_domain
 from app.domain.incident.drive_folder import trip_folder_url
 from app.domain.incident.gmail_link import is_gmail_url
@@ -133,6 +134,9 @@ class TripOut(BaseModel):
         description="所有涵蓋中事件的待辦與共同文件都完成，可以送件"
     )
     can_close: bool = Field(description="所有事件都不符保障，可以結案（不寄信）")
+    can_assistant_say: bool = Field(
+        description="顯示「小助理幫你說」按鈕：行程沒結案，而且有事故當下要向當地單位拿的文件"
+    )
     submission: SubmissionStatusOut
     reminder_rounds: list[ReminderRoundOut] = Field(
         description="提醒信寄過信的每一輪加上目前這一輪，舊的在前（ADR-0031）；"
@@ -325,6 +329,7 @@ async def build_trip_out(
         can_send=isinstance(get_claim_packager(), TripClaimPackager),
         can_submit=not locked and trip_domain.all_todos_done(trip),
         can_close=not locked and not covered,
+        can_assistant_say=bool(await assistant_say.say_sections(session, trip)),
         submission=submission_status(
             user.email, await _latest_submission(session, policy.id)
         ),

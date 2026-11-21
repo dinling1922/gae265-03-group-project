@@ -231,3 +231,64 @@ def test_事故類型對應保障_章名含關鍵字才算_整份險種比對不
     ]
 
     assert matching_coverages(["班機延誤"], coverages) == [coverages[0]]
+
+
+# ---- 小助理幫你說（#569）：每份文件的開立單位、請櫃檯載明的項目、旅客自備標記 ----
+
+
+def catalog_documents() -> list[dict]:
+    """理賠文件規則裡的 23 份文件定義（incident_catalog.json）。"""
+    import json
+
+    from app.core.config import settings
+
+    data = json.loads(
+        (settings.CONFIG_DIR / "incident_catalog.json").read_text(encoding="utf-8")
+    )
+    return data["documents"]
+
+
+async def test_每份文件定義都有開立單位(session: AsyncSession) -> None:
+    documents = catalog_documents()
+
+    assert len(documents) == 23
+    assert [d["code"] for d in documents if not d.get("issuer")] == []
+    # seed 把開立單位帶進待辦範本，建立待辦時才查得到
+    await load_incident_catalog(session)
+    issuers = {d["code"]: d["issuer"] for d in documents}
+    rows = (await session.exec(select(TodoTemplate))).all()
+    assert rows and all(r.issuer == issuers[r.document_code or ""] for r in rows)
+
+
+async def test_事故當下且不是旅客自備的文件_有櫃檯用的文件名稱與至少一條載明項目(
+    session: AsyncSession,
+) -> None:
+    documents = catalog_documents()
+    need = {
+        d["code"]
+        for d in documents
+        if d["phase"] == "on_site" and not d["self_prepared"]
+    }
+
+    assert need == {
+        "D01", "D03", "D04", "D06", "D13", "D14", "D15", "D16", "D17", "D21"
+    }  # fmt: skip
+    assert [
+        d["code"]
+        for d in documents
+        if d["code"] in need and not (d.get("counter_name") and d["counter_items"])
+    ] == []
+    # seed 帶進待辦範本
+    await load_incident_catalog(session)
+    rows = (await session.exec(select(TodoTemplate))).all()
+    assert all(
+        r.counter_name and r.counter_items for r in rows if r.document_code in need
+    )
+
+
+def test_旅客自備標記只有機票登機證_購物收據_車票() -> None:
+    assert {d["code"] for d in catalog_documents() if d["self_prepared"]} == {
+        "D02",
+        "D07",
+        "D20",
+    }

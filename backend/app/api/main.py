@@ -4,6 +4,7 @@ from app.api.routes import (
     admin_excluded,
     admin_rules,
     api_tokens,
+    assistant_say,
     auth,
     bundles,
     comparisons,
@@ -50,6 +51,7 @@ def build_api_router(environment: str, dev_login: bool = False) -> APIRouter:
     router.include_router(conversations.router)
     router.include_router(incidents.router)
     router.include_router(trip.router)
+    router.include_router(assistant_say.router)
     router.include_router(trip_documents.router)
     router.include_router(quote.router)
     # 條款上傳整組都要登入，所以所有環境都註冊（ADR-0023）

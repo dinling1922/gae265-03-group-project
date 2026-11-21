@@ -11,6 +11,7 @@ import { ConfirmDialog } from "../incident/ConfirmDialog";
 import { type ChatLine, DescribeChat } from "../incident/DescribeChat";
 import { ReminderNotice } from "../incident/ReminderNotice";
 import { card, errorText, policyMeta, tripTitle, useIncident, wideMain } from "../incident/shared";
+import { AssistantSayDialog } from "./AssistantSayDialog";
 import { TripIncidentCard } from "./TripIncidentCard";
 import { TripSendBox } from "./TripSendBox";
 import { TripTodoCards, tripPending, tripProgress } from "./TripTodoCards";
@@ -84,6 +85,7 @@ export function TripPage({
   const [undoing, setUndoing] = useState<TodoView | null>(null);
   const [ticking, setTicking] = useState<TodoView | null>(null);
   const [deleting, setDeleting] = useState<DocumentView | null>(null);
+  const [sayOpen, setSayOpen] = useState(false); // 小助理幫你說
   // 問答補完資訊、結論或待辦有變時再跳確認彈窗（#445）：記是哪個事故；背景先更新，彈窗只是讓旅客看過一遍
   const [reconfirmId, setReconfirmId] = useState<string | null>(null);
   const askInputRef = useRef<HTMLInputElement>(null);
@@ -410,6 +412,7 @@ export function TripPage({
                   disabled={busy || locked}
                   onToggle={onToggle}
                   onDeleteDocument={setDeleting}
+                  onAssistantSay={trip.can_assistant_say ? () => setSayOpen(true) : undefined}
                 />
               </>
             )}
@@ -519,6 +522,8 @@ export function TripPage({
           </Link>
         </ActionBar.Push>
       </ActionBar>
+
+      <AssistantSayDialog policyId={policyId} open={sayOpen} onOpenChange={setSayOpen} />
 
       <DialogShell
         open={ticking !== null}

@@ -1,5 +1,6 @@
 import { delay, HttpResponse, http } from "msw";
 import type {
+  AssistantSayOut,
   ClaimPackage,
   CreateIncidentIn,
   DocumentOut,
@@ -308,11 +309,69 @@ function tripOf(policyId: string): TripOut | null {
     can_send: true,
     can_submit: !locked && active.length > 0 && active.every((t) => t.is_done),
     can_close: false,
+    // 假資料的待辦沒有文件規則的開立單位：沒結案、而且有事故當下的待辦就顯示（日本行程的假翻譯）
+    can_assistant_say: !locked && entries.some((m) => own(m).some((t) => t.phase === "on_site")),
     submission: { status: first.closedAs ?? null, gmail_url: null },
     // 假資料模式不寄提醒信：沒有寄送進度，行程頁只顯示提醒信說明
     reminder_rounds: [],
   };
 }
+
+const say = (local: string, english: string, chinese: string) => ({ local, english, chinese });
+
+/** 日本行程的小助理幫你說（假資料）：班機延誤的延誤證明，加上就醫的診斷書與收據。 */
+const JAPAN_SAY: AssistantSayOut = {
+  language: "ja",
+  request: say(
+    "旅行保険の請求のため、以下の書類を発行していただけますでしょうか。",
+    "I am applying for a travel insurance claim. Could you please issue the following documents?",
+    "申請旅遊保險理賠，需要以下文件，麻煩您開立。",
+  ),
+  sections: [
+    {
+      unit: say("航空会社", "Airline", "航空公司"),
+      documents: [
+        {
+          code: "D01",
+          name: say(
+            "遅延または欠航の証明書",
+            "Certificate of flight delay or cancellation",
+            "班機延誤或取消證明",
+          ),
+          items: [
+            say(
+              "予定と実際の出発時刻（または遅延時間）。欠航の場合は欠航と記載",
+              "Scheduled and actual departure times (or delay hours); state cancellation if cancelled",
+              "原定與實際起飛時間（或延誤時數）；班機取消時載明取消",
+            ),
+          ],
+        },
+      ],
+    },
+    {
+      unit: say("病院", "Hospital", "醫院"),
+      documents: [
+        {
+          code: "D13",
+          name: say("診断書", "Medical certificate", "診斷書"),
+          items: [say("病名、受診日", "Diagnosis and date of visit", "病名、就診日期")],
+        },
+        {
+          code: "D14",
+          name: say(
+            "医療費の領収書（原本）",
+            "Medical expense receipt (original)",
+            "醫療費用收據（正本）",
+          ),
+          items: [
+            say("原本（コピー不可）", "Originals only (no copies)", "需為正本（不接受影本）"),
+          ],
+        },
+      ],
+    },
+  ],
+  thanks: say("ご協力ありがとうございます。", "Thank you for your help.", "謝謝您的協助。"),
+};
 
 export const incidentHandlers = [
   http.get("*/api/v1/policies", () => HttpResponse.json<PolicyOut[]>([...policies].reverse())),
@@ -442,6 +501,13 @@ export const incidentHandlers = [
   http.get("*/api/v1/policies/:policyId/trip", ({ params }) => {
     const trip = tripOf(String(params.policyId));
     return trip ? HttpResponse.json<TripOut>(trip) : notFound();
+  }),
+  // 小助理幫你說：日本行程的假翻譯（日文＋英文＋中文小字），翻譯要等一下，看得到「正在翻譯…」
+  http.post("*/api/v1/policies/:policyId/assistant-say", async ({ params }) => {
+    const trip = tripOf(String(params.policyId));
+    if (!trip?.can_assistant_say) return notFound();
+    await delay(800);
+    return HttpResponse.json<AssistantSayOut>(JAPAN_SAY);
   }),
   // 假資料模式沒有 Google Drive：行程的「下載全部文件」維持反灰
   http.get("*/api/v1/policies/:policyId/drive-folder", () => HttpResponse.json({ url: null })),
