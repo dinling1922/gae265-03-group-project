@@ -353,7 +353,25 @@ async def test_不符保障的事件_它的事故當下文件不列(
     assert listed_codes(body) == ["D01"]
 
 
-async def test_翻譯員丟出錯誤_回_502(
+def assert_chinese_only(body: Any, codes: list[str]) -> None:
+    """翻譯失敗的回應：狀態是失敗，完整的中文版（請求、各段、文件、載明項目、謝謝），
+    local 和 english 都是空的。"""
+    assert body["status"] == "failed"
+    assert body["request"] == {"local": None, "english": None, "chinese": REQUEST}
+    assert body["thanks"] == {"local": None, "english": None, "chinese": THANKS}
+    assert listed_codes(body) == codes
+    lines = []
+    for section in body["sections"]:
+        lines.append(section["unit"])
+        for doc in section["documents"]:
+            lines += [doc["name"], *doc["items"]]
+    assert lines and all(
+        line["local"] is None and line["english"] is None and line["chinese"]
+        for line in lines
+    )
+
+
+async def test_翻譯員丟出錯誤_回_200_狀態是失敗_內容是完整中文版(
     client: AsyncClient,
     session: AsyncSession,
     user: User,
@@ -361,13 +379,107 @@ async def test_翻譯員丟出錯誤_回_502(
 ) -> None:
     translator.error = RuntimeError("LLM 掛了")
     policy = await new_policy(session, user)
-    await add_incident(session, policy, {"D01": {}})
+    await add_incident(session, policy, {"D01": {}, "D13": {}})
 
     response = await client.post(f"/policies/{policy.id}/assistant-say")
 
-    assert response.status_code == 502
-    assert "翻譯失敗" in response.json()["detail"]
+    assert response.status_code == 200
+    assert_chinese_only(response.json(), ["D01", "D13"])
     assert len(translator.calls) == 1
+
+
+@pytest.mark.parametrize("fault", ["少一句", "多一句", "ID 對不上"])
+async def test_翻譯員少回一句或多回一句_失敗(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,
+    fault: str,
+) -> None:
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D13": {}})
+    good = translator.__call__
+
+    async def faulty(sentences: dict[str, str], language: str | None) -> Any:
+        out = await good(sentences, language)
+        rows = out["translations"]
+        if fault == "少一句":
+            rows = rows[:-1]
+        elif fault == "多一句":
+            rows = [*rows, {"id": "extra", "local": "余", "english": "extra"}]
+        else:
+            rows = [{**rows[0], "id": "unit9"}, *rows[1:]]
+        return {"translations": rows}
+
+    app.dependency_overrides[get_assistant_translator] = lambda: faulty
+
+    body = await say(client, policy)
+
+    assert_chinese_only(body, ["D13"])
+
+
+class NumberTranslator(FakeTranslator):
+    """譯文的數字由測試指定；其餘照假翻譯員的做法。"""
+
+    def __init__(self, number: str) -> None:
+        super().__init__()
+        self.number = number
+
+    async def __call__(self, sentences: dict[str, str], language: str | None) -> Any:
+        out = await super().__call__(sentences, language)
+        for row in out["translations"]:
+            if row["id"].startswith("item"):
+                row["english"] += f" {self.number}"
+        return out
+
+
+async def test_譯文出現原句沒有的數字_失敗(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,  # noqa: ARG001
+) -> None:
+    fake = NumberTranslator("24")
+    app.dependency_overrides[get_assistant_translator] = lambda: fake
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D13": {}})
+
+    body = await say(client, policy)
+
+    assert_chinese_only(body, ["D13"])
+
+
+async def test_原句有的數字照常通過(
+    client: AsyncClient,
+    session: AsyncSession,
+    user: User,
+    translator: FakeTranslator,  # noqa: ARG001
+) -> None:
+    fake = NumberTranslator("4")
+    app.dependency_overrides[get_assistant_translator] = lambda: fake
+    policy = await new_policy(session, user)
+    await add_incident(session, policy, {"D13": {}})
+    template = (
+        await session.exec(
+            select(TodoTemplate).where(TodoTemplate.document_code == "D13")
+        )
+    ).first()
+    assert template is not None
+    # 規則裡的句子本來就有「4」：延誤 4 小時以上的證明
+    for t in (
+        await session.exec(
+            select(TodoTemplate).where(TodoTemplate.document_code == "D13")
+        )
+    ).all():
+        t.counter_items = ["病名、就診日期、延誤 4 小時以上要寫明"]
+        session.add(t)
+    await session.commit()
+
+    body = await say(client, policy)
+
+    assert body["status"] == "ok"
+    item = body["sections"][0]["documents"][0]["items"][0]
+    assert item["english"].endswith(" 4")
 
 
 # ---- 存下翻好的內容（#570）：整個行程存一份，清單或語言變了才重翻 ----
@@ -490,20 +602,17 @@ async def test_翻譯員出錯後再打開_會再呼叫翻譯員_失敗不存(
     await add_incident(session, policy, {"D01": {}})
 
     translator.error = RuntimeError("LLM 掛了")
-    assert (
-        await client.post(f"/policies/{policy.id}/assistant-say")
-    ).status_code == 502
+    assert (await say(client, policy))["status"] == "failed"
     translator.error = None
     body = await say(client, policy)
+    assert body["status"] == "ok"
 
     assert listed_codes(body) == ["D01"]
     assert len(translator.calls) == 2
     # 成功之後存下；清單變了又翻譯失敗時，不覆蓋舊的那筆：清單改回去就直接用舊的，不再呼叫
     await add_incident(session, policy, {"D13": {}}, title="就醫")
     translator.error = RuntimeError("LLM 又掛了")
-    assert (
-        await client.post(f"/policies/{policy.id}/assistant-say")
-    ).status_code == 502
+    assert (await say(client, policy))["status"] == "failed"
     todo = (
         await session.exec(
             select(IncidentTodo).where(IncidentTodo.document_code == "D13")

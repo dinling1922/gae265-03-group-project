@@ -6,6 +6,7 @@ import { login } from "./helpers";
 // 所以翻譯的 API 在這裡換成固定的回應（真實翻譯員另外在本機實測）。需要 make seed。
 
 const SAY = {
+  status: "ok",
   language: "ja",
   request: {
     local: "旅行保険の請求のため、以下の書類を発行していただけますでしょうか。",
@@ -168,4 +169,66 @@ test("第二次打開（重新整理頁面後）不會出現「正在翻譯…�
   expect(
     await page.evaluate(() => (window as unknown as { sawTranslating?: boolean }).sawTranslating),
   ).toBeFalsy();
+});
+
+// 翻譯失敗（#571）：只有中文的版本，local、english 都是空的
+const chineseOnly = (line: { chinese: string }) => ({
+  local: null,
+  english: null,
+  chinese: line.chinese,
+});
+const FAILED = {
+  status: "failed",
+  language: "ja",
+  request: chineseOnly(SAY.request),
+  sections: SAY.sections.map((section) => ({
+    unit: chineseOnly(section.unit),
+    documents: section.documents.map((doc) => ({
+      code: doc.code,
+      name: chineseOnly(doc.name),
+      items: doc.items.map(chineseOnly),
+    })),
+  })),
+  thanks: chineseOnly(SAY.thanks),
+};
+
+test("翻譯失敗：看到中文清單和「翻譯失敗，再試一次」，按下後成功顯示日文、英文、中文", async ({
+  page,
+}) => {
+  const policyId = await setup(page, "failed", "班機延誤了六小時");
+  let calls = 0;
+  await page.route("**/api/v1/policies/*/assistant-say", async (route) => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.fulfill({ json: calls === 1 ? FAILED : SAY });
+  });
+  await page.goto(`/trip/${policyId}`);
+  await page.getByTestId("assistant-say-open").click();
+
+  const doc = SAY.sections[0]?.documents[0];
+  const item = doc?.items[0];
+  if (!doc || !item) throw new Error("測試資料缺文件");
+  const dialog = page.getByRole("dialog", { name: "小助理幫你說" });
+  const retry = dialog.getByRole("button", { name: "翻譯失敗，再試一次" });
+  await expect(retry).toBeVisible();
+  // 中文清單：請求、單位、文件、載明項目、謝謝都在，沒有日文與英文
+  for (const text of [
+    SAY.request.chinese,
+    "航空公司",
+    doc.name.chinese,
+    item.chinese,
+    SAY.thanks.chinese,
+  ])
+    await expect(dialog.getByText(text)).toBeVisible();
+  await expect(dialog.getByText(SAY.request.local)).toHaveCount(0);
+  await expect(dialog.getByText(SAY.request.english)).toHaveCount(0);
+
+  await retry.click();
+
+  await expect(dialog.getByRole("status")).toHaveText("正在翻譯…");
+  await expect(dialog.getByText(SAY.request.local)).toBeVisible();
+  await expect(dialog.getByText(SAY.request.english)).toBeVisible();
+  await expect(dialog.getByText(SAY.request.chinese)).toBeVisible();
+  await expect(retry).toHaveCount(0);
+  expect(calls).toBe(2);
 });

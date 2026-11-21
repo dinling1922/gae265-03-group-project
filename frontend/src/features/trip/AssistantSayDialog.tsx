@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { createAssistantSayMutation } from "../../client/@tanstack/react-query.gen";
 import type { SayLine } from "../../client/types.gen";
-import { btn } from "../../components/ui/buttons";
+import { btn, btnPri } from "../../components/ui/buttons";
 import { Dialog } from "../../components/ui/DialogShell";
 
 /** 打開後超過這麼久還沒回來，才顯示「正在翻譯…」（毫秒）。 */
@@ -11,6 +11,10 @@ const SLOW_MS = 300;
 /** 一句話：當地語言（最大）、英文、中文小字三行並列；只顯示英文時沒有當地語言那一行。 */
 function Say({ line, level = "body" }: { line: SayLine; level?: "lead" | "unit" | "body" }) {
   const big = level === "lead" ? "text-2xl" : level === "unit" ? "text-xl" : "text-lg";
+  // 翻譯失敗（#571）：local、english 都沒有，只剩中文，當成主要的那一行顯示
+  if (!line.english) {
+    return <p className={`m-0 ${big} leading-snug text-heading`}>{line.chinese}</p>;
+  }
   return (
     <div className="flex flex-col gap-1">
       {line.local && (
@@ -44,6 +48,7 @@ export function AssistantSayDialog({
     if (open) mutate({ path: { policy_id: policyId } });
     else reset();
   }, [open, policyId, mutate, reset]);
+  const retry = () => mutate({ path: { policy_id: policyId } });
   // 翻好的內容後端有存（#570）：再打開幾乎馬上回來，這時不閃一下「正在翻譯…」；等超過一下才顯示
   const [slow, setSlow] = useState(false);
   useEffect(() => {
@@ -75,10 +80,15 @@ export function AssistantSayDialog({
               正在翻譯…
             </p>
           )}
-          {isError && (
-            <p role="alert" className="m-0 py-6 text-lg text-danger">
-              翻譯失敗，請關閉後再試一次。
-            </p>
+          {(isError || data?.status === "failed") && (
+            <button
+              type="button"
+              onClick={retry}
+              data-testid="assistant-say-retry"
+              className={`${btnPri} self-start`}
+            >
+              翻譯失敗，再試一次
+            </button>
           )}
           {data && (
             <div className="flex flex-col gap-6" data-testid="assistant-say-content">
@@ -89,8 +99,9 @@ export function AssistantSayDialog({
                   className="flex flex-col gap-4 border-t border-line pt-4"
                 >
                   <h3 className="m-0 text-xl leading-snug font-bold text-heading">
-                    {section.unit.local ? `${section.unit.local} / ` : ""}
-                    {section.unit.english}（{section.unit.chinese}）
+                    {section.unit.english
+                      ? `${section.unit.local ? `${section.unit.local} / ` : ""}${section.unit.english}（${section.unit.chinese}）`
+                      : section.unit.chinese}
                   </h3>
                   {section.documents.map((doc) => (
                     <div key={doc.code} className="flex flex-col gap-3">

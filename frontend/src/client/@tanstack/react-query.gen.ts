@@ -1522,7 +1522,9 @@ export const getTripDriveFolderOptions = (options: Options<GetTripDriveFolderDat
  *
  * 把整個行程「事故當下」要向當地單位拿的文件，翻成當地語言與英文，依開立單位分段。
  *
- * 每次打開都重新翻譯（還不存）。行程已結案或沒有要列的文件時回 404（前端不顯示按鈕）。
+ * 翻好的內容整個行程存一份：句子與語言沒變就直接回存下的；變了才重新翻譯並覆蓋（#570）。行程已結案或沒有要列的文件時回 404（前端不顯示按鈕）。
+ *
+ * 翻譯失敗（LLM 出錯、句子 ID 對不上、譯文有原句沒有的數字）回 200，status 是 failed、內容只有中文；失敗不存（#571）。
  */
 export const createAssistantSayMutation = (options?: Partial<Options<CreateAssistantSayData>>): UseMutationOptions<CreateAssistantSayResponse, CreateAssistantSayError, Options<CreateAssistantSayData>> => {
     const mutationOptions: UseMutationOptions<CreateAssistantSayResponse, CreateAssistantSayError, Options<CreateAssistantSayData>> = {
