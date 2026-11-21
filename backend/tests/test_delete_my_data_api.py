@@ -11,6 +11,7 @@ from app.core.token_cipher import cipher_from_settings
 from app.domain.access_tokens import authenticate_bearer, create_token
 from app.main import app
 from app.models import (
+    AssistantSayTranslation,
     Comparison,
     Conversation,
     GoogleGrant,
@@ -36,6 +37,7 @@ OWNED_TABLES = (
     IncidentTodo,
     IncidentDocument,
     PolicySubmission,
+    AssistantSayTranslation,
     Conversation,
     Message,
     Comparison,
@@ -82,6 +84,11 @@ async def seed_user(session: AsyncSession, email: str) -> tuple[User, Policy]:
         )
     )
     session.add(PolicySubmission(policy_id=policy.id, incident_id=incident.id))
+    session.add(
+        AssistantSayTranslation(
+            policy_id=policy.id, fingerprint="x", language="ja", content={}
+        )
+    )
     conv = Conversation(
         user_id=user.id,
         policy_id=policy.id,
@@ -133,6 +140,7 @@ async def test_delete_policy_removes_everything_under_it(
         IncidentTodo,
         IncidentDocument,
         PolicySubmission,
+        AssistantSayTranslation,
         Conversation,
         Message,
     ):

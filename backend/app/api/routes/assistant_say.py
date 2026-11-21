@@ -5,12 +5,15 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.dialects.postgresql import insert
+from sqlmodel import select
 
 from app.agents.incident.assistant_say import Translator, get_assistant_translator
 from app.api.deps import CurrentUser, SessionDep
 from app.api.routes.trip import _own_policy
 from app.domain import assistant_say
 from app.domain.incident import trip as trip_domain
+from app.models import AssistantSayTranslation
 
 router = APIRouter(tags=["trip"])
 logger = logging.getLogger(__name__)
@@ -25,7 +28,7 @@ async def create_assistant_say(
 ) -> assistant_say.AssistantSayOut:
     """把整個行程「事故當下」要向當地單位拿的文件，翻成當地語言與英文，依開立單位分段。
 
-    每次打開都重新翻譯（還不存）。行程已結案或沒有要列的文件時回 404（前端不顯示按鈕）。
+    翻好的內容整個行程存一份：句子與語言沒變就直接回存下的；變了才重新翻譯並覆蓋（#570）。行程已結案或沒有要列的文件時回 404（前端不顯示按鈕）。
     """
     policy = await _own_policy(session, user, policy_id)
     trip = await trip_domain.build_trip_context(session, policy)
@@ -36,6 +39,16 @@ async def create_assistant_say(
         trip_domain.destination_of(trip) or policy.destination
     )
     sentences = assistant_say.sentences_of(sections)
+    digest = assistant_say.fingerprint(sentences, language)
+    saved = (
+        await session.exec(
+            select(AssistantSayTranslation).where(
+                AssistantSayTranslation.policy_id == policy_id
+            )
+        )
+    ).first()
+    if saved is not None and saved.fingerprint == digest:
+        return assistant_say.AssistantSayOut.model_validate(saved.content)
     try:
         translations = assistant_say.validated(
             await translator(sentences, language), sentences, language
@@ -43,4 +56,17 @@ async def create_assistant_say(
     except Exception as e:
         logger.exception("小助理幫你說翻譯失敗（policy %s）", policy_id)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "翻譯失敗，請再試一次") from e
-    return assistant_say.assemble(sections, sentences, translations, language)
+    out = assistant_say.assemble(sections, sentences, translations, language)
+    # 整個行程存一份；兩個請求同時第一次打開也只會有一筆（失敗的翻譯在上面就丟出去了，不會存）
+    values = {
+        "fingerprint": digest,
+        "language": language,
+        "content": out.model_dump(),
+    }
+    await session.exec(
+        insert(AssistantSayTranslation)
+        .values(policy_id=policy_id, **values)
+        .on_conflict_do_update(index_elements=["policy_id"], set_=values)
+    )
+    await session.commit()
+    return out
