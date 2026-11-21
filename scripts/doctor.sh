@@ -62,7 +62,7 @@ else
     if [[ "${health:-$state}" == "healthy" || ( -z "${health:-}" && "${state:-}" == "running" ) ]]; then
       pass "$svc ${health:-$state}"
     else
-      fail "$svc 狀態：${health:-${state:-未啟動}} → make up（已啟動則 make logs s=$svc）"
+      fail "$svc 狀態：${health:-${state:-未啟動}} → make up（已啟動則 make logs s=${svc}）"
     fi
   done
 
@@ -131,7 +131,7 @@ except Exception as e:
 print(p)
 PY
   ); then
-    pass "LLM 供應商可連線（$llm）"
+    pass "LLM 供應商可連線（${llm}）"
   elif [[ -z "$llm" ]]; then
     fail "無法在 backend 容器內檢查 LLM 供應商 → make up；已啟動則 make logs s=backend"
   else

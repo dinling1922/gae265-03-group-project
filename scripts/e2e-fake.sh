@@ -4,6 +4,7 @@
 # 為什麼：docker 開發環境（localhost:5173）的後端是 AGENT_5_IMPL=v1（真實 5 號、Azure OpenAI），
 # 完整 e2e 在上面會大量逾時；e2e 預期的是假 5 號那種即時、固定的回應。
 # 這個腳本不動 docker 的服務與 .env，結束時（含失敗、Ctrl+C）只關掉自己啟動的兩個程序。
+# macOS 沒有 setsid（util-linux 的指令）：開服務時改用 python3 的 os.setsid()，見下面的 own_session（#577）。
 #
 # 用法：scripts/e2e-fake.sh [playwright test 的參數...]，例如 scripts/e2e-fake.sh incident-policy-confirm
 # 環境變數：E2E_BACKEND_PORT（預設 8001）、E2E_FRONT_PORT（預設 5174）
@@ -50,14 +51,23 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# setsid：兩個服務各自成一個行程群組，結束時整組關掉（vite 會再生子行程）
+# 兩個服務各自開新的 session，成為自己行程群組的組長（pgid == pid），結束時整組關掉（vite 會再生子行程）。
+# exec 之後 PID 不變，cleanup 才能用 kill -- -PID。Linux 有 setsid 就照舊用；
+# macOS 沒有 setsid（那是 util-linux 的指令），改用 python3 的 os.setsid() 再 exec 原本的指令（#577）
+own_session() {
+  if command -v setsid >/dev/null 2>&1; then
+    exec setsid "$@"
+  fi
+  exec python3 -c 'import os,sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"
+}
+
 (cd "$ROOT/backend" && AGENT_5_IMPL=fake DEV_LOGIN_ENABLED=true POSTGRES_SERVER=localhost \
-  exec setsid "$UVICORN" app.main:app --host 127.0.0.1 --port "$BACKEND_PORT" >"$LOGS/backend.log" 2>&1) &
+  own_session "$UVICORN" app.main:app --host 127.0.0.1 --port "$BACKEND_PORT" >"$LOGS/backend.log" 2>&1) &
 PIDS+=("$!")
 
 [ -d "$ROOT/frontend/node_modules" ] || pnpm --dir "$ROOT/frontend" install --frozen-lockfile
 (cd "$ROOT/frontend" && API_PROXY_TARGET="http://127.0.0.1:$BACKEND_PORT" VITE_CACHE_DIR="$VITE_CACHE" \
-  exec setsid pnpm exec vite --configLoader runner --host 127.0.0.1 --port "$FRONT_PORT" --strictPort >"$LOGS/frontend.log" 2>&1) &
+  own_session pnpm exec vite --configLoader runner --host 127.0.0.1 --port "$FRONT_PORT" --strictPort >"$LOGS/frontend.log" 2>&1) &
 PIDS+=("$!")
 
 wait_ready() { # 名稱 網址 PID 記錄檔
@@ -75,7 +85,7 @@ wait_ready() { # 名稱 網址 PID 記錄檔
 }
 wait_ready 後端 "http://127.0.0.1:$BACKEND_PORT/api/v1/auth/config" "${PIDS[0]}" "$LOGS/backend.log"
 wait_ready 前端 "http://127.0.0.1:$FRONT_PORT/" "${PIDS[1]}" "$LOGS/frontend.log"
-echo "假 5 號後端 :$BACKEND_PORT、前端 :$FRONT_PORT 就緒（記錄在 $LOGS）"
+echo "假 5 號後端 :${BACKEND_PORT}、前端 :${FRONT_PORT} 就緒（記錄在 ${LOGS}）"
 
 cd "$ROOT/frontend"
 pnpm exec playwright install chromium
