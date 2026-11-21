@@ -134,7 +134,8 @@ def request_payload(model) -> dict:
 def test_qa_model_without_setting_is_the_same_as_the_default_model() -> None:
     from app.core.llm import get_qa_chat_model
 
-    s = Settings(**AZURE)  # pyright: ignore[reportArgumentType]
+    # 不讀本機 .env：本機（luna）的 .env 有設 INCIDENT_QA_REASONING_EFFORT，「沒有設定」的前提就不成立
+    s = Settings(_env_file=None, **AZURE)  # pyright: ignore[reportCallIssue]
     assert s.INCIDENT_QA_REASONING_EFFORT == ""
 
     qa = get_qa_chat_model(s)
