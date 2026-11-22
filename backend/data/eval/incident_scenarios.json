@@ -250,5 +250,21 @@
     ],
     "expect_documents": ["D01", "D02"],
     "follow_up": { "say": "保險公司收到文件後，多久會把理賠金匯給我？", "expect": "not_covered" }
+  },
+  {
+    "name": "就醫短句「我感冒去看醫生」（安達）（#548）",
+    "plan": "chubb_advanced",
+    "sum_insured": 3000000,
+    "start_date": "2026-07-05",
+    "end_date": "2026-07-11",
+    "description": "我感冒去看醫生",
+    "answers": [
+      ["哪一天發生", "7/8"],
+      ["在哪裡", "新宿"],
+      ["生病，還是受傷", "生病"],
+      ["有住院", "否"],
+      ["醫療費", "是"]
+    ],
+    "expect_documents": ["D13", "D14", "D24"]
   }
 ]

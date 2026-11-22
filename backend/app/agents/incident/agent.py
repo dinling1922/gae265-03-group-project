@@ -638,6 +638,10 @@ class IncidentAgentV1:
         # 問答先判斷是不是更正（_node_revise），不是才守門：「我講錯了，是凌晨4點」不能被擋掉
         needs_gate = not state["qa"] and flow.EVENT_TYPE_KEY not in known
         verdict = await self._classify(ctx, masked) if needs_gate else "related"
+        # 守門信心值低（unsure），但句子有明確的事故關鍵字（「我感冒去看醫生」）：不反問，當作相關繼續（#548）。
+        # unrelated 照舊擋下；去識別化後的句子才拿來比對關鍵字
+        if verdict == "unsure" and flow.guess_type(masked) in flow.SUPPORTED_TYPES:
+            verdict = "related"
         if verdict in GATE_MESSAGES:
             return {
                 "masked": masked,
@@ -779,7 +783,16 @@ class IncidentAgentV1:
         )
         result = ExtractResult() if band else await self._extract(masked, candidates)
         if type_code is None:
-            type_code = result.event_type or flow.guess_type(text)
+            # LLM 回支援的類型就用 LLM 的；回不支援的（或沒回），但關鍵字猜得到支援的類型就用關鍵字的
+            # （「我骨折了」LLM 可能回不支援的類型，#548）；兩個都不支援才往下回固定訊息
+            guessed = flow.guess_type(text)
+            type_code = (
+                result.event_type
+                if result.event_type in flow.SUPPORTED_TYPES
+                else guessed
+                if guessed in flow.SUPPORTED_TYPES
+                else result.event_type or guessed
+            )
             if type_code not in flow.SUPPORTED_TYPES:
                 # 只支援班機延誤與行李遺失（#231）；其他狀況照規格 7.2 回固定訊息，不建立事故
                 return {"reply": IncidentReply(message=UNSUPPORTED_MESSAGE)}
