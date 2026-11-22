@@ -550,10 +550,30 @@ async function scrollCardToTop(page: Page, index: number) {
   }, index);
 }
 
+// 等捲動與版面穩定：連續 20 個影格，捲動位置與頁面高度都沒有變（取代固定的 waitForTimeout，
+// 機器忙的時候影格變慢，等的時間會自己拉長）
+async function waitForScrollSettled(page: Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        let last = "";
+        let stable = 0;
+        const tick = () => {
+          const now = `${window.scrollY}:${document.documentElement.scrollHeight}`;
+          stable = now === last ? stable + 1 : 0;
+          last = now;
+          if (stable >= 20) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+  );
+}
+
 async function selectByAsk(page: Page, index: number) {
   await page.getByTestId("trip-incident").nth(index).getByTestId("incident-ask").click();
   await expect.poll(() => selectedIndex(page)).toBe(index);
-  await page.waitForTimeout(1500); // 等自動捲動結束
+  await waitForScrollSettled(page); // 等自動捲動結束
 }
 
 test("捲動自動切換：選中下方事故後往上捲到上方事故的狀況總結，問答換成上方事故", async ({
@@ -700,20 +720,25 @@ test("捲動自動切換：捲到頁面最底，最後一張卡的上緣還沒�
   expect(await selectedIndex(page)).toBe(0); // 一進頁面選中的是第一件
   const first = (await page.getByTestId("qa-title").textContent()) ?? "";
 
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-
-  // 前提：頁面真的有捲動（才有捲動事件），而且最後一張卡的上緣還沒過線（不然這個測試證明不了什麼）
-  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  const lastTop = await page.evaluate(
-    () =>
-      document.querySelectorAll('[data-testid="trip-incident"]')[1]?.getBoundingClientRect().top,
-  );
+  // 前提：頁面真的有捲動（才有捲動事件），而且最後一張卡的上緣還沒過線（不然這個測試證明不了什麼）。
+  // 捲動與量測要在同一次 evaluate 裡做完：捲動事件是非同步的，量測之前產品的自動切換還沒發生；
+  // 分開兩次呼叫的話，機器忙時切換會先發生（第一張卡收起、後面的內容往上移），量到的上緣就不是捲到底當下的位置
+  const { scrollY, lastTop } = await page.evaluate(() => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" });
+    return {
+      scrollY: window.scrollY,
+      lastTop: document
+        .querySelectorAll('[data-testid="trip-incident"]')[1]
+        ?.getBoundingClientRect().top,
+    };
+  });
+  expect(scrollY).toBeGreaterThan(0);
   expect(lastTop).toBeGreaterThan(48);
   await expect.poll(() => selectedIndex(page)).toBe(1);
   await expect(page.getByTestId("qa-title")).not.toHaveText(first);
 
-  // 切換後最後一張卡展開、頁面變長：選中的事故不能又跳回第一件
-  await page.waitForTimeout(800);
+  // 切換後最後一張卡展開、頁面變長：等版面穩定，選中的事故不能又跳回第一件
+  await waitForScrollSettled(page);
   expect(await selectedIndex(page)).toBe(1);
 });
 
