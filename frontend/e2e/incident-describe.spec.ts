@@ -81,6 +81,42 @@ test("建立前：送出第一句才建立事件，換到追問畫面；回上�
   await expect(page).not.toHaveURL(new RegExp(`/incident/new/${policyId}$`));
 });
 
+test("建立前：送出第一句後換頁，整個過程沒有出現整頁「載入中…」，對話框一直在，接著出現第一個追問", async ({
+  page,
+}) => {
+  const policyId = await loginWithPolicy(page, "no-flash");
+  // 事件內容與事件清單的讀取都慢 800 毫秒：換頁後才去抓資料的話，整頁「載入中…」一定看得到
+  await page.route(/\/api\/v1\/incidents(\/[0-9a-f-]{36})?$/, async (route) => {
+    if (route.request().method() === "GET") await new Promise((r) => setTimeout(r, 800));
+    await route.continue();
+  });
+  await page.goto(`/incident/new/${policyId}`);
+  await expect(page.getByTestId("start-form")).toBeVisible();
+  // 頁面準備好之後才開始記：進頁面時讀保單的「載入中…」不算
+  await page.evaluate(() => {
+    const w = window as unknown as { sawLoading?: boolean; sawEmptyChat?: boolean };
+    new MutationObserver(() => {
+      if (document.body.textContent?.includes("載入中…")) w.sawLoading = true;
+      // 對話框消失（換頁空檔）也算閃一下
+      if (!document.querySelector('[data-testid="messages"]')) w.sawEmptyChat = true;
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  });
+
+  await page.getByTestId("message").fill("班機延誤了六小時");
+  await page.getByTestId("send").click();
+
+  await expect(page).toHaveURL(/\/incident\/[0-9a-f-]{36}$/, { timeout: SLOW });
+  await expect(page.getByTestId("messages").locator("li")).toHaveCount(3, { timeout: SLOW });
+  await expect(
+    page.getByTestId("quick-replies").getByRole("button", { name: "生病受傷" }),
+  ).toBeVisible();
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as { sawLoading?: boolean; sawEmptyChat?: boolean };
+    return { loading: w.sawLoading === true, emptyChat: w.sawEmptyChat === true };
+  });
+  expect(seen).toEqual({ loading: false, emptyChat: false });
+});
+
 test("追問中：頁首沿用保單資訊、沒有舊的標題與步驟列，點選項就是回答", async ({ page }) => {
   const policyId = await loginWithPolicy(page, "clarify");
   const createdRes = await page.request.post(`/api/v1/policies/${policyId}/incidents`, {
