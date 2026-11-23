@@ -388,3 +388,13 @@ test("送出描述後 5 號一輪就問完（直接跳確認彈窗）：不出�
   await expect(page.getByTestId("message")).not.toBeFocused();
   expect(errors).toEqual([]);
 });
+
+test("追問的泡泡維持原樣：沒有依據的 AI 訊息不是回答卡（#592）", async ({ page }) => {
+  const policyId = await loginWithPolicy(page, "no-card");
+  await page.goto(`/incident/new/${policyId}`);
+  await page.getByTestId("message").fill("班機延誤了六小時");
+  await page.getByTestId("send").click();
+  await expect(page.getByTestId("messages").locator("li")).toHaveCount(3, { timeout: SLOW });
+
+  await expect(page.getByTestId("answer-card")).toHaveCount(0);
+});
