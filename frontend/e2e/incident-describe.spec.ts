@@ -41,6 +41,9 @@ test("建立前：頁首帶保單的目的地與期間，只有固定第一句�
   const chat = page.getByTestId("messages");
   await expect(chat.locator("li")).toHaveCount(1);
   await expect(chat).toContainText("發生什麼事了？用一兩句話描述就好");
+  // 範例是 5 號支援的狀況（班機延誤）；5 號不支援班機取消，照範例打會被回「無法協助判斷」
+  await expect(chat).toContainText("例如：颱風來了，回台灣的班機延誤了。");
+  await expect(chat).not.toContainText("班機被取消");
   await expect(page.getByTestId("quick-replies")).toHaveCount(0);
   // 輸入框為空時送出 disabled；有字才啟用，計數即時更新（上限 500）
   const send = page.getByTestId("send");

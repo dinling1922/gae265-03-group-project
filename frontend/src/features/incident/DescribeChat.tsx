@@ -5,7 +5,7 @@ import { box } from "./shared";
 
 /** 2-2 的 AI 第一句（畫面上的開場白，不是 5 號的回覆，不存進對話紀錄）。 */
 export const FIRST_QUESTION =
-  "發生什麼事了？用一兩句話描述就好，例如：颱風來了，回台灣的班機被取消。";
+  "發生什麼事了？用一兩句話描述就好，例如：颱風來了，回台灣的班機延誤了。";
 
 export type ChatLine = {
   from: "me" | "ai";
