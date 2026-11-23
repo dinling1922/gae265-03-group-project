@@ -5,13 +5,22 @@ import { box } from "./shared";
 
 /** 2-2 的 AI 第一句（畫面上的開場白，不是 5 號的回覆，不存進對話紀錄）。 */
 export const FIRST_QUESTION =
-  "發生什麼事了？用一兩句話描述就好，例如：颱風來了，回台灣的班機被取消。";
+  "發生什麼事了？用一兩句話描述就好，例如：颱風來了，回台灣的班機延誤了。";
 
 export type ChatLine = {
   from: "me" | "ai";
   text: string;
   citations?: { insurance_code: string; article_no: number }[];
 };
+
+function Basis({ citations }: { citations: NonNullable<ChatLine["citations"]> }) {
+  return (
+    <span className="t-caption text-muted" data-testid="citations">
+      依據：
+      {citations.map((c) => `${c.insurance_code} 第 ${c.article_no} 條`).join("、")}
+    </span>
+  );
+}
 
 /**
  * 2-2 描述事故的對話卡（DESIGN.md 7.9）：對話區（最小高 320）、AI 追問的選項 Chip、提問列（500 字）。
@@ -81,12 +90,25 @@ export function DescribeChat({
         {lines.map((line, i) => (
           // biome-ignore lint/suspicious/noArrayIndexKey: 訊息沒有穩定 id，順序固定
           <ChatMessage key={i} from={line.from}>
-            {line.text}
-            {line.citations && line.citations.length > 0 && (
-              <span className="t-caption text-muted" data-testid="citations">
-                依據：
-                {line.citations.map((c) => `${c.insurance_code} 第 ${c.article_no} 條`).join("、")}
-              </span>
+            {line.from === "ai" && line.citations && line.citations.length > 0 ? (
+              // 條款問答的回答：功能一的回答卡樣式（同 compare 的 Answer），依據放在卡片外面（同一則訊息、卡的下方）
+              <>
+                <div
+                  className="rounded-r-tile border-l-4 border-brand bg-leaf-soft px-4 py-3"
+                  data-testid="answer-card"
+                >
+                  <p className="m-0 mb-1 t-caption-bold tracking-widest text-leaf-text">回答</p>
+                  <p className="m-0 whitespace-pre-wrap t-body text-ink">{line.text}</p>
+                </div>
+                <Basis citations={line.citations} />
+              </>
+            ) : (
+              <>
+                {line.text}
+                {line.citations && line.citations.length > 0 && (
+                  <Basis citations={line.citations} />
+                )}
+              </>
             )}
           </ChatMessage>
         ))}

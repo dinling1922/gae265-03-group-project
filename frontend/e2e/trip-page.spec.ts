@@ -834,3 +834,39 @@ test("問答只問條款、結論沒變：不跳確認彈窗", async ({ page }) 
   await expect(page.getByTestId("messages")).toContainText("診斷書要正本嗎？");
   await expect(page.getByTestId("confirm-dialog")).toHaveCount(0);
 });
+
+// 條款問答的回答用功能一的回答卡樣式（#592）：有依據的 AI 回答，內文放在「回答」卡裡，依據在卡片外面
+test("問答的回答是回答卡：有依據的回答顯示「回答」與左框線，依據在框外；沒有依據的訊息不變", async ({
+  page,
+}) => {
+  const { policyId } = await setup(page, "answer-card", ["班機延誤了六小時"]);
+  await page.goto(`/trip/${policyId}`);
+  const messages = page.getByTestId("messages");
+  await expect(messages).toBeVisible();
+  const cards = page.getByTestId("answer-card");
+  // 問之前就有的：5 號結束追問那則回覆帶依據，也是回答卡；開場白與旅客的話沒有依據，不是
+  const before = await cards.count();
+  await expect(messages.locator("li", { hasNot: page.getByTestId("answer-card") })).not.toHaveCount(
+    0,
+  );
+
+  await askInTrip(page, "診斷書要正本嗎？");
+
+  await expect(cards).toHaveCount(before + 1);
+  const card = cards.last();
+  const message = card.locator("xpath=ancestor::li[1]");
+  await expect(card.getByText("回答", { exact: true })).toBeVisible();
+  await expect(card).toHaveCSS("border-left-width", "4px");
+  // 依據在框外（同一則訊息裡、框的下方）
+  await expect(card.getByTestId("citations")).toHaveCount(0);
+  await expect(message.getByTestId("citations")).toContainText("依據：");
+  const [cardBox, basisBox] = await Promise.all([
+    card.boundingBox(),
+    message.getByTestId("citations").boundingBox(),
+  ]);
+  expect((basisBox?.y ?? 0) >= (cardBox?.y ?? 0) + (cardBox?.height ?? 0)).toBe(true);
+  // 旅客自己的話沒有變成回答卡
+  await expect(
+    messages.locator("li", { hasText: "診斷書要正本嗎？" }).filter({ has: cards }),
+  ).toHaveCount(0);
+});

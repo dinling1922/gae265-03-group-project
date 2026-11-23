@@ -41,6 +41,9 @@ test("建立前：頁首帶保單的目的地與期間，只有固定第一句�
   const chat = page.getByTestId("messages");
   await expect(chat.locator("li")).toHaveCount(1);
   await expect(chat).toContainText("發生什麼事了？用一兩句話描述就好");
+  // 範例是 5 號支援的狀況（班機延誤）；5 號不支援班機取消，照範例打會被回「無法協助判斷」
+  await expect(chat).toContainText("例如：颱風來了，回台灣的班機延誤了。");
+  await expect(chat).not.toContainText("班機被取消");
   await expect(page.getByTestId("quick-replies")).toHaveCount(0);
   // 輸入框為空時送出 disabled；有字才啟用，計數即時更新（上限 500）
   const send = page.getByTestId("send");
@@ -76,6 +79,42 @@ test("建立前：送出第一句才建立事件，換到追問畫面；回上�
   // 換路由是取代：按上一頁不會回到空的對話
   await page.goBack();
   await expect(page).not.toHaveURL(new RegExp(`/incident/new/${policyId}$`));
+});
+
+test("建立前：送出第一句後換頁，整個過程沒有出現整頁「載入中…」，對話框一直在，接著出現第一個追問", async ({
+  page,
+}) => {
+  const policyId = await loginWithPolicy(page, "no-flash");
+  // 事件內容與事件清單的讀取都慢 800 毫秒：換頁後才去抓資料的話，整頁「載入中…」一定看得到
+  await page.route(/\/api\/v1\/incidents(\/[0-9a-f-]{36})?$/, async (route) => {
+    if (route.request().method() === "GET") await new Promise((r) => setTimeout(r, 800));
+    await route.continue();
+  });
+  await page.goto(`/incident/new/${policyId}`);
+  await expect(page.getByTestId("start-form")).toBeVisible();
+  // 頁面準備好之後才開始記：進頁面時讀保單的「載入中…」不算
+  await page.evaluate(() => {
+    const w = window as unknown as { sawLoading?: boolean; sawEmptyChat?: boolean };
+    new MutationObserver(() => {
+      if (document.body.textContent?.includes("載入中…")) w.sawLoading = true;
+      // 對話框消失（換頁空檔）也算閃一下
+      if (!document.querySelector('[data-testid="messages"]')) w.sawEmptyChat = true;
+    }).observe(document, { childList: true, subtree: true, characterData: true });
+  });
+
+  await page.getByTestId("message").fill("班機延誤了六小時");
+  await page.getByTestId("send").click();
+
+  await expect(page).toHaveURL(/\/incident\/[0-9a-f-]{36}$/, { timeout: SLOW });
+  await expect(page.getByTestId("messages").locator("li")).toHaveCount(3, { timeout: SLOW });
+  await expect(
+    page.getByTestId("quick-replies").getByRole("button", { name: "生病受傷" }),
+  ).toBeVisible();
+  const seen = await page.evaluate(() => {
+    const w = window as unknown as { sawLoading?: boolean; sawEmptyChat?: boolean };
+    return { loading: w.sawLoading === true, emptyChat: w.sawEmptyChat === true };
+  });
+  expect(seen).toEqual({ loading: false, emptyChat: false });
 });
 
 test("追問中：頁首沿用保單資訊、沒有舊的標題與步驟列，點選項就是回答", async ({ page }) => {
@@ -348,4 +387,14 @@ test("送出描述後 5 號一輪就問完（直接跳確認彈窗）：不出�
   await expect(dialog).toBeVisible({ timeout: SLOW });
   await expect(page.getByTestId("message")).not.toBeFocused();
   expect(errors).toEqual([]);
+});
+
+test("追問的泡泡維持原樣：沒有依據的 AI 訊息不是回答卡（#592）", async ({ page }) => {
+  const policyId = await loginWithPolicy(page, "no-card");
+  await page.goto(`/incident/new/${policyId}`);
+  await page.getByTestId("message").fill("班機延誤了六小時");
+  await page.getByTestId("send").click();
+  await expect(page.getByTestId("messages").locator("li")).toHaveCount(3, { timeout: SLOW });
+
+  await expect(page.getByTestId("answer-card")).toHaveCount(0);
 });

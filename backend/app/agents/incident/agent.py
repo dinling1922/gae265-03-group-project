@@ -4,6 +4,7 @@
 """
 
 import logging
+import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
@@ -252,11 +253,23 @@ def _yes_no(said: str) -> str | None:
     return None
 
 
+# 整句只有不確定的說法（#592）：前面可以有「我、還、也」，後面可以帶「了、耶、欸、啊」和標點。
+# 要整句比對：「不確定幾點，但延誤超過四小時」帶有其他資訊，交給 LLM
+_UNSURE = re.compile(
+    r"^[我還也]*(不確定|不清楚|不記得|不曉得|忘了|不知道)[了耶欸啊]*[。！!？?…~～,，\s]*$"
+)
+
+
+def _unsure(text: str) -> bool:
+    return _UNSURE.match(text.strip()) is not None
+
+
 def _direct_answer(text: str, options: list[str]) -> str | None:
-    """不用 LLM 就能確定的答案：「不知道」（v3.4：視為已回答）、剛好是這題的選項（`options` 是
+    """不用 LLM 就能確定的答案：「不知道」（v3.4：視為已回答）與整句只有「還不確定」「不清楚」等
+    不確定的說法（是非題也一樣，要在是非判斷之前）、剛好是這題的選項（`options` 是
     `flow.options_for` 給這題的選項），或是非題以「不是／沒有／有／搭了」等開頭的回答。"""
     said = text.strip()
-    if said.startswith(UNKNOWN):
+    if said.startswith(UNKNOWN) or _unsure(said):
         return UNKNOWN
     if said in options:
         return said
@@ -781,7 +794,11 @@ class IncidentAgentV1:
             if asking and candidates and candidates[0].key == "dep_plan"
             else None
         )
-        result = ExtractResult() if band else await self._extract(masked, candidates)
+        # 追問中整句只有不確定的說法（「還不確定」）：直接記成不知道，不必問 LLM（#592）
+        skip_llm = band or (asking and bool(candidates) and _unsure(text))
+        result = (
+            ExtractResult() if skip_llm else await self._extract(masked, candidates)
+        )
         if type_code is None:
             # LLM 回支援的類型就用 LLM 的；回不支援的（或沒回），但關鍵字猜得到支援的類型就用關鍵字的
             # （「我骨折了」LLM 可能回不支援的類型，#548）；兩個都不支援才往下回固定訊息

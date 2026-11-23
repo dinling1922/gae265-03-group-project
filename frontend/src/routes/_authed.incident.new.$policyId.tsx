@@ -1,8 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { createIncident } from "../client";
-import { listPoliciesOptions } from "../client/@tanstack/react-query.gen";
+import {
+  getIncidentOptions,
+  listIncidentsOptions,
+  listPoliciesOptions,
+} from "../client/@tanstack/react-query.gen";
 import { ActionBar } from "../components/ui/ActionBar";
 import { btn, lnk } from "../components/ui/buttons";
 import { PageHead } from "../components/ui/PageHead";
@@ -23,6 +27,7 @@ export const Route = createFileRoute("/_authed/incident/new/$policyId")({
 function DescribePage() {
   const { policyId } = Route.useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const policies = useQuery(listPoliciesOptions());
   const policy = policies.data?.find((p) => p.id === policyId);
   const [text, setText] = useState("");
@@ -46,9 +51,21 @@ function DescribePage() {
       setBusy(false);
       return setError(errorText(res.error, res.response?.status));
     }
+    // 換頁前先把追問頁要用的資料放進快取，換過去直接有資料：外框（`/incident/$id`）等事件內容、
+    // 追問頁等事件清單（確認狀態在清單裡），沒有的話整頁只剩「載入中…」，對話框會消失再出現。
+    // 事件內容就在建立事件的回應裡，直接放進快取；事件清單要抓最新的（舊的快取裡還沒有這個事件）。
+    // 抓的期間 busy 與輸入中的泡泡維持原樣；清單抓失敗不擋換頁（追問頁自己會再讀）
+    const incidentId = res.data.incident.incident_id;
+    queryClient.setQueryData(
+      getIncidentOptions({ path: { incident_id: incidentId } }).queryKey,
+      res.data.incident,
+    );
+    await queryClient
+      .fetchQuery({ ...listIncidentsOptions(), staleTime: 0 })
+      .catch(() => undefined);
     await navigate({
       to: "/incident/$id",
-      params: { id: res.data.incident.incident_id },
+      params: { id: incidentId },
       replace: true,
       // 告訴追問頁：旅客剛送出描述，輸入框要自動對焦（只有這一次換頁，#441）
       state: (prev) => ({ ...prev, ...FOCUS_ASK_STATE }),
