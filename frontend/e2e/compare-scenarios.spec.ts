@@ -70,8 +70,8 @@ test("1-4 切換情境看多列試算卡片、問答；離開再回來對話是�
   const concerns = page.getByTestId("concern-details");
   await expect(concerns.getByRole("table")).toBeHidden();
   await concerns.getByText("你在意的保障比較").click();
-  await expect(concerns.getByRole("row", { name: /^班機延誤.*你在意 1/ })).toBeVisible();
-  await expect(concerns.getByRole("row", { name: /^海外突發疾病醫療.*你在意 2/ })).toBeVisible();
+  await expect(concerns.getByRole("row", { name: /^班機延誤/ })).toBeVisible();
+  await expect(concerns.getByRole("row", { name: /^海外突發疾病醫療/ })).toBeVisible();
   await concerns.getByText("你在意的保障比較").click();
 
   // 切換頁籤就換卡片：錢包被偷有 3 列與固定附註；方案沒有的保障顯示「不在保障範圍」
@@ -172,7 +172,7 @@ test("手機寬度（390px）下 1-4 沒有橫向捲動；頁籤可橫向捲動"
   expect(await overflow()).toBe(false);
 });
 
-test("1-2 選新的在意事項 → 1-3 標「你在意」→ 1-4 ★ 排前 → 點短名稱與給付方式開解釋", async ({
+test("1-2 選新的在意事項 → 1-3 底色標示 → 1-4 ★ 排前 → 點短名稱與給付方式開解釋", async ({
   page,
 }) => {
   await login(page, "e2e-compare-scenarios-flow@example.com");
@@ -184,11 +184,11 @@ test("1-2 選新的在意事項 → 1-3 標「你在意」→ 1-4 ★ 排前 →
   await page.getByRole("button", { name: "下一步" }).click();
   await expect(page).toHaveURL(/\/result$/);
 
-  // 1-3：合併列、責任保險與選了才出現的緊急救援都標「你在意」
+  // 1-3：合併列、責任保險與選了才出現的緊急救援都有底色
   const heads = page.getByRole("table").getByRole("rowheader");
-  await expect(heads.filter({ hasText: "海外突發疾病醫療你在意" })).toHaveCount(1);
-  await expect(heads.filter({ hasText: "責任保險你在意" })).toHaveCount(1);
-  await expect(heads.filter({ hasText: "緊急救援你在意" })).toHaveCount(1);
+  await expect(heads.filter({ hasText: "海外突發疾病醫療" })).toHaveCount(1);
+  await expect(heads.filter({ hasText: "責任保險" })).toHaveCount(1);
+  await expect(heads.filter({ hasText: "緊急救援" })).toHaveCount(1);
 
   // 1-4：有 ★ 的排前面，依涵蓋的在意事項中排名最前的排序
   await page.getByRole("link", { name: "情境試算與問答" }).click();

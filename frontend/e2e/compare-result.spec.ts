@@ -67,7 +67,7 @@ test("1-3 顯示推薦、依據、比較表與名詞解釋；改次推薦保額�
 
   // 比較表：預設只有在意的列與身故
   const table = page.getByRole("table");
-  await expect(table.getByRole("rowheader").first()).toContainText("班機延誤你在意 1");
+  await expect(table.getByRole("rowheader").first()).toContainText("班機延誤");
   await expect(table.getByRole("button", { name: "身故" })).toBeVisible();
   await expect(table.getByRole("button", { name: "意外醫療" })).toBeVisible();
   await expect(table.getByRole("button", { name: "責任保險" })).toBeHidden();
@@ -142,9 +142,7 @@ test("沒有在意事項時開 1-3 會導回 1-2", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/compare/${id}/concerns$`));
 });
 
-test("1-3 比較表把疾病醫療合成一列，緊急救援與責任保險標「你在意」，意外醫療不標", async ({
-  page,
-}) => {
+test("1-3 比較表把疾病醫療合成一列，緊急救援與責任保險底色標示，意外醫療不標", async ({ page }) => {
   await login(page, "e2e-compare-merged-rows@example.com");
   await fillTrip(page);
   await page.getByRole("button", { name: /^需要緊急送醫或家屬趕來/ }).click();
@@ -155,12 +153,14 @@ test("1-3 比較表把疾病醫療合成一列，緊急救援與責任保險標�
 
   const table = page.getByRole("table");
   const heads = table.getByRole("rowheader");
-  await expect(heads.nth(0)).toContainText("緊急救援你在意");
-  await expect(heads.nth(1)).toContainText("海外突發疾病醫療你在意");
-  await expect(heads.nth(2)).toContainText("責任保險你在意");
+  await expect(heads.nth(0)).toContainText("緊急救援");
+  await expect(heads.nth(1)).toContainText("海外突發疾病醫療");
+  await expect(heads.nth(2)).toContainText("責任保險");
   await expect(heads.nth(3)).toContainText("身故");
   await expect(heads.nth(4)).toContainText("意外醫療");
-  await expect(heads.nth(4)).not.toContainText("你在意");
+  // 你在意的列用 leaf-soft 底色標示，意外醫療不是
+  await expect(heads.nth(0).locator("xpath=..")).toHaveClass(/bg-leaf-soft/);
+  await expect(heads.nth(4).locator("xpath=..")).not.toHaveClass(/bg-leaf-soft/);
 
   await page.getByRole("button", { name: "看全部項目" }).click();
   await expect(table.getByRole("rowheader", { name: /海外疾病/ })).toHaveCount(0);

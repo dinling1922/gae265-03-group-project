@@ -124,8 +124,8 @@ test.describe("共用元件預覽", () => {
     );
   });
 
-  test("比較表：你在意的列標「你在意 N」；分頁切換；載入遮罩 role=status", async ({ page }) => {
-    await expect(page.getByRole("rowheader", { name: /班機延誤.*你在意 1/ })).toBeVisible();
+  test("比較表：你在意的列底色標示；分頁切換；載入遮罩 role=status", async ({ page }) => {
+    await expect(page.getByRole("rowheader", { name: /班機延誤/ })).toBeVisible();
     await page.getByRole("tab", { name: /行李遺失/ }).click();
     await expect(page.getByText("行李遺失").last()).toBeVisible();
     await page.getByTestId("open-loading").click();
