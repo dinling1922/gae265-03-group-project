@@ -63,7 +63,7 @@
 | `--color-text` | `#202820` | 內文 |
 | `--color-text-muted` | `#647364` | 麵包屑、說明、免責、計數、未選分頁字 |
 | `--color-accent` | `#78a817` | 圖示、focus 外框、箭頭圓鈕底、Chip 框、狀態綠點 |
-| `--color-accent-text` | `#55790f` | **proposal**：綠色文字（連結、看全部、你在意 N） |
+| `--color-accent-text` | `#55790f` | **proposal**：綠色文字（連結、看全部） |
 | `--color-highlight` | `#ffba00` | 黃色左線、短條、★、Logo 筆觸 |
 | `--color-alert` | `#ff654b` | 數字徽章、未完成紅點、不在範圍的點 |
 | `--color-bg` | `#fbfaf6` | 頁面底、對話區底、拖放區底、停用輸入框底 |
@@ -370,7 +370,6 @@ H1 頁標題（page-title，heading），上距 4
 
 | 元件 | 規格 |
 |---|---|
-| **你在意標籤** `.yt` | caption-bold、accent-text、上距 8；行動版變成 accent 框線膠囊（圓角 14、內距 0/10） |
 | **Chip 標籤** `.chip-tag` | caption-bold、muted、1px border、圓角 14、內距 2/12 |
 | **Pill** `.pill` | caption-bold、1px border、圓角 14、內距 2/12、白底；`.need` 前有 8px alert 點、`.sent` 前有 accent 點、`.closed` brand 框與字 |
 | **進度 Pill** `.prog` | label、heading、surface-soft 底、圓角 14、內距 2/12。例：「待辦 2／5」 |
@@ -388,7 +387,7 @@ H1 頁標題（page-title，heading），上距 4
 │              ║ 富邦產險 B 方案 ║ 國泰產險 標準型│     欄名 section-title，方案名 label-lg
 ├──────────────╫────────────────╫──────────────┤
 │ 班機延誤 ⓘ    ║ 最高 6,000 元   ║ 最高 10,000 元│  ← 在意項目整列 surface-soft 底
-│ 你在意 1      ║ 每滿 4 小時…    ║ 每滿 5 小時… │     金額 label-lg、條件 caption muted
+│              ║ 每滿 4 小時…    ║ 每滿 5 小時… │     金額 label-lg、條件 caption muted
 ├──────────────╫────────────────╫──────────────┤
 │ 意外身故失能 ⓘ║ 4,000,000 元   ║ …             │
 │      ...      ╚════════════════╝               │  ← 推薦欄左右下 3px brand 框，上下角圓 14
@@ -402,7 +401,7 @@ H1 頁標題（page-title，heading），上距 4
 - 未涵蓋：顯示「不在保障範圍」，muted。
 - **列的順序**：使用者在意的項目（依在意順序）→ 三大主項（意外身故失能、意外傷害醫療、海外突發疾病醫療）→ 展開「看全部項目」後才顯示其他項目。
 
-**行動版**：改成兩欄 grid。「保障項目」表頭整列；每個項目的名稱列整列（名稱左、你在意膠囊右），下面兩格並排（推薦｜次推薦）。表頭內公司名換行、改 caption 400。
+**行動版**：改成兩欄 grid。「保障項目」表頭整列；每個項目的名稱列整列，下面兩格並排（推薦｜次推薦）。表頭內公司名換行、改 caption 400。
 
 ### 6.16 分頁 Tabs `.tabs`
 

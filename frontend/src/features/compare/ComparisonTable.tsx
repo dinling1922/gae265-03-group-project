@@ -13,7 +13,7 @@ export type CompareRow = {
 
 /**
  * 保障比較表（DESIGN.md 6.15）：桌機三欄（項目｜推薦｜次推薦），推薦欄整欄品牌色框；
- * 你在意的列 leaf-soft 底加「你在意 N」。手機：列名獨佔一列，下面推薦、次推薦兩欄並排。
+ * 你在意的列只用 leaf-soft 底標示（不加文字標籤）。手機：列名獨佔一列，下面推薦、次推薦兩欄並排。
  * 格子內容由呼叫端決定（保障項目文字照後端給的）。
  */
 export function ComparisonTable({
@@ -62,14 +62,7 @@ export function ComparisonTable({
                 scope="row"
                 className="border-t border-line p-3 font-normal max-md:col-span-2 max-md:pb-1"
               >
-                <div className="flex flex-col items-start gap-1 max-md:flex-row max-md:items-center max-md:justify-between">
-                  <TermButton onClick={row.onTerm}>{row.label}</TermButton>
-                  {row.concernOrder && (
-                    <span className="t-micro text-leaf-text max-md:rounded-full max-md:border max-md:border-leaf max-md:px-2.5 max-md:py-0.5">
-                      你在意 {row.concernOrder}
-                    </span>
-                  )}
-                </div>
+                <TermButton onClick={row.onTerm}>{row.label}</TermButton>
               </th>
               {row.cells.map((cell, i) => (
                 <td
